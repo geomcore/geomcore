@@ -9,8 +9,8 @@ use crate::geometry::surfaces::{BSplineSurface, ParametricSurface};
 use crate::math::numeric::boxtree::boxes_apart;
 use crate::math::numeric::solve_3x3;
 use crate::operations::intersect::numeric::bezier_pieces::{
-    CurvePieces, apart_along, bounding_box, box_size, dot, euclidean, meets_at_most_once,
-    net_normal, norm, stretches_along_rows, sub,
+    CurvePieces, apart_along, bounding_box, box_size, dot, euclidean, largest_coordinate,
+    meets_at_most_once, net_normal, norm, stretches_along_rows, sub,
 };
 use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::subdivision::{
@@ -269,6 +269,7 @@ impl PairTests for PieceTests<'_> {
             pairs.net(1, node),
             patch_points,
             pairs.shape(1),
+            largest_coordinate(&curve_box).max(largest_coordinate(&patch_box)),
         );
         if once {
             let (t, r) = (node.range(0), node.rects[1]);

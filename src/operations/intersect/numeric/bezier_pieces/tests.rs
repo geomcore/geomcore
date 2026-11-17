@@ -185,7 +185,9 @@ fn test_meets_at_most_once() {
         .flat_map(|([x, y, z], w)| [x * w, y * w, z * w, w])
         .collect();
     for (net, h) in [(polynomial, 3), (rational, 4)] {
-        let once = |curve: &[[f64; 3]]| meets_at_most_once(curve, &net, &SQUARE, (2, 2, h));
+        let once = |curve: &[[f64; 3]]| {
+            meets_at_most_once(curve, &net, &SQUARE, (2, 2, h), largest(curve, &SQUARE))
+        };
         // Steep through the square: once, even curving a little.
         assert!(once(&[[0.5, 0.5, -1.0], [0.6, 0.4, 0.0], [0.5, 0.5, 1.0]]));
         // Bending back, or lying in its plane: maybe more.
@@ -199,10 +201,64 @@ fn test_meets_at_most_once() {
     // A line meets a plane once, however shallow; a polynomial net's
     // differences say so, the rational one's interval bounds need not.
     let net: Vec<f64> = SQUARE.iter().flatten().copied().collect();
+    let line = [[0.0, 0.5, -0.01], [1.0, 0.5, 0.01]];
     assert!(meets_at_most_once(
-        &[[0.0, 0.5, -0.01], [1.0, 0.5, 0.01]],
+        &line,
         &net,
         &SQUARE,
-        (2, 2, 3)
+        (2, 2, 3),
+        largest(&line, &SQUARE)
     ));
+}
+
+/// The largest absolute coordinate of the points of a curve piece and a
+/// patch.
+fn largest(curve: &[[f64; 3]], patch: &[[f64; 3]]) -> f64 {
+    largest_coordinate(&bounding_box(curve)).max(largest_coordinate(&bounding_box(patch)))
+}
+
+#[test]
+fn test_meets_at_most_once_is_no_proof_on_a_tie() {
+    // Half of the arc `z = x^2` on either side of its vertex, which
+    // touches the plane `z = 0`: its chord is exactly as far from the
+    // plane as its spread, a tie, which rounding broke toward a proof
+    // away from the origin (#429). At every placement it is no proof.
+    let unit = |v: [f64; 3]| {
+        let length = norm(v);
+        v.map(|c| c / length)
+    };
+    let z = unit([0.3, -0.4, 0.86]);
+    let towards_x = [1.0, 0.2, 0.0];
+    let x = unit(sub(towards_x, z.map(|c| c * dot(towards_x, z))));
+    let y = cross(z, x);
+    let half = 2f64.powi(-12);
+    let left = [[-half, 0.0, half * half], [-0.5 * half, 0.0, 0.0], [0.0; 3]];
+    let right = [[0.0; 3], [0.5 * half, 0.0, 0.0], [half, 0.0, half * half]];
+    let side = 4.0 * half;
+    let square = [
+        [-side, -side, 0.0],
+        [-side, side, 0.0],
+        [side, -side, 0.0],
+        [side, side, 0.0],
+    ];
+    for offset in [0.0, 1e3, 1e5, 1e7, -3.3e6] {
+        let origin = [1.0 + offset, -2.0 - 2.0 * offset, 0.5 + 1.5 * offset];
+        let placed = |p: [f64; 3]| -> [f64; 3] {
+            std::array::from_fn(|i| origin[i] + p[0] * x[i] + p[1] * y[i] + p[2] * z[i])
+        };
+        let patch = square.map(placed);
+        let net: Vec<f64> = patch.iter().flatten().copied().collect();
+        for arc in [left, right] {
+            assert!(
+                !meets_at_most_once(
+                    &arc.map(placed),
+                    &net,
+                    &patch,
+                    (2, 2, 3),
+                    largest(&arc.map(placed), &patch)
+                ),
+                "offset {offset}"
+            );
+        }
+    }
 }

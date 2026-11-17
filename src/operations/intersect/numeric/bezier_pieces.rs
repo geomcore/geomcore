@@ -341,6 +341,16 @@ fn net_directions(points: &[[f64; 3]], rows: usize, cols: usize) -> [[f64; 3]; 2
     ]
 }
 
+/// The largest absolute coordinate of the box `b`.
+pub(crate) fn largest_coordinate(b: &Aabb) -> f64 {
+    b.iter().fold(0.0f64, |largest, x| largest.max(x.abs()))
+}
+
+/// The rounding a control point of a piece carries, relative to the
+/// largest coordinate of the piece: a few roundings of the coordinates,
+/// from the conversion to Bézier pieces and from the halvings.
+const POINT_ROUNDING: f64 = 16.0 * f64::EPSILON;
+
 /// Whether a curve piece and a surface piece meet at most once (in
 /// space: the surface may reach one point from several parameters where
 /// its parametrisation is singular).
@@ -365,14 +375,28 @@ fn net_directions(points: &[[f64; 3]], rows: usize, cols: usize) -> [[f64; 3]; 2
 /// derivatives lie in the cones of the differences along its rows and
 /// along its columns if it is polynomial, else in the boxes that
 /// [`bspline_surface::derivative_bounds`] encloses them in.
+///
+/// The control points carry the rounding of their coordinates, so each
+/// direction read from a difference of them is known only to within
+/// [`POINT_ROUNDING`] of `largest`, the largest absolute coordinate of
+/// either piece (the corners of their boxes give it), over the
+/// difference's length; the spreads and the determinant are widened by that, once
+/// the test holds without it (it only makes the test stricter). The
+/// widening matters where the test is a tie: a piece ending at a tangent
+/// contact has its chord exactly as far from the plane as its spread,
+/// and far from the origin rounding broke that tie toward a proof
+/// (#429). Widened, the tie is no proof at any placement. It is a ratio
+/// of lengths, so it does not change with the model's size.
 pub(crate) fn meets_at_most_once(
     curve: &[[f64; 3]],
     net: &[f64],
     points: &[[f64; 3]],
     (rows, cols, h): (usize, usize, usize),
+    largest: f64,
 ) -> bool {
     let p = curve.len() - 1;
-    let Some(c) = unit(sub(curve[p], curve[0])) else {
+    let chord = sub(curve[p], curve[0]);
+    let Some(c) = unit(chord) else {
         return false;
     };
     let [along_s, along_t] = net_directions(points, rows, cols);
@@ -380,35 +404,56 @@ pub(crate) fn meets_at_most_once(
         return false;
     };
     let det = dot(c, cross(a, b)).abs();
-    let spread = |axis: [f64; 3], directions: &mut dyn Iterator<Item = [f64; 3]>| {
-        directions
-            .filter_map(unit)
-            .map(|d| norm(sub(d, axis)))
-            .fold(0.0f64, f64::max)
+    // The spread of the directions about `axis`, and the shortest of them.
+    let cone = |axis: [f64; 3], directions: &mut dyn Iterator<Item = [f64; 3]>| {
+        directions.fold((0.0f64, f64::INFINITY), |(spread, shortest), d| {
+            let length = norm(d);
+            if length > 0.0 && length.is_finite() {
+                let direction = d.map(|x| x / length);
+                (spread.max(norm(sub(direction, axis))), shortest.min(length))
+            } else {
+                (spread, shortest)
+            }
+        })
     };
-    let c_spread = spread(c, &mut (0..p).map(|i| sub(curve[i + 1], curve[i])));
+    let (c_spread, c_shortest) = cone(c, &mut (0..p).map(|i| sub(curve[i + 1], curve[i])));
     if c_spread >= det {
         return false;
     }
-    let (s_spread, t_spread) = if h == 4 {
+    let ((s_spread, s_shortest), (t_spread, t_shortest)) = if h == 4 {
         let (_, d) = bspline_surface::derivative_bounds(net, points, rows, cols, h, false);
-        (box_spread(a, d[0]), box_spread(b, d[1]))
+        (
+            (box_spread(a, d[0]), norm(along_s)),
+            (box_spread(b, d[1]), norm(along_t)),
+        )
     } else {
         let at = |i: usize, j: usize| points[i * cols + j];
         (
-            spread(
+            cone(
                 a,
                 &mut (0..rows - 1)
                     .flat_map(|i| (0..cols).map(move |j| sub(at(i + 1, j), at(i, j)))),
             ),
-            spread(
+            cone(
                 b,
                 &mut (0..rows)
                     .flat_map(|i| (0..cols - 1).map(move |j| sub(at(i, j + 1), at(i, j)))),
             ),
         )
     };
-    c_spread + s_spread + t_spread < det
+    let spreads = c_spread + s_spread + t_spread;
+    if spreads >= det {
+        return false;
+    }
+    // Rounding turns a direction read from a difference `d` by up to
+    // `rounding / |d|`: each axis, counted in its spread and in the
+    // determinant, and the shortest difference of each cone.
+    let rounding = POINT_ROUNDING * largest;
+    let turns = 1.0 / c_shortest
+        + 1.0 / s_shortest
+        + 1.0 / t_shortest
+        + 2.0 * (1.0 / norm(chord) + 1.0 / norm(along_s) + 1.0 / norm(along_t));
+    spreads + rounding * turns < det
 }
 
 /// A cone of directions: its axis (unit) and its spread, a bound on the

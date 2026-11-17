@@ -60,13 +60,22 @@ pub(crate) fn solve_4x4(a: [[f64; 4]; 4], b: [f64; 4], tol: f64) -> Option<[f64;
 }
 
 /// Gaussian elimination with partial pivoting; a pivot below `tol` times
-/// the sum of `|a|` counts as singular (with `tol = 0`, only a zero pivot).
+/// the sum of `|a|` down its column counts as singular (with `tol = 0`,
+/// only a zero pivot).
+///
+/// The test reads each column against itself, so it does not depend on
+/// the units of the unknowns: in a Newton step on `C(t) - S(u, v)`, the
+/// column of `t` is a length per curve parameter and those of a plane's
+/// `u` and `v` have no unit, and a model scaled by `s` scales the first
+/// column alone. Against the sum over the whole matrix, the verdict on a
+/// system as conditioned as a crossing at a slope of 1e-8 changed with
+/// the model's size (#429).
 pub(crate) fn solve_square<const N: usize>(
     mut m: [[f64; N]; N],
     mut b: [f64; N],
     tol: f64,
 ) -> Option<[f64; N]> {
-    let scale: f64 = m.iter().flatten().map(|v| v.abs()).sum();
+    let scales: [f64; N] = std::array::from_fn(|col| m.iter().map(|row| row[col].abs()).sum());
     for col in 0..N {
         let mut pivot = col;
         for row in col + 1..N {
@@ -76,7 +85,7 @@ pub(crate) fn solve_square<const N: usize>(
         }
         m.swap(col, pivot);
         b.swap(col, pivot);
-        if m[col][col].abs() <= tol * scale.max(f64::MIN_POSITIVE) {
+        if m[col][col].abs() <= tol * scales[col].max(f64::MIN_POSITIVE) {
             return None;
         }
         for row in col + 1..N {
