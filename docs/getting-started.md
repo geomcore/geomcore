@@ -115,8 +115,9 @@ you. This pair has a closed form, so the result is exact and proved
 complete:
 
 ```python
-from geomcore import Ellipse, Frame
+from geomcore import Ellipse, Frame, Transform, Vector
 
+moved = circle.transformed(Transform.translation(Vector(0.5, 0.0, 0.0)))
 ellipse = Ellipse.from_frame(Frame.world(), 3.0, 2.0)
 result = moved.intersect(ellipse)
 
@@ -153,6 +154,11 @@ the scene in place.
 
     ```python
     import geomcore_viewer as gv
+    from geomcore import Ellipse, Frame, Transform, Vector
+
+    moved = circle.transformed(Transform.translation(Vector(0.5, 0.0, 0.0)))
+    ellipse = Ellipse.from_frame(Frame.world(), 3.0, 2.0)
+    result = moved.intersect(ellipse)
 
     view = gv.Viewer("A circle and an ellipse")
     view.add(ellipse, label="E")
