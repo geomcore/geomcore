@@ -178,6 +178,7 @@ pub use geometry::curves::{
     PointExtrema2D, PointParametrization, PoleEditError, ReversibleCurve, TrimmedCurve,
     TrimmedCurve2D, TrimmedCurveConstructionError,
 };
+pub use geometry::fit::{CircleFit, CircleFit2D, CylinderFit, Fit, FitError, PlaneFit, SphereFit};
 pub use geometry::surfaces::{
     BSplineSurface, BezierSurface, Cone, ConeConstructionError, Curve3DToUvError, Cylinder,
     CylinderConstructionError, ElementarySurface, ExtrusionSurface,

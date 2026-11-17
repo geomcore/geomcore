@@ -1,5 +1,5 @@
-"""Every intersection, projection, extrema, curvature, approximation and
-discretization result pickles with the operands it holds, and copies
+"""Every intersection, projection, extrema, curvature, approximation, fit
+and discretization result pickles with the operands it holds, and copies
 (#318)."""
 
 import concurrent.futures
@@ -17,6 +17,7 @@ from geomcore import (
     BSplineSurface,
     Circle,
     Circle2D,
+    Cylinder,
     Line,
     Line2D,
     Plane,
@@ -66,6 +67,11 @@ def _results() -> list:
         BSplineCurve.approximate_within(arch, 3, 1e-3),
         BSplineCurve2D.approximate_within([Point2D(p.x, p.y) for p in arch], 3, 1e-3),
         BSplineSurface.approximate_within(grid, 3, 3, 1e-3),
+        Plane.fit(arch),
+        Circle.fit(arch),
+        Circle2D.fit([Point2D(p.x, p.y) for p in arch]),
+        Sphere.fit([p for row in grid for p in row]),
+        Cylinder.fit([p for row in grid for p in row]),
         circle.discretize(1e-2),
         Circle2D(Point2D(0, 0), 1.0).discretize(1e-2),
     ]
@@ -113,6 +119,8 @@ def test_every_result_class_is_covered():
                 "Extremum",
                 "Approximation",
                 "Approximation2D",
+                "Fit",
+                "Fit2D",
             )
         )
         or name in ("Completeness", "IntersectionCurve", "SurfaceCurvatures")

@@ -198,6 +198,16 @@ _Avoid_: foot (in names), closest point as a type name
 The local minima of the distance between two curves, closest first, each with the parameters on both curves and the distance: `curve_curve_extrema`. A valley of equal minima (parallel lines, concentric arcs) is represented by one of its points. The result carries its **completeness**, as a numeric intersection does: the curve–curve intersection is read from the minima at zero distance. Distances within the confusion tolerance snap to `0.0`.
 _Avoid_: extremum for the level-function extrema that seed marching (those are level extrema), distance for the whole result
 
+## Fitting
+
+**Fit**:
+The plane, circle, sphere or cylinder that minimizes the sum of the squared distances from given points to it, with its residuals: `Plane::fit` and the others, returning a `Fit`. The distance is the true one, not an algebraic stand-in: an algebraic fit only starts the refinement. A fit refuses points within the confusion tolerance of a point, a line, or for a sphere or a cylinder a plane, which leave the shape undetermined.
+_Avoid_: regression (one method of fitting), approximation (reserved for the operations within a deviation), best-fit shape as a type name
+
+**Residual**:
+The distance from one of the fitted points to the fitted shape. A fit reports their root mean square and their largest, lengths that scale with the points.
+_Avoid_: error, RMS (in names), deviation (reserved for approximations)
+
 ## Discretization
 
 **Discretization**:

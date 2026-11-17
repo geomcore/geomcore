@@ -59,6 +59,9 @@ class TrimmedCurveConstructionError(ConstructionError):
 class TrimmedSurfaceConstructionError(ConstructionError):
     """A trimmed surface could not be built, for example from an invalid parameter range."""
 
+class FitError(ConstructionError):
+    """A shape could not be fitted to the given points: too few of them, or too degenerate for the shape (collinear for a circle, coplanar for a sphere or a cylinder)."""
+
 class KnotInsertionError(GeomcoreError):
     """A knot could not be inserted into a B-spline."""
 
@@ -1011,6 +1014,102 @@ class IncompleteReason(enum.IntEnum):
     UNSEPARATED = 1
     UNBOUNDED = 2
 
+
+@final
+class PlaneFit:
+    """A plane fitted to points by least squares, from `Plane.fit`, with
+    how far the points lie from it: the root mean square and the
+    largest of their distances to it, which scale with the points.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def shape(self) -> Plane:
+        """The fitted shape."""
+    @property
+    def root_mean_square_residual(self) -> float:
+        """The root mean square of the distances from the points to the
+        shape: `sqrt(sum(d**2) / n)`.
+        """
+    @property
+    def maximum_residual(self) -> float:
+        """The largest distance from a point to the shape."""
+
+@final
+class CircleFit:
+    """A circle in space fitted to points by least squares, from
+    `Circle.fit`, with how far the points lie from it: the root mean
+    square and the largest of their distances to it, which scale with
+    the points.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def shape(self) -> Circle:
+        """The fitted shape."""
+    @property
+    def root_mean_square_residual(self) -> float:
+        """The root mean square of the distances from the points to the
+        shape: `sqrt(sum(d**2) / n)`.
+        """
+    @property
+    def maximum_residual(self) -> float:
+        """The largest distance from a point to the shape."""
+
+@final
+class CircleFit2D:
+    """A circle in the plane fitted to points by least squares, from
+    `Circle2D.fit`: as `CircleFit` is for a circle in space.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def shape(self) -> Circle2D:
+        """The fitted shape."""
+    @property
+    def root_mean_square_residual(self) -> float:
+        """The root mean square of the distances from the points to the
+        shape: `sqrt(sum(d**2) / n)`.
+        """
+    @property
+    def maximum_residual(self) -> float:
+        """The largest distance from a point to the shape."""
+
+@final
+class SphereFit:
+    """A sphere fitted to points by least squares, from `Sphere.fit`, with
+    how far the points lie from it: the root mean square and the
+    largest of their distances to it, which scale with the points.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def shape(self) -> Sphere:
+        """The fitted shape."""
+    @property
+    def root_mean_square_residual(self) -> float:
+        """The root mean square of the distances from the points to the
+        shape: `sqrt(sum(d**2) / n)`.
+        """
+    @property
+    def maximum_residual(self) -> float:
+        """The largest distance from a point to the shape."""
+
+@final
+class CylinderFit:
+    """A cylinder fitted to points by least squares, from `Cylinder.fit`,
+    with how far the points lie from it: the root mean square and the
+    largest of their distances to it, which scale with the points.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def shape(self) -> Cylinder:
+        """The fitted shape."""
+    @property
+    def root_mean_square_residual(self) -> float:
+        """The root mean square of the distances from the points to the
+        shape: `sqrt(sum(d**2) / n)`.
+        """
+    @property
+    def maximum_residual(self) -> float:
+        """The largest distance from a point to the shape."""
+
 @final
 class CurveCurveRegion:
     """Where an incomplete curve–curve search may have missed something: a
@@ -1952,6 +2051,18 @@ class Circle(
         """Build the circle through three non-collinear points; the curve starts
         at the first point.
         """
+    @staticmethod
+    def fit(points: _Points, tol: Optional[_ToleranceLike] = None) -> CircleFit:
+        """The least-squares circle in space of `points`, with its residuals:
+        the algebraic circle in their least-squares plane, refined on the
+        distance in space. It runs through the points in their order, from
+        the first one's direction at parameter 0.
+
+        `points` is a list of points or an `(N, 3)` array-like, and `tol` is
+        `Tolerance.default()` when omitted. Raises `FitError` below 3 points,
+        or when every point lies within `tol.confusion` of their centroid or
+        of their least-squares line.
+        """
     def center(self) -> Point:
         """The circle center."""
     def radius(self) -> float:
@@ -2690,6 +2801,18 @@ class Circle2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretization2D])
         """Build a 2D circle from its placement frame and radius: centered on
         the frame origin, starting along its x direction, and turning
         clockwise when the frame is indirect.
+        """
+    @staticmethod
+    def fit(points: _Points2D, tol: Optional[_ToleranceLike] = None) -> CircleFit2D:
+        """The least-squares circle of `points`, with its residuals: the
+        algebraic circle, refined on the distance. It runs through the points
+        in their order, clockwise when they turn clockwise, from the first
+        one's direction at parameter 0.
+
+        `points` is a list of points or an `(N, 2)` array-like, and `tol` is
+        `Tolerance.default()` when omitted. Raises `FitError` below 3 points,
+        or when every point lies within `tol.confusion` of their centroid or
+        of their least-squares line.
         """
     def center(self) -> Point2D:
         """The circle center."""
@@ -3440,6 +3563,18 @@ class Plane(_SurfaceMethods[Line, Line]):
     def from_three_points(p1: _PointLike, p2: _PointLike, p3: _PointLike) -> Plane:
         """Build a plane through three non-collinear points."""
     @staticmethod
+    def fit(points: _Points, tol: Optional[_ToleranceLike] = None) -> PlaneFit:
+        """The least-squares plane of `points`, with its residuals: through
+        their centroid, across their axis of least spread. Its normal is the
+        one the points, in their order, turn counterclockwise about, and its
+        x direction points towards the first point.
+
+        `points` is a list of points or an `(N, 3)` array-like, and `tol` is
+        `Tolerance.default()` when omitted. Raises `FitError` below 3 points,
+        or when every point lies within `tol.confusion` of their centroid or
+        of their least-squares line.
+        """
+    @staticmethod
     def from_coefficients(a: float, b: float, c: float, d: float) -> Plane:
         """Build a plane from the equation `a*x + b*y + c*z + d = 0`."""
     def axis(self) -> Axis:
@@ -3480,6 +3615,19 @@ class Cylinder(_SurfaceMethods[Line, Circle]):
     def from_circle(circle: Circle) -> Cylinder:
         """Build the cylinder containing a circle (axis through the circle
         center, along its normal).
+        """
+    @staticmethod
+    def fit(points: _Points, tol: Optional[_ToleranceLike] = None) -> CylinderFit:
+        """The least-squares cylinder of `points`, with its residuals: the axis
+        direction searched over a hemisphere, then refined with the centre
+        and the radius on the distance. Its origin is the point of the axis
+        nearest the points' centroid, and its axis the direction the points,
+        in their order, turn counterclockwise about.
+
+        `points` is a list of points or an `(N, 3)` array-like, and `tol` is
+        `Tolerance.default()` when omitted. Raises `FitError` below 5 points,
+        or when every point lies within `tol.confusion` of their centroid,
+        of their least-squares line or of their least-squares plane.
         """
     def radius(self) -> float:
         """The cylinder radius."""
@@ -3561,6 +3709,17 @@ class Sphere(_SurfaceMethods[Circle, Circle]):
     @staticmethod
     def from_frame(frame: Frame, radius: float) -> Sphere:
         """Build a sphere from a placement frame and radius."""
+    @staticmethod
+    def fit(points: _Points, tol: Optional[_ToleranceLike] = None) -> SphereFit:
+        """The least-squares sphere of `points`, with its residuals: the
+        algebraic sphere, refined on the distance. Its frame is
+        world-aligned.
+
+        `points` is a list of points or an `(N, 3)` array-like, and `tol` is
+        `Tolerance.default()` when omitted. Raises `FitError` below 4 points,
+        or when every point lies within `tol.confusion` of their centroid,
+        of their least-squares line or of their least-squares plane.
+        """
     def center(self) -> Point:
         """The sphere center."""
     def radius(self) -> float:
@@ -4029,6 +4188,7 @@ __all__ = [
     "FrameConstructionError",
     "TrimmedCurveConstructionError",
     "TrimmedSurfaceConstructionError",
+    "FitError",
     "KnotInsertionError",
     "KnotRemovalError",
     "DegreeElevationError",
@@ -4082,6 +4242,11 @@ __all__ = [
     "CurveApproximation",
     "CurveApproximation2D",
     "SurfaceApproximation",
+    "PlaneFit",
+    "CircleFit",
+    "CircleFit2D",
+    "SphereFit",
+    "CylinderFit",
     "Line",
     "Circle",
     "Ellipse",

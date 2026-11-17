@@ -71,6 +71,27 @@ shape_methods! {
         PyCylinder(Cylinder::from_circle(&circle.0))
     }
 
+    /// The least-squares cylinder of `points`, with its residuals: the axis
+    /// direction searched over a hemisphere, then refined with the centre
+    /// and the radius on the distance. Its origin is the point of the axis
+    /// nearest the points' centroid, and its axis the direction the points,
+    /// in their order, turn counterclockwise about.
+    ///
+    /// `points` is a list of points or an `(N, 3)` array-like, and `tol` is
+    /// `Tolerance.default()` when omitted. Raises `FitError` below 5 points,
+    /// or when every point lies within `tol.confusion` of their centroid,
+    /// of their least-squares line or of their least-squares plane.
+    #[staticmethod]
+    #[pyo3(signature = (points, tol = None))]
+    fn fit(
+        points: crate::arrays::Points<geomcore::Point>,
+        tol: Option<crate::values::ToleranceArgument>,
+    ) -> PyResult<crate::fit::PyCylinderFit> {
+        Ok(crate::fit::PyCylinderFit(
+            Cylinder::fit(&points.0, crate::tolerance(tol)).map_err(python_error)?,
+        ))
+    }
+
     /// The cylinder radius.
     fn radius(&self) -> f64 {
         self.0.radius()
