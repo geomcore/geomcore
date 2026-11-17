@@ -113,8 +113,10 @@ use tracer::{Cut, Trace, Tracer, chord_deviation};
 /// intersection at its midpoint, converged onto both surfaces, strays
 /// from the chord by more than twice that deviation, or, where the
 /// surfaces cross, when the fitted segment between the step's ends lies
-/// there more than a quarter of confusion off either surface (see
-/// [`step_error`](Tracer::step_error)), or when it crosses more than one
+/// there more than a quarter of confusion off either surface, or the
+/// fitted segment in either surface's parameters puts the surface's point
+/// that far from it (see [`step_error`](Tracer::step_error)), or when it
+/// crosses more than one
 /// knot in a parameter of a B-spline side, so that it never steps over a
 /// whole knot span (within a span the control points bound the features). The segment's error grows as the fourth
 /// power of the step, which sizes the next step. A trace ends
@@ -196,9 +198,11 @@ use tracer::{Cut, Trace, Tracer, chord_deviation};
 /// seed lies where the surfaces only touch (the search would halve along
 /// the whole touch).
 ///
-/// The fits are APPROXIMATIONS (interpolation error, typically ~1e-4 at
-/// default tolerance — assert residuals, not containment; each curve's
-/// [`deviation`](IntersectionCurve::deviation) reports its own): exact
+/// The fits are APPROXIMATIONS (each curve's
+/// [`deviation`](IntersectionCurve::deviation) reports its own, within
+/// confusion where the surfaces cross, except where the parameters of a
+/// surface degenerate on the curve, as where it runs through a sphere's
+/// pole — assert residuals, not containment): exact
 /// classification stays with the exact intersection
 /// ([`IntersectExact::intersect_exact`](crate::IntersectExact::intersect_exact)). Likewise
 /// a coincidence check that sees only whole surfaces (two
@@ -715,7 +719,7 @@ impl Fitted {
             let knots = hermite_knots(points, &tangents);
             let mut derivatives: [Vec<Option<Vector2D>>; 2] = [Vec::new(), Vec::new()];
             for &(t, x) in along {
-                for (side, shift) in pair.parameter_shifts(x, t).into_iter().enumerate() {
+                for (side, (shift, _)) in pair.parameter_shifts(x, t, tol).into_iter().enumerate() {
                     derivatives[side].push(shift.map(|[du, dv]| Vector2D::new(du, dv)));
                 }
             }
