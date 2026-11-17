@@ -939,6 +939,26 @@ impl Axis2D {
         self.direction.is_parallel(other.direction, angular)
     }
 
+    /// Whether the axes are the same line, in either orientation: their
+    /// directions are parallel within `tol.angular` and the origin of
+    /// `other` lies on this axis within `tol.confusion`. The test is
+    /// measured at `other`'s origin, as [`Axis::is_coaxial`]'s is.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis2D, Point2D, Tolerance, Vector2D};
+    /// let axis = Axis2D::new(Point2D::ORIGIN, Vector2D::Y).unwrap();
+    /// let along = Axis2D::new(Point2D::new(0.0, 5.0), -Vector2D::Y).unwrap();
+    /// assert!(axis.is_coaxial(along, Tolerance::DEFAULT));
+    /// let beside = Axis2D::new(Point2D::new(3.0, 5.0), Vector2D::Y).unwrap();
+    /// assert!(!axis.is_coaxial(beside, Tolerance::DEFAULT));
+    /// ```
+    #[inline]
+    pub fn is_coaxial(self, other: Axis2D, tol: Tolerance) -> bool {
+        self.is_parallel(other, tol.angular) && self.contains(other.origin, tol)
+    }
+
     /// The axis with its direction negated, through the same origin.
     ///
     /// # Examples
@@ -1149,6 +1169,44 @@ impl Frame2D {
         self.x_dir.cross(self.y_dir) > 0.0
     }
 
+    /// Returns the frame with the x direction negated. Orthonormality is
+    /// preserved; handedness flips.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame2D, Vector2D};
+    /// let flipped = Frame2D::WORLD.flipped_x();
+    /// assert_eq!(flipped.x_direction(), -Vector2D::X);
+    /// assert!(!flipped.is_direct());
+    /// ```
+    #[inline]
+    pub fn flipped_x(self) -> Frame2D {
+        Frame2D {
+            x_dir: -self.x_dir,
+            ..self
+        }
+    }
+
+    /// Returns the frame with the y direction negated. Orthonormality is
+    /// preserved; handedness flips.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame2D, Vector2D};
+    /// let flipped = Frame2D::WORLD.flipped_y();
+    /// assert_eq!(flipped.y_direction(), -Vector2D::Y);
+    /// assert!(!flipped.is_direct());
+    /// ```
+    #[inline]
+    pub fn flipped_y(self) -> Frame2D {
+        Frame2D {
+            y_dir: -self.y_dir,
+            ..self
+        }
+    }
+
     /// Returns the axis through the origin along the x direction.
     ///
     /// # Examples
@@ -1238,15 +1296,6 @@ impl Frame2D {
     /// ```
     pub fn local_components(self, vector: Vector2D) -> (f64, f64) {
         (vector.dot(self.x_dir), vector.dot(self.y_dir))
-    }
-
-    /// The frame with the y direction negated: orthonormality is kept and
-    /// the handedness flips, as [`Frame::flipped_y`] does in space.
-    pub(crate) fn flipped_y(self) -> Frame2D {
-        Frame2D {
-            y_dir: -self.y_dir,
-            ..self
-        }
     }
 }
 

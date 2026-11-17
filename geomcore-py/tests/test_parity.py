@@ -757,3 +757,198 @@ def test_elementary_reprs_use_the_constructor_keywords():
         # (the x direction of a conic) that the frame derives.
         assert keywords == [p for p in parameters if p in keywords], (repr(shape), parameters)
     assert seen == _ELEMENTARY
+
+
+# ---------------------------------------------------------------- 2D ↔ 3D parity
+
+# What a 3D class answers and its 2D twin does not (#197), row by row:
+#
+# - required: the 2D twin answers it, and the test fails when it does not;
+# - excluded: the plane has no use for it, for the reason given, and the
+#   test fails if the twin gains it, so the row is revisited;
+# - pending: an open issue adds it; the test is an expected failure that
+#   reports the issue, and fails once the twin answers it, so the row
+#   turns required.
+#
+# A row is a method name, checked with `hasattr` on the 2D twin, or a form
+# of a method both have (`extrema(curve)`), checked by its own probe.
+# Every method a 3D class has beyond its twin's needs a row.
+
+REQUIRED, EXCLUDED, PENDING = "required", "excluded", "pending"
+
+
+class _Row:
+    def __init__(self, status, reason="", probe=None):
+        self.status, self.reason, self.probe = status, reason, probe
+
+
+def _takes_a_2d_curve():
+    circle = geomcore.Circle2D(Point2D(0.0, 0.0), 1.0)
+    try:
+        circle.extrema(geomcore.Circle2D(Point2D(3.0, 0.0), 1.0))
+    except TypeError:
+        return False
+    return True
+
+
+def _arc_takes_a_normal():
+    return "normal" in inspect.signature(geomcore.TrimmedCurve2D.arc).parameters
+
+
+_FILLED = _Row(REQUIRED)
+_NO_Z = _Row(EXCLUDED, "the plane has no z direction")
+_TRANSFORMED = _Row(PENDING, "#421: Transform2D")
+
+TWO_D_PARITY = {
+    "Point": {"z": _NO_Z, "transformed": _TRANSFORMED},
+    "Vector": {
+        "z": _NO_Z,
+        "unit_z": _NO_Z,
+        "angle_with_reference": _Row(
+            EXCLUDED, "the plane signs an angle without a reference: `signed_angle`"
+        ),
+    },
+    "Axis": {"is_coaxial": _FILLED},
+    "Frame": {
+        "flipped_x": _FILLED,
+        "flipped_y": _FILLED,
+        "flipped_z": _NO_Z,
+        "z_direction": _NO_Z,
+        "axis": _Row(EXCLUDED, "the z axis; a 2D frame gives `x_axis` and `y_axis`"),
+        "from_z": _Row(EXCLUDED, "built about a z direction; the plane's form is `from_x`"),
+        "from_axes": _Row(
+            EXCLUDED, "`Frame2D(origin, x_direction, y_direction)` takes either handedness"
+        ),
+        "transformed": _TRANSFORMED,
+    },
+    "Line": {"transformed": _TRANSFORMED},
+    "Circle": {
+        "from_three_points": _FILLED,
+        "enclosed_area": _FILLED,
+        "normal": _Row(
+            EXCLUDED, "the plane's normal is fixed; the turning sense is `is_counterclockwise`"
+        ),
+        "axis": _Row(EXCLUDED, "the line along the normal, which the plane fixes"),
+        "from_axis": _Row(
+            EXCLUDED, "an axis gives the normal, which the plane fixes: `Circle2D(center, radius)`"
+        ),
+        "transformed": _TRANSFORMED,
+    },
+    "Ellipse": {"transformed": _TRANSFORMED},
+    "Parabola": {"transformed": _TRANSFORMED},
+    "Hyperbola": {"transformed": _TRANSFORMED},
+    "BSplineCurve": {"transformed": _TRANSFORMED},
+    "BezierCurve": {"transformed": _TRANSFORMED},
+    "TrimmedCurve": {
+        "transformed": _TRANSFORMED,
+        "arc(normal)": _Row(
+            EXCLUDED,
+            "an arc turns about a normal in space; the plane has one, so `counterclockwise=`"
+            " says which way",
+            _arc_takes_a_normal,
+        ),
+    },
+    "_CurveMethods": {
+        "extrema(curve)": _Row(PENDING, "#422: curve–curve extrema in 2D", _takes_a_2d_curve),
+    },
+}
+
+# The 3D classes with no 2D twin, grouped by reason.
+_IN_SPACE_ONLY = _Row(EXCLUDED, "a surface, or a result or fit involving one, lives in space")
+_SHARED = _Row(EXCLUDED, "serves both tiers")
+CLASSES_WITHOUT_A_2D_TWIN = {
+    "Transform": _Row(PENDING, "#421: Transform2D"),
+    "CurveCurveExtrema": _Row(PENDING, "#422: curve–curve extrema in 2D"),
+    "CurveCurveExtremum": _Row(PENDING, "#422: curve–curve extrema in 2D"),
+    "QuarticBranch": _Row(EXCLUDED, "where two quadric surfaces meet in space"),
+    **dict.fromkeys(
+        [
+            *_SURFACE_CLASSES,
+            "SurfaceProjection", "SurfaceCurvatures", "SurfaceApproximation",
+            "PlaneFit", "SphereFit", "CylinderFit",
+            "CurveSurfaceHit", "CurveSurfaceIntersection", "CurveSurfaceOverlap",
+            "CurveSurfaceRegion", "SurfaceSurfaceIntersection", "SurfaceSurfaceRegion",
+            "IntersectionCurve",
+        ],
+        _IN_SPACE_ONLY,
+    ),
+    **dict.fromkeys(
+        [
+            "Tolerance", "Side", "PointParametrization", "IntersectionMethod",
+            "Completeness", "CompletenessStatus", "IncompleteReason",
+            "CurveCurveOverlap", "CurveCurveRegion",
+        ],
+        _SHARED,
+    ),
+}
+
+
+def _public_names(cls):
+    return {name for name in dir(cls) if not name.startswith("_")}
+
+
+def _twins():
+    """Each 3D class with a 2D twin, as (3D class, 2D class)."""
+    for name in dir(geomcore):
+        cls, twin = getattr(geomcore, name), getattr(geomcore, name + "2D", None)
+        if inspect.isclass(cls) and inspect.isclass(twin):
+            yield cls, twin
+
+
+def _classes_without_a_twin():
+    for name in dir(geomcore):
+        cls = getattr(geomcore, name)
+        if (
+            inspect.isclass(cls)
+            and not name.startswith("_")
+            and not name.endswith("2D")
+            and not issubclass(cls, BaseException)
+            and not hasattr(geomcore, name + "2D")
+        ):
+            yield name
+
+
+def _method_rows():
+    for name, rows in TWO_D_PARITY.items():
+        for method, row in rows.items():
+            twin = "_Curve2DMethods" if name == "_CurveMethods" else f"{name}2D"
+            marks = [pytest.mark.xfail(raises=AssertionError, strict=True, reason=row.reason)] * (row.status == PENDING)
+            yield pytest.param(name, method, row, id=f"{twin}.{method}", marks=marks)
+
+
+def _class_rows():
+    for name, row in CLASSES_WITHOUT_A_2D_TWIN.items():
+        marks = [pytest.mark.xfail(raises=AssertionError, strict=True, reason=row.reason)] * (row.status == PENDING)
+        yield pytest.param(name, row, id=f"{name}2D", marks=marks)
+
+
+def test_every_method_a_3d_class_has_beyond_its_2d_twin_has_a_parity_row():
+    for cls, twin in _twins():
+        unlisted = _public_names(cls) - _public_names(twin) - set(TWO_D_PARITY.get(cls.__name__, {}))
+        assert not unlisted, (cls.__name__, sorted(unlisted))
+
+
+def test_every_3d_class_without_a_2d_twin_has_a_parity_row():
+    assert set(_classes_without_a_twin()) == set(CLASSES_WITHOUT_A_2D_TWIN)
+
+
+@pytest.mark.parametrize("name, method, row", list(_method_rows()))
+def test_the_2d_twin_answers_each_parity_row_unless_excluded(name, method, row):
+    if row.probe is None:
+        assert hasattr(getattr(geomcore, name), method), "the row names no 3D method"
+        answers = hasattr(getattr(geomcore, name + "2D"), method)
+    else:
+        answers = row.probe()
+    assert answers == (row.status != EXCLUDED), row.reason
+
+
+@pytest.mark.parametrize("name, row", list(_class_rows()))
+def test_a_3d_class_has_a_2d_twin_unless_excluded(name, row):
+    assert hasattr(geomcore, name + "2D") == (row.status != EXCLUDED), row.reason
+
+
+def test_every_central_conic_has_an_eccentricity_and_its_foci():
+    # #197: a circle is the ellipse of eccentricity 0, both foci at its centre.
+    for name in ("Circle", "Ellipse", "Hyperbola"):
+        for cls in (getattr(geomcore, name), getattr(geomcore, name + "2D")):
+            assert {"eccentricity", "foci"} <= _public_names(cls), cls.__name__
