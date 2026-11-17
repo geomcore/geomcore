@@ -6,7 +6,7 @@ use crate::geometry::curves::{BSplineCurve2D, Line2D};
 
 use crate::Continuity;
 use crate::operations::projection::CurveProjection2D;
-use crate::{Point2D, Tolerance, Vector2D};
+use crate::{Direction2D, Point2D, Tolerance, Vector2D};
 
 /// Common interface for 2D parametric curves. Implement this to add a new
 /// curve type that can be used generically (see [`Curve2D`](crate::Curve2D) for a
@@ -105,7 +105,7 @@ pub trait ParametricCurve2D {
         )
     }
 
-    /// Unit tangent `C'/|C'|` at parameter `u`, or `None` where the speed
+    /// Unit tangent at parameter `u`, the [`Direction2D`] of `C'/|C'|`, or `None` where the speed
     /// vanishes (a cusp or a stop). The speed counts as zero when the
     /// distance `|C'| × width` it would cover across the parameter range
     /// (`width = last - first` of [`bounds`](Self::bounds), the model size
@@ -117,18 +117,20 @@ pub trait ParametricCurve2D {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::{Circle2D, Line2D, Point2D, Tolerance, Vector2D};
+    /// use geomcore::{Circle2D, Direction2D, Line2D, Point2D, Tolerance, Vector2D};
     ///
     /// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
-    /// assert_eq!(line.tangent(5.0, Tolerance::DEFAULT), Some(Vector2D::X));
+    /// assert_eq!(line.tangent(5.0, Tolerance::DEFAULT), Some(Direction2D::X));
     ///
     /// let circle = Circle2D::new(Point2D::ORIGIN, 2.0).unwrap();
-    /// assert_eq!(circle.tangent(0.0, Tolerance::DEFAULT), Some(Vector2D::Y));
+    /// assert_eq!(circle.tangent(0.0, Tolerance::DEFAULT), Some(Direction2D::Y));
     /// ```
-    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector2D> {
+    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Direction2D> {
         let (_, first_derivative) = self.first_derivatives(u);
         let speed = regular_speed(first_derivative, tol.reference_width(self.bounds()), tol)?;
-        Some(first_derivative * (1.0 / speed))
+        Some(Direction2D::from_unit_vector(
+            first_derivative * (1.0 / speed),
+        ))
     }
 
     /// Signed scalar curvature `(x'y'' − y'x'') / |C'|³` (the turn rate of
@@ -484,7 +486,7 @@ impl<C: ParametricCurve2D + ?Sized> ParametricCurve2D for &C {
         (**self).points_at(us)
     }
 
-    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector2D> {
+    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Direction2D> {
         (**self).tangent(u, tol)
     }
 

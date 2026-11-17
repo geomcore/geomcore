@@ -1721,14 +1721,14 @@ impl PySurfaceCurvatures {
     /// The unit tangent direction of `min_curvature`.
     #[getter]
     fn min_direction(&self) -> PyVector {
-        PyVector(self.0.min_direction)
+        PyVector(self.0.min_direction.vector())
     }
 
     /// The unit tangent direction of `max_curvature`, perpendicular to
     /// `min_direction`.
     #[getter]
     fn max_direction(&self) -> PyVector {
-        PyVector(self.0.max_direction)
+        PyVector(self.0.max_direction.vector())
     }
 
     /// The mean curvature, `(min_curvature + max_curvature) / 2`.
@@ -1749,8 +1749,8 @@ impl PySurfaceCurvatures {
              max_direction=Vector{}, mean={}, gaussian={})",
             float_repr(self.0.min_curvature),
             float_repr(self.0.max_curvature),
-            coordinates(self.0.min_direction),
-            coordinates(self.0.max_direction),
+            coordinates(self.0.min_direction.vector()),
+            coordinates(self.0.max_direction.vector()),
             float_repr(self.0.mean),
             float_repr(self.0.gaussian),
         )

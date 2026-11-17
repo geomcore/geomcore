@@ -9,7 +9,7 @@ use crate::geometry::curves::{
     BSplineCurve, BezierCurve, Circle, Ellipse, Hyperbola, Line, Parabola, QuarticBranch,
 };
 use crate::operations::projection::CurveProjection;
-use crate::{Point, Tolerance, Vector};
+use crate::{Direction, Point, Tolerance, Vector};
 use crate::{Transform, TransformError, Transformable};
 
 /// Calls `worker!` on the variants of [`Curve`] or of [`ElementaryCurve`]
@@ -128,7 +128,7 @@ impl ParametricCurve for Curve {
         curve_dispatch!(self, c => c.second_derivatives(u))
     }
 
-    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector> {
+    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Direction> {
         curve_dispatch!(self, c => c.tangent(u, tol))
     }
 
@@ -265,7 +265,7 @@ impl ParametricCurve for ElementaryCurve {
         elementary_curve_dispatch!(self, c => c.second_derivatives(u))
     }
 
-    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector> {
+    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Direction> {
         elementary_curve_dispatch!(self, c => c.tangent(u, tol))
     }
 

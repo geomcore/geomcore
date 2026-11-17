@@ -115,8 +115,8 @@ fn test_curve2d_enum_forwards_local_properties() {
     assert_eq!(curves[1].curvature(0.0, TOL), Some(0.5));
     assert_eq!(curves[2].curvature(0.5, TOL), Some(-1.0));
     assert_eq!(curves[3].curvature(0.0, TOL), Some(4.0 / 3.0));
-    assert_eq!(curves[1].tangent(0.0, TOL), Some(Vector2D::Y));
-    assert_eq!(curves[3].tangent(0.0, TOL), Some(Vector2D::Y));
+    assert_eq!(curves[1].tangent(0.0, TOL), Some(Direction2D::Y));
+    assert_eq!(curves[3].tangent(0.0, TOL), Some(Direction2D::Y));
     assert_eq!(curves[1].curvature_center(0.0, TOL), Some(Point2D::ORIGIN));
     assert_eq!(
         curves[3].curvature_center(0.0, TOL),

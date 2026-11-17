@@ -283,7 +283,7 @@ fn local_properties_agree() {
     for (name, planar, spatial) in pairs() {
         for u in parameters(&planar) {
             match (planar.tangent(u, TOL), spatial.tangent(u, TOL)) {
-                (Some(a), Some(b)) => assert_same_vector(a, b, &name),
+                (Some(a), Some(b)) => assert_same_vector(a.vector(), b.vector(), &name),
                 (None, None) => {}
                 other => panic!("{name}: tangents disagree at {u}: {other:?}"),
             }

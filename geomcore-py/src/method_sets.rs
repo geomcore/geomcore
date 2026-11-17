@@ -256,7 +256,7 @@ macro_rules! curve_methods {
             /// rescaling the parameter does not change the answer.
             #[pyo3(signature = (u, tol = None))]
             fn tangent(&self, u: f64, tol: Option<ToleranceArgument>) -> Option<$vector> {
-                self.0.tangent(u, tolerance(tol)).map($vector)
+                self.0.tangent(u, tolerance(tol)).map(|tangent| $vector(tangent.vector()))
             }
 
             /// Curvature at parameter `u`: the turn rate of the unit tangent
@@ -763,7 +763,7 @@ macro_rules! parametric_surface {
                 #[pyo3(from_py_with = $crate::arrays::number_or_normals_array)] v: f64,
                 tol: Option<ToleranceArgument>,
             ) -> Option<PyVector> {
-                self.0.normal(u, v, tolerance(tol)).map(PyVector)
+                self.0.normal(u, v, tolerance(tol)).map(|normal| PyVector(normal.vector()))
             }
 
             /// The unit normal at each `(u, v)` row of the `(N, 2)`
@@ -783,7 +783,7 @@ macro_rules! parametric_surface {
                 let undefined = geomcore::Vector::new(f64::NAN, f64::NAN, f64::NAN);
                 let normals: Vec<geomcore::Vector> = py.detach(|| {
                     uvs.iter()
-                        .map(|&(u, v)| self.0.normal(u, v, tol).unwrap_or(undefined))
+                        .map(|&(u, v)| self.0.normal(u, v, tol).map_or(undefined, geomcore::Direction::vector))
                         .collect()
                 });
                 arrays::point_array(py, normals.into_iter())

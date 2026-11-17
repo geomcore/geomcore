@@ -12,7 +12,7 @@ use crate::geometry::surfaces::{
     Curve3DToUvError, ParametricSurface, Surface, SurfaceCurvatures, UvCurveTo3DError,
 };
 use crate::operations::intersect::routing::in_range;
-use crate::{BoundingBox, HasBoundingBox, Point, SurfaceProjection, Tolerance, Vector};
+use crate::{BoundingBox, Direction, HasBoundingBox, Point, SurfaceProjection, Tolerance, Vector};
 use std::fmt;
 
 /// Error returned when a [`TrimmedSurface`] cannot be constructed from the
@@ -322,7 +322,7 @@ impl<S: ParametricSurface> ParametricSurface for TrimmedSurface<S> {
         self.basis.second_derivatives(u, v)
     }
 
-    fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Vector> {
+    fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Direction> {
         self.basis.normal(u, v, tol)
     }
 

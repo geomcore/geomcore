@@ -9,7 +9,7 @@ use crate::geometry::curves::{
     BSplineCurve2D, BezierCurve2D, Circle2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
 };
 use crate::operations::projection::CurveProjection2D;
-use crate::{Point2D, Tolerance, Vector2D};
+use crate::{Direction2D, Point2D, Tolerance, Vector2D};
 
 /// Calls `worker!` on the variants of [`Curve2D`] (see
 /// [`crate::geometry::enum_variants`]), or with `Elementary` first on its elementary
@@ -122,7 +122,7 @@ impl ParametricCurve2D for Curve2D {
         curve_2d_dispatch!(self, c => c.second_derivatives(u))
     }
 
-    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Vector2D> {
+    fn tangent(&self, u: f64, tol: Tolerance) -> Option<Direction2D> {
         curve_2d_dispatch!(self, c => c.tangent(u, tol))
     }
 

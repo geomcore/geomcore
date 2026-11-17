@@ -1,6 +1,6 @@
 # A unit vector is a direction, by type
 
-The directions of the kernel are unit vectors: an axis's direction, a frame's three axes, a circle's normal, a line's direction. They are values of their own type, `Direction` in space and `Direction2D` in the plane, which hold a vector of unit length by construction. `Vector::direction` builds one, normalizing once and returning `None` for a zero vector. The type's field is private, so no code outside `base/` can make a direction that is not unit.
+The directions of the kernel are unit vectors: an axis's direction, a frame's three axes, a circle's normal, a line's direction, a surface's normal, a curve's tangent and a surface's principal directions. They are values of their own type, `Direction` in space and `Direction2D` in the plane, which hold a vector of unit length by construction. `Vector::direction` builds one, normalizing once and returning `None` for a zero vector. The type's field is private, so no code outside `base/` can make a direction that is not unit.
 
 The type carries a claim that the solvers otherwise make at each call site. Two directions are parallel when the sine of the angle between them, `|a × b|`, is at most `angular`, and perpendicular when its cosine, `|a · b|`, is. `Vector::is_parallel` must first divide by `|a| |b|`, a square root and a division on every call. The solvers ask these questions in their inner loops, and the instruction-count budget showed that paying for the normalization costs several percent. Before this type, the fast forms took plain vectors and relied on each caller to pass unit ones. A debug assertion checked the claim, at every call site separately. With the type, the claim is checked once, where the direction is built.
 
@@ -18,4 +18,4 @@ Inside the crate, a vector known to be unit by its construction (a speed divided
 
 ## Consequences
 
-The accessors that return a direction break code that bound their result to a `Vector`: it writes `d.vector()`. The surface normal of `ParametricSurface::normal` and a curve's unit tangent stay `Vector` values for now. The solvers wrap them with `from_unit_vector` where they ask a unit question. They are the next accessors to return directions.
+The accessors that return a direction break code that bound their result to a `Vector`: it writes `d.vector()`. `ParametricSurface::normal`, the curves' `tangent` and the principal directions of `SurfaceCurvatures` return directions too (#401), so a solver asks a unit question of them without wrapping them. The solvers' own helpers that may return a gradient, or a NaN on an axis, stay `Vector`.

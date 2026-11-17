@@ -272,8 +272,8 @@ fn rational_quarter_circle() -> BSplineCurve {
 #[test]
 fn test_tangent_is_unit_along_motion() {
     let tol = Tolerance::DEFAULT;
-    assert_eq!(line().tangent(5.0, tol), Some(Vector::X));
-    assert_eq!(circle().tangent(0.0, tol), Some(Vector::Y));
+    assert_eq!(line().tangent(5.0, tol), Some(Direction::X));
+    assert_eq!(circle().tangent(0.0, tol), Some(Direction::Y));
     assert_eq!(cusp().tangent(0.5, tol), None);
 }
 
@@ -478,7 +478,7 @@ fn test_parabola_vertex_curvature_matches_closed_form() {
     // P(u) = (u²/4, u): vertex k = 1/(2f) = 0.5, centre (2f, 0, 0).
     let tol = Tolerance::DEFAULT;
     let p = Parabola::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0).unwrap();
-    assert_eq!(p.tangent(0.0, tol), Some(Vector::Y));
+    assert_eq!(p.tangent(0.0, tol), Some(Direction::Y));
     assert_eq!(p.curvature(0.0, tol), Some(0.5));
     assert_eq!(
         p.curvature_center(0.0, tol),
@@ -494,7 +494,7 @@ fn test_hyperbola_apex_curvature_matches_closed_form() {
     // centre (a + b²/a, 0, 0).
     let tol = Tolerance::DEFAULT;
     let h = Hyperbola::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 2.0).unwrap();
-    assert_eq!(h.tangent(0.0, tol), Some(Vector::Y));
+    assert_eq!(h.tangent(0.0, tol), Some(Direction::Y));
     assert_eq!(h.curvature(0.0, tol), Some(0.75));
     let c = h.curvature_center(0.0, tol).unwrap();
     assert!((c - Point::new(3.0 + 4.0 / 3.0, 0.0, 0.0)).magnitude() < 1e-12);

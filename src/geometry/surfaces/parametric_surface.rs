@@ -11,7 +11,7 @@ use crate::geometry::surfaces::{
     BSplineSurface, Curve3DToUvError, ElementarySurface, ExtrusionSurface, RevolutionSurface,
     TrimmedSurface, TrimmedSurfaceConstructionError, UvCurveTo3DError,
 };
-use crate::{Point, SurfaceProjection, Tolerance, Vector};
+use crate::{Direction, Point, SurfaceProjection, Tolerance, Vector};
 
 /// Principal, mean and Gaussian curvatures at a surface point, with the
 /// principal directions. See
@@ -23,10 +23,10 @@ pub struct SurfaceCurvatures {
     /// Larger principal curvature.
     pub max_curvature: f64,
     /// Unit tangent direction of [`min_curvature`](Self::min_curvature).
-    pub min_direction: Vector,
+    pub min_direction: Direction,
     /// Unit tangent direction of [`max_curvature`](Self::max_curvature),
     /// always perpendicular to [`min_direction`](Self::min_direction).
-    pub max_direction: Vector,
+    pub max_direction: Direction,
     /// Mean curvature, `(min_curvature + max_curvature) / 2`.
     pub mean: f64,
     /// Gaussian curvature, `min_curvature * max_curvature`.
@@ -148,7 +148,7 @@ pub trait ParametricSurface {
         )
     }
 
-    /// Unit normal `Su × Sv` at parameters `(u, v)`.
+    /// Unit normal at parameters `(u, v)`: the [`Direction`] of `Su × Sv`.
     ///
     /// Recovery runs in three rungs, returning the first defined normal:
     ///
@@ -202,12 +202,12 @@ pub trait ParametricSurface {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::{Plane, Point, Sphere, Tolerance, Vector};
+    /// use geomcore::{Direction, Plane, Point, Sphere, Tolerance, Vector};
     ///
     /// let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
     /// assert_eq!(
     ///     ParametricSurface::normal(&plane, 1.0, 2.0, Tolerance::DEFAULT),
-    ///     Some(Vector::Z)
+    ///     Some(Direction::Z)
     /// );
     ///
     /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
@@ -219,7 +219,7 @@ pub trait ParametricSurface {
     ///     sphere.normal(0.0, FRAC_PI_2, Tolerance::DEFAULT).unwrap();
     /// assert!((pole - Vector::Z).magnitude() < 1e-12);
     /// ```
-    fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Vector> {
+    fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Direction> {
         let bounds = [self.u_bounds(), self.v_bounds()];
         match normal_recovery(self, u, v, bounds, tol) {
             Recovery::Unique(normal) => return Some(normal),
@@ -464,8 +464,8 @@ pub trait ParametricSurface {
         Some(SurfaceCurvatures {
             min_curvature,
             max_curvature,
-            min_direction: (first * min_x + second * min_y) * scale,
-            max_direction: (first * max_x + second * max_y) * scale,
+            min_direction: Direction::from_unit_vector((first * min_x + second * min_y) * scale),
+            max_direction: Direction::from_unit_vector((first * max_x + second * max_y) * scale),
             mean,
             gaussian: a * c - b * b,
         })
@@ -932,7 +932,7 @@ pub trait ReversibleSurface: Sized {
 /// Outcome of rungs 1–2 of [`ParametricSurface::normal`].
 enum Recovery {
     /// A unique normal: direct, or recovered with transverse agreement.
-    Unique(Vector),
+    Unique(Direction),
     /// Nothing recovered here at all: rung 3 may step off instead.
     Absent,
     /// Recoveries disagree along the collapsed parameter line (a cone
@@ -943,7 +943,7 @@ enum Recovery {
 
 /// Which parameter a first partial differentiates by.
 #[derive(Clone, Copy)]
-enum Direction {
+enum Parameter {
     U,
     V,
 }
@@ -996,8 +996,8 @@ fn normal_recovery<S: ParametricSurface + ?Sized>(
     ) else {
         return Recovery::Absent;
     };
-    for (on_line, direction) in [(su_on_line, Direction::U), (sv_on_line, Direction::V)] {
-        if on_line && !transverse_agreement(surface, u, v, direction, bounds, candidate, tol) {
+    for (on_line, parameter) in [(su_on_line, Parameter::U), (sv_on_line, Parameter::V)] {
+        if on_line && !transverse_agreement(surface, u, v, parameter, bounds, candidate, tol) {
             return Recovery::Disputed;
         }
     }
@@ -1010,7 +1010,7 @@ fn normal_from_derivatives<S: ParametricSurface + ?Sized>(
     v: f64,
     bounds: [(f64, f64); 2],
     tol: Tolerance,
-) -> Option<Vector> {
+) -> Option<Direction> {
     match normal_recovery(surface, u, v, bounds, tol) {
         Recovery::Unique(normal) => Some(normal),
         Recovery::Absent | Recovery::Disputed => None,
@@ -1026,12 +1026,12 @@ fn direct_normal(
     u_width: f64,
     v_width: f64,
     tol: Tolerance,
-) -> Option<Vector> {
+) -> Option<Direction> {
     let (su_length, sv_length) = (su.magnitude(), sv.magnitude());
     let cross = su.cross(sv);
     let cross_length = cross.magnitude();
     partials_span_a_plane(su_length, sv_length, cross_length, [u_width, v_width], tol)
-        .then(|| cross * (1.0 / cross_length))
+        .then(|| Direction::from_unit_vector(cross * (1.0 / cross_length)))
 }
 
 /// The `u` and `v` reference widths of `surface`'s parameter bounds, over
@@ -1091,7 +1091,7 @@ fn substituted_normal(
     u_width: f64,
     v_width: f64,
     tol: Tolerance,
-) -> Option<Vector> {
+) -> Option<Direction> {
     let orientation = |x: f64, (first, last): (f64, f64)| {
         if x > 0.5 * (first + last) { -1.0 } else { 1.0 }
     };
@@ -1135,7 +1135,7 @@ fn substituted_normal(
             let cross = first.cross(second);
             let cross_length = cross.magnitude();
             if cross_length > tol.angular {
-                return Some(cross * (sign / cross_length));
+                return Some(Direction::from_unit_vector(cross * (sign / cross_length)));
             }
         }
     }
@@ -1175,7 +1175,7 @@ fn lies_on_collapsed_line(
 
 /// Whether a second-derivative `candidate` recovered at `(u, v)` is the
 /// surface's normal there: re-recover at two other values of the
-/// collapsed `direction`, spanning its range, and require agreement.
+/// collapsed `parameter`, spanning its range, and require agreement.
 ///
 /// A sphere pole recovers its axis from every meridian; a cone apex
 /// recovers one direction per meridian and reports `None`. Where a
@@ -1191,15 +1191,15 @@ fn transverse_agreement<S: ParametricSurface + ?Sized>(
     surface: &S,
     u: f64,
     v: f64,
-    direction: Direction,
+    parameter: Parameter,
     bounds: [(f64, f64); 2],
-    candidate: Vector,
+    candidate: Direction,
     tol: Tolerance,
 ) -> bool {
     let agreement = tol.angular.sqrt();
-    let (first, last) = match direction {
-        Direction::U => bounds[0],
-        Direction::V => bounds[1],
+    let (first, last) = match parameter {
+        Parameter::U => bounds[0],
+        Parameter::V => bounds[1],
     };
     if !(first.is_finite() && last.is_finite() && last > first) {
         return true;
@@ -1207,9 +1207,9 @@ fn transverse_agreement<S: ParametricSurface + ?Sized>(
     let [u_width, v_width] = bounds.map(|range| tol.reference_width(range));
     for fraction in [1.0 / 3.0, 2.0 / 3.0] {
         let other = first + (last - first) * fraction;
-        let (other_u, other_v) = match direction {
-            Direction::U => (other, v),
-            Direction::V => (u, other),
+        let (other_u, other_v) = match parameter {
+            Parameter::U => (other, v),
+            Parameter::V => (u, other),
         };
         let (_, [su, sv]) = surface.first_derivatives(other_u, other_v);
         if direct_normal(su, sv, u_width, v_width, tol).is_some() {
