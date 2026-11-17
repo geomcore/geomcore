@@ -1910,7 +1910,7 @@ class _CurveMethods(
         """
     @overload
     def intersect(
-        self, other: _SurfaceMethods[Any, Any], tol: Optional[_ToleranceLike] = None
+        self, other: _SurfaceMethods[Any, Any] | TrimmedSurface, tol: Optional[_ToleranceLike] = None
     ) -> CurveSurfaceIntersection: ...
     @overload
     def extrema(
@@ -4118,12 +4118,17 @@ class TrimmedSurface(_ParametricSurfaceMethods):
     `parameters_of` shifts the basis's parameters by whole periods into the
     ranges when the point lies in them. The bounding box is that of the patch's exact
     rational B-spline patch, or the basis's box for a B-spline or Bézier
-    basis. Pass it to `intersect` to get only the curves and points inside
-    the ranges of the trimmed sides.
+    basis. Pass it to `intersect` with a curve or a surface to get only
+    the hits, overlaps, curves and points inside the ranges of the trimmed
+    sides. `transformed` maps the ranges with the basis's parametrization,
+    and `trimmed` intersects them.
     """
     __hash__: ClassVar[None]  # type: ignore[assignment]
     def __new__(
-        cls, basis: _SurfaceMethods[Any, Any], u_range: Tuple[float, float], v_range: Tuple[float, float]
+        cls,
+        basis: _SurfaceMethods[Any, Any] | TrimmedSurface,
+        u_range: Tuple[float, float],
+        v_range: Tuple[float, float],
     ) -> TrimmedSurface: ...
     def basis(self) -> Surface:
         """The basis surface."""
@@ -4131,18 +4136,50 @@ class TrimmedSurface(_ParametricSurfaceMethods):
         """The `(first, last)` range of `u`."""
     def v_range(self) -> Tuple[float, float]:
         """The `(first, last)` range of `v`."""
+    def trimmed(
+        self, u_range: Tuple[float, float], v_range: Tuple[float, float]
+    ) -> TrimmedSurface:
+        """The patch of the same basis over the part of each range that
+        `u_range` and `v_range`, each `(first, last)`, cover. A periodic
+        direction's range is read modulo the period, so `(0, π/4)` on a
+        face from 3π/2 to 5π/2 of a cylinder gives `(2π, 2π + π/4)`, and a
+        whole period keeps the face's range. Raises
+        `TrimmedSurfaceConstructionError` for non-finite ends, an empty
+        range, one longer than a period, one that does not overlap the
+        face's range, or one that meets it in two pieces, on either side
+        of the seam.
+        """
+    def transformed(self, transform: Transform) -> TrimmedSurface:
+        """The image of the patch under `transform`: the basis's image, its
+        ranges mapped with its parametrization, so a range of a parameter
+        that is a length (a cylinder's height) scales with the transform
+        and the image holds the image of every point of the patch. Raises
+        `ConstructionError` when the transform collapses the surface (a
+        zero scale) or overflows.
+        """
+    @overload
+    def intersect(
+        self, other: _CurveMethods, tol: Optional[_ToleranceLike] = None
+    ) -> CurveSurfaceIntersection:
+        """Intersects with any curve, surface or trimmed surface, in either
+        order.
+
+        Returns a `CurveSurfaceIntersection` or
+        `SurfaceSurfaceIntersection`, by pair family, holding this object
+        as `first` and `other` as `second`: the intersection with the
+        basis, clipped to the ranges. A curve keeps the hits whose surface
+        parameters lie in the ranges, given there (shifted by a period on
+        a face across the seam), and the pieces of its overlaps inside
+        them. Two surfaces keep their curves cut to the pieces inside the
+        ranges of each trimmed side (each curve's `parameter_range`), and
+        their contact points inside them. Raises `TypeError` for a 2D
+        curve, and for an object that is not a geomcore curve or surface.
+        Other Python threads run meanwhile.
+        """
+    @overload
     def intersect(
         self, other: _SurfaceMethods[Any, Any] | TrimmedSurface, tol: Optional[_ToleranceLike] = None
-    ) -> SurfaceSurfaceIntersection:
-        """Intersects with any surface or trimmed surface, in either order.
-
-        Returns a `SurfaceSurfaceIntersection` holding this object as
-        `first` and `other` as `second`: the intersection of the bases,
-        its curves cut to the pieces inside the ranges of each trimmed side
-        (each curve's `parameter_range`), and its contact points kept when
-        inside them. Raises `TypeError` for a curve, and for an object that
-        is not a geomcore surface. Other Python threads run meanwhile.
-        """
+    ) -> SurfaceSurfaceIntersection: ...
     def __repr__(self) -> str: ...
 
 __all__ = [

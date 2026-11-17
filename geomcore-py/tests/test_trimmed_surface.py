@@ -9,6 +9,7 @@ import pytest
 import geomcore
 from geomcore import (
     BSplineSurface,
+    CurveSurfaceIntersection,
     Cylinder,
     Ellipse,
     Line2D,
@@ -17,6 +18,7 @@ from geomcore import (
     Point2D,
     Sphere,
     SurfaceSurfaceIntersection,
+    Transform,
     TrimmedSurface,
     TrimmedSurfaceConstructionError,
     Vector,
@@ -84,13 +86,37 @@ def test_contact_points_outside_the_patch_are_dropped():
     assert aside.intersect(sphere).is_empty()
 
 
-def test_a_curve_and_a_trimmed_surface_raise():
-    patch = cylinder().trimmed((0.0, math.pi), (0.0, 2.0))
-    line = geomcore.Line(Point(0, 0, 0), Vector(1, 0, 0))
-    with pytest.raises(TypeError):
-        patch.intersect(line)
-    with pytest.raises(TypeError):
-        line.intersect(patch)
+def test_a_curve_and_a_trimmed_surface_intersect_in_either_order():
+    face = cylinder().trimmed((1.5 * math.pi, 2.5 * math.pi), (0.0, 2.0))
+    line = geomcore.Line(Point(-5, 0, 1), Vector(1, 0, 0))
+    for result in (line.intersect(face), face.intersect(line)):
+        assert isinstance(result, CurveSurfaceIntersection)
+        assert result.curve is line and result.surface is face
+        (hit,) = result.hits
+        assert (hit.u, hit.v) == pytest.approx((2 * math.pi, 1.0))
+    arc = geomcore.TrimmedCurve(line, 0.0, 5.0)
+    assert arc.intersect(face).is_empty()
+
+
+def test_a_face_is_trimmed_again_and_by_the_constructor():
+    face = cylinder().trimmed((1.5 * math.pi, 2.5 * math.pi), (0.0, 2.0))
+    quarter = face.trimmed((0.0, math.pi / 4), (-1.0, 1.0))
+    assert isinstance(quarter, TrimmedSurface)
+    assert quarter.basis() == cylinder()
+    assert quarter.u_range() == pytest.approx((2 * math.pi, 2.25 * math.pi))
+    assert quarter.v_range() == (0.0, 1.0)
+    assert TrimmedSurface(face, (0.0, math.pi / 4), (-1.0, 1.0)) == quarter
+    with pytest.raises(TrimmedSurfaceConstructionError, match="does not overlap"):
+        face.trimmed((0.0, 1.0), (3.0, 4.0))
+
+
+def test_a_face_is_transformed_into_a_face():
+    face = cylinder().trimmed((0.0, math.pi), (0.0, 2.0))
+    scaled = face.transformed(Transform.scaling(Point(0, 0, 0), 2.0))
+    assert isinstance(scaled, TrimmedSurface)
+    assert scaled.v_range() == (0.0, 4.0)
+    with pytest.raises(geomcore.ConstructionError):
+        face.transformed(Transform.scaling(Point(0, 0, 0), 0.0))
 
 
 def test_a_patch_answers_what_its_basis_answers():

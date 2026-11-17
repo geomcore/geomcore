@@ -1045,9 +1045,11 @@ pub(crate) struct PyCurveSurfaceIntersection {
 }
 
 impl PyCurveSurfaceIntersection {
-    /// Whether the call was made on the surface.
+    /// Whether the call was made on the surface, whole or trimmed.
     fn surface_first(&self, py: Python<'_>) -> bool {
-        surface_classes::of(self.first.bind(py)).is_some()
+        let first = self.first.bind(py);
+        first.cast::<crate::surfaces::PyTrimmedSurface>().is_ok()
+            || surface_classes::of(first).is_some()
     }
 
     fn repr_content(&self, _py: Python<'_>) -> PyResult<String> {

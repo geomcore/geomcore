@@ -500,9 +500,52 @@ and has no closed form come back `Sampled` with curves ending on the
 ranges instead of cut and `Incomplete`. An exact curve that runs to
 infinity, a line or a `QuarticBranch`, is cut where it leaves the
 ranges, and the result stays exact. Contact points outside the ranges are dropped, and two
-patches of one surface are coincident only where they overlap. A curve
-and a trimmed surface do not intersect yet: intersect the curve with
-the `basis()`.
+patches of one surface are coincident only where they overlap.
+
+A curve meets a trimmed surface, in either order, as it meets the
+basis, clipped to the ranges: a hit is kept when its surface parameters
+lie in them, and reports them there, so a hit at a cylinder's angle 0
+on a face from 3π/2 to 5π/2 reports `u = 2π`. An overlap, a stretch of
+the curve lying on the basis, is cut to its pieces inside the ranges.
+Filtering the basis's hits on `u_range()` by hand would miss that hit,
+one period below the range.
+
+=== "Python"
+
+    ```python
+    import math
+    from geomcore import Cylinder, Line, Point, Vector
+
+    cylinder = Cylinder(Point.origin(), Vector.unit_z(), 1.0)
+    face = cylinder.trimmed((1.5 * math.pi, 2.5 * math.pi), (0.0, 5.0))
+    line = Line(Point(-5.0, 0.0, 1.0), Vector.unit_x())
+    (hit,) = line.intersect(face).hits     # only the side x >= 0
+    assert math.isclose(hit.u, 2 * math.pi)
+    ```
+
+=== "Rust"
+
+    ```rust
+    use geomcore::prelude::*;
+    use geomcore::{Cylinder, Line, Point, Tolerance, Vector};
+    use std::f64::consts::{PI, TAU};
+
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let face = cylinder.trimmed((1.5 * PI, 2.5 * PI), (0.0, 5.0)).unwrap();
+    let line = Line::new(Point::new(-5.0, 0.0, 1.0), Vector::X).unwrap();
+    let result = line.intersect(&face, Tolerance::DEFAULT);
+    assert_eq!(result.hits().len(), 1); // only the side x >= 0
+    assert!((result.hits()[0].surface_parameters.0 - TAU).abs() < 1e-12);
+    ```
+
+A face moves with `transformed`: the basis maps through the transform
+and each range with the basis's parametrization, scaled where the
+parameter is a length (a cylinder's height) and kept where it is an
+angle, so the image holds the image of every point of the face. Moving
+the basis and trimming it to the same ranges is wrong under a scaling.
+`face.trimmed(u_range, v_range)` trims a face again, over the part of
+each range the new one covers; a periodic direction's range is read
+modulo the period.
 
 All the scenes on this page were computed by the kernel itself —
 see `docs/assets/scenes/gen_scenes.py` — not drawn by hand.

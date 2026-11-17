@@ -41,9 +41,30 @@ the Python distribution are versioned in lockstep.
   `Direction` values (#401, ADR 0054). Write `n.vector()` where a
   `Vector` is needed, and `Some(Direction::X)` where a test compared the
   result with `Some(Vector::X)`. Python is unchanged.
+- `TrimmedSurfaceConstructionError` has two more variants,
+  `DisjointRanges` and `RangeInTwoPieces`, which `TrimmedSurface::trimmed`
+  returns (#326): a `match` on it needs their arms.
 
 ### Added
 
+- A curve intersects a `TrimmedSurface`, in either order, in Rust and
+  Python (#326): the curve is intersected with the basis, a hit kept when
+  its surface parameters lie in the ranges and an overlap cut to its
+  pieces inside them, as the curves of two surfaces are (ADR 0039). A
+  face across the seam keeps its hits: on a half cylinder from 3π/2 to
+  5π/2 a hit at the basis's angle 0 is kept and reports `u = 2π`.
+  Python's `line.intersect(face)` no longer raises `TypeError`.
+- `TrimmedSurface::transformed` (`Transformable`), in Rust and Python
+  (#326): the basis maps through the transform and each range with its
+  parametrization, scaled where the parameter is a length (a cylinder's
+  height, a plane's two) and kept where it is an angle or a B-spline
+  parameter, so the image holds the image of every point of the face
+  under a scaling too.
+- `TrimmedSurface::trimmed`, in Rust and Python (#326): the face trimmed
+  again over the part of each range the new one covers, a periodic
+  direction's range read modulo the period. Python's
+  `TrimmedSurface(face, u_range, v_range)` takes a face as its basis and
+  trims it the same way.
 - `Direction` and `Direction2D` (#205): built once from a vector by
   `Vector::direction`, which returns `None` for a zero vector and a unit
   vector unchanged, bit for bit. Their `is_parallel` and
