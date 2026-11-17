@@ -563,6 +563,82 @@ at these three places:
 <figcaption>The five domains. Dashed border: unbounded. Shaded side: seam, two sides one curve. Red side: a whole side that is a single point.</figcaption>
 </figure>
 
+## Fitting to points
+
+Measured points rarely lie on a shape exactly. `Plane.fit`,
+`Circle.fit`, `Circle2D.fit`, `Sphere.fit` and `Cylinder.fit` give the
+shape that minimizes the sum of the squared distances from the points,
+with two numbers to accept or reject it by: the root mean square and the
+largest of those distances, the **residuals**. They are lengths, so they
+scale with the points.
+
+=== "Python"
+
+    ```python
+    import math
+
+    from geomcore import Circle2D, Cylinder, Point, Point2D
+
+    # Points on an arc of radius 2, alternately 0.01 in and out.
+    radii = [2 + 0.01 * (-1) ** k for k in range(10)]
+    arc = [Point2D(r * math.cos(0.2 * k), r * math.sin(0.2 * k)) for k, r in enumerate(radii)]
+    fit = Circle2D.fit(arc)
+    assert abs(fit.shape.radius() - 2) < 1e-3
+    assert abs(fit.root_mean_square_residual - 0.01) < 1e-3
+    assert fit.maximum_residual < 0.015
+
+    # A quarter of a cylinder of radius 3 along z.
+    patch = [
+        Point(3 * math.cos(a), 3 * math.sin(a), z)
+        for a in (0.0, 0.4, 0.8, 1.2, 1.5)
+        for z in (0.0, 1.0, 2.0)
+    ]
+    cylinder = Cylinder.fit(patch).shape
+    assert abs(cylinder.radius() - 3) < 1e-9
+    ```
+
+=== "Rust"
+
+    ```rust
+    use geomcore::{Plane, Point, Tolerance};
+
+    let points = [
+        Point::new(0.0, 0.0, 0.1),
+        Point::new(1.0, 0.0, -0.1),
+        Point::new(1.0, 1.0, 0.1),
+        Point::new(0.0, 1.0, -0.1),
+    ];
+    let fit = Plane::fit(&points, Tolerance::DEFAULT).unwrap();
+    assert!((fit.maximum_residual() - 0.1).abs() < 1e-12);
+    let plane = fit.into_shape();
+    ```
+
+The plane is closed form: through the centroid, across the axis along
+which the points spread least (the smallest eigenvector of their
+covariance). A circle or a sphere starts from its algebraic fit, whose
+equation $x^2 + y^2 + Dx + Ey + F = 0$ is linear in its unknowns, and
+is then refined on the true distance by Levenberg–Marquardt steps. A
+circle in space first takes the plane of the points, and its refinement
+lets them lie off it. A cylinder has no linear start: its axis
+direction is searched over a hemisphere, one direction every 15
+degrees, each scored by the algebraic circle of the points seen along
+it, and the best three are refined with the radius and the axis
+position; the closest wins. Points over an arc of the cylinder fit, not
+only whole rings, but a narrow arc of a few points can settle in a
+local minimum — the residuals then say so.
+
+A fit refuses fewer points than the shape's degrees of freedom (3 for a
+plane or a circle, 4 for a sphere, 5 for a cylinder), and points that do
+not determine the shape: within the confusion tolerance of one point,
+of one line (no plane, no circle), or of one plane (a circle lies on
+many spheres, an ellipse on two cylinders), with a `FitError` that
+says which.
+
+The shape follows the points' order where it has an orientation: a
+circle runs through them in order, starting at the first, and the
+normal of a plane or the axis of a cylinder is the one they turn
+counterclockwise about.
+
 ## Why ten special cases
 
 Everything above can be written as NURBS — conics exactly, as rational

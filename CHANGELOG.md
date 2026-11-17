@@ -71,6 +71,23 @@ the Python distribution are versioned in lockstep.
 - `TrimmedCurve::split_at` and `TrimmedCurve2D::split_at`, in Rust and
   Python (#327): the two pieces of the same basis on either side of a
   parameter, meeting at its point, so an edge can be cut again.
+- Least-squares fits of the elementary shapes to points (#253):
+  `Plane::fit`, `Circle::fit`, `Circle2D::fit`, `Sphere::fit` and
+  `Cylinder::fit`, taking the points and a `Tolerance` (`fit(points,
+  tol=None)` in Python, the points a list or an array). Each returns a
+  `Fit` (`PlaneFit`, `CircleFit`, `CircleFit2D`, `SphereFit`,
+  `CylinderFit`): the shape with the root mean square and the largest
+  distance from the points to it, `root_mean_square_residual` and
+  `maximum_residual`. The plane is the axis of least spread of the
+  points' covariance; a circle or a sphere is the algebraic fit refined
+  on the distance by Levenberg–Marquardt steps; a cylinder's axis is
+  searched over a hemisphere of directions, then refined the same way. A
+  fit refuses fewer points than its shape's degrees of freedom and
+  points within `tol.confusion` of one point, one line or, for a sphere
+  or a cylinder, one plane, with a `FitError` (a `ConstructionError` in
+  Python). A circle runs through the points in their order, and the
+  normal of a plane or the axis of a cylinder is the one they turn
+  counterclockwise about.
 
 ### Changed
 
