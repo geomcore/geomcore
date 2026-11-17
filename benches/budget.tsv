@@ -111,7 +111,7 @@ intersect_dispatch	intersect/torus_cone/routed	4289837
 intersect_dispatch	intersect/torus_cone/typed	1271614
 intersect_dispatch	intersect_routed/circle_circle/exact	449846
 intersect_dispatch	intersect_routed/circle_circle/routed	1622882
-intersect_dispatch	intersect_routed/circle_circle_2d/exact	79147
+intersect_dispatch	intersect_routed/circle_circle_2d/exact	80171
 intersect_dispatch	intersect_routed/circle_circle_2d/routed	1086130
 intersect_dispatch	intersect_routed/cone_cylinder/along_branches_exact	1855
 intersect_dispatch	intersect_routed/cone_cylinder/along_branches_routed	5483
