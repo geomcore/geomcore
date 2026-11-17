@@ -50,13 +50,56 @@ fn test_unbounded_overlap_is_not_empty() {
 }
 
 #[test]
-fn test_multiplicity_is_two_when_tangent_is_perpendicular_to_normal() {
+fn test_curve_surface_multiplicity_compares_the_bending_of_curve_and_surface() {
+    use crate::geometry::curves::{ParametricCurve, PointExtrema};
+    use crate::{BezierCurve, Circle, Line, Plane};
     let tol = Tolerance::DEFAULT;
-    let p = Point::ORIGIN;
-    assert_eq!(curve_surface_multiplicity(Vector::X, Vector::Z, p, tol), 2);
-    assert_eq!(curve_surface_multiplicity(Vector::Z, Vector::Z, p, tol), 1);
+    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    let foot = |point: Point| {
+        let projection = plane.project_point(point, tol);
+        (projection.u, projection.v)
+    };
+    let line = |direction: Vector| {
+        let line = Line::new(Point::ORIGIN, direction).unwrap();
+        move |parameter: f64| {
+            curve_surface_multiplicity(
+                &line,
+                parameter,
+                &plane,
+                foot(line.point_at(parameter)),
+                tol,
+            )
+        }
+    };
+    // Exactly tangent: a touch whatever the curvatures.
+    assert_eq!(line(Vector::X)(0.0), 2);
+    assert_eq!(line(Vector::Z)(0.0), 1);
+    // A line bends no more than a plane: crossing it at any angle past
+    // the angular tolerance, it crosses.
+    assert_eq!(line(Vector::new(1.0, 0.0, 1e-8))(0.0), 1);
+    // A unit circle standing on the plane, read 1e-4 from where it touches:
+    // the sine is 1e-4 and the bending 1, so moving the circle by the gap
+    // of 5e-9 there, below confusion, makes it touch.
+    let circle = Circle::new(Point::new(0.0, 0.0, 1.0), Vector::Y, 1.0).unwrap();
+    let touch = circle.parameter_of(Point::ORIGIN, tol);
+    let on_circle = |parameter: f64| {
+        curve_surface_multiplicity(
+            &circle,
+            parameter,
+            &plane,
+            foot(circle.point_at(parameter)),
+            tol,
+        )
+    };
+    assert_eq!(on_circle(touch + 1e-4), 2);
+    // Read 1e-3 away, the gap is 5e-7: a crossing.
+    assert_eq!(on_circle(touch + 1e-3), 1);
+    // A zero tangent (a Bézier curve whose first two poles coincide) gives
+    // no direction to compare: a crossing.
+    let poles = vec![Point::ORIGIN, Point::ORIGIN, Point::new(1.0, 0.0, 0.0)];
+    let cusp = BezierCurve::new(2, poles).unwrap();
     assert_eq!(
-        curve_surface_multiplicity(Vector::ZERO, Vector::Z, p, tol),
+        curve_surface_multiplicity(&cusp, 0.0, &plane, (0.0, 0.0), tol),
         1
     );
 }

@@ -17,11 +17,11 @@ use std::collections::BTreeSet;
 use std::fmt::Debug;
 use std::path::PathBuf;
 
-use common::samples::{curves, parameters, surface_parameters, surfaces};
+use common::samples::{curves, parameters, surface_parameters, surfaces, tilted_frame};
 use geomcore::prelude::*;
 use geomcore::{
-    Completeness, Curve, IntersectionMethod, Point, Surface, Tolerance, Transform, Vector,
-    curve_curve_extrema,
+    BSplineCurve, BezierCurve, Completeness, Curve, Frame, IntersectionMethod, Plane, Point,
+    Surface, Tolerance, Transform, Vector, curve_curve_extrema,
 };
 
 /// A similarity, its factor on lengths and its inverse.
@@ -126,14 +126,33 @@ fn curve_curve(a: &Curve, b: &Curve, tol: Tolerance) -> (String, Vec<Point>) {
 
 fn curve_surface(a: &Curve, b: &Surface, tol: Tolerance) -> (String, Vec<Point>) {
     let result = a.intersect(b, tol);
+    let multiplicities: Vec<u32> = result.hits().iter().map(|hit| hit.multiplicity).collect();
     let text = format!(
-        "{} {} hits={} overlaps={}",
+        "{} {} hits={} multiplicities={multiplicities:?} overlaps={}",
         method(result.method()),
         completeness(result.completeness()),
         result.hits().len(),
         result.overlaps().len()
     );
     (text, result.hits().iter().map(|hit| hit.point).collect())
+}
+
+/// The number of hits of a curve-surface intersection and their
+/// multiplicities. Not its completeness: the region a shallow contact
+/// leaves still comes and goes with the placement (#429). Nor its points:
+/// a crossing at the slope `a` is within confusion over `2 tol.confusion
+/// / a` of the curve, 20 units for the segment of [`shallow_curves`], and
+/// rounding places the hit anywhere in that stretch.
+fn curve_surface_contacts(a: &Curve, b: &Surface, tol: Tolerance) -> (String, Vec<Point>) {
+    let result = a.intersect(b, tol);
+    let multiplicities: Vec<u32> = result.hits().iter().map(|hit| hit.multiplicity).collect();
+    let text = format!(
+        "{} hits={} multiplicities={multiplicities:?} overlaps={}",
+        method(result.method()),
+        result.hits().len(),
+        result.overlaps().len()
+    );
+    (text, Vec::new())
 }
 
 fn surface_surface(a: &Surface, b: &Surface, tol: Tolerance) -> (String, Vec<Point>) {
@@ -291,6 +310,55 @@ fn curve_surface_intersections_are_similarity_invariant() {
             &surfaces(),
             false,
             curve_surface,
+        ),
+    );
+}
+
+/// Curves that meet the plane of [`tilted_frame`] at a shallow angle, in
+/// that frame: a segment crossing it at a slope of 1e-8, which neither
+/// bends into a touch, and a parabolic Bézier arc touching it. The
+/// samples cross or touch at clear angles, so these are where a
+/// multiplicity read from the angle alone moves with the placement (#428).
+fn shallow_curves() -> Vec<Curve> {
+    let into_frame = Transform::between_frames(Frame::WORLD, tilted_frame());
+    let slope = 1e-8;
+    let segment = BSplineCurve::new(
+        1,
+        vec![
+            Point::new(-100.0, 0.0, -100.0 * slope),
+            Point::new(100.0, 0.0, 100.0 * slope),
+        ],
+        vec![0.0, 1.0],
+        vec![2, 2],
+        false,
+    )
+    .unwrap();
+    let arc = BezierCurve::new(
+        2,
+        vec![
+            Point::new(-1.0, 0.0, 1.0),
+            Point::new(0.0, 0.0, -1.0),
+            Point::new(1.0, 0.0, 1.0),
+        ],
+    )
+    .unwrap();
+    [Curve::from(segment), Curve::from(arc)]
+        .into_iter()
+        .map(|curve| curve.transformed(into_frame).unwrap())
+        .collect()
+}
+
+#[test]
+fn shallow_curve_surface_intersections_are_similarity_invariant() {
+    let plane: Surface = Plane::from_frame(tilted_frame()).into();
+    report(
+        "shallow-curve-surface",
+        compare_pairs(
+            "shallow-curve-surface",
+            &shallow_curves(),
+            &[plane],
+            false,
+            curve_surface_contacts,
         ),
     );
 }

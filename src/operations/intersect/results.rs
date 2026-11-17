@@ -16,6 +16,9 @@ use crate::geometry::curves::ParametricCurve;
 use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::uv_curve::from_curve::{OnSurfaceCheck, checked_curve_3d_to_uv};
 use crate::operations::intersect::Completeness;
+use crate::operations::intersect::numeric::curve_curve::{
+    SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS, curvature_vector,
+};
 use crate::{Curve, Curve2D, Point, Point2D, TierPoint, Tolerance, Vector};
 use inline_or_heap_list::InlineOrHeapList;
 
@@ -223,21 +226,78 @@ fn swap_overlaps(overlaps: &mut CurveCurveOverlapList) {
     overlaps.sort_by(|p, q| p.first_range.0.total_cmp(&q.first_range.0));
 }
 
-/// The multiplicity of a curve-surface hit: 2 when the curve's `tangent`
-/// is perpendicular to the surface `normal` within the angular tolerance
-/// for the hit's extent (the curve grazes the surface), 1 otherwise. A
-/// zero `tangent` or `normal` (a singular point) counts as 1.
-pub(crate) fn curve_surface_multiplicity(
-    tangent: Vector,
-    normal: Vector,
-    point: Point,
+/// The multiplicity of a hit between `curve` at `curve_parameter` and
+/// `surface` at `surface_parameters`: 2 where the curve touches the
+/// surface there, else 1. This is the rule of curve-curve hits
+/// ([`grazing_multiplicity`](crate::operations::intersect::numeric::curve_curve::grazing_multiplicity),
+/// ADR 0034), with the surface in place of the second curve.
+///
+/// Let `n` be the surface's unit normal at the hit, `T` the curve's unit
+/// tangent, `s = |T . n|` the sine of the angle between the curve and the
+/// tangent plane, and `w` the distance along the curve. The curve rises
+/// above the tangent plane by `s w + (kappa . n) w^2 / 2`, `kappa` its
+/// curvature vector. Its foot on the tangent plane runs along `P`, the
+/// part of `T` in the plane, and the surface rises above the plane there
+/// by `II(P, P) w^2 / 2`, `II` the surface's second fundamental form (the
+/// normal curvature along `P` times `|P|^2 = 1 - s^2`). So the curve lies
+/// `s w + k w^2 / 2` from the surface, with
+/// `k = |kappa . n - II(P, P)|`. Moved by `g` along the normal, it
+/// touches the surface (the separation has a double root) when
+/// `s^2 = 2 k g`, so the crossing is a touch within confusion when
+/// `s^2 <= 2 k tol.confusion`. Exact tangency, `s <= tol.angular`, is a
+/// touch whatever the curvatures. A line has `kappa = 0` and a plane
+/// `II = 0`, so a line crossing a plane at a shallow angle stays a
+/// crossing. Every term is a sine or a curvature, so the rule does not
+/// depend on the size of the shapes nor on where they sit (ADR 0051).
+///
+/// The curvatures, which cost a second derivative on the curve and the
+/// surface, are read only where `s` is small enough for a touch on a
+/// radius of curvature of at least
+/// [`SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS`] confusions. A zero tangent or
+/// normal (a singular point) counts as 1. The numeric search reads every
+/// hit it finds by this rule; a hit it then places on the touch reports 2
+/// (ADR 0034).
+pub(crate) fn curve_surface_multiplicity<C, S>(
+    curve: &C,
+    curve_parameter: f64,
+    surface: &S,
+    (u, v): (f64, f64),
     tol: Tolerance,
-) -> u32 {
-    if !(tangent.magnitude() * normal.magnitude()).is_finite() {
+) -> u32
+where
+    C: ParametricCurve,
+    S: ParametricSurface,
+{
+    let speed = curve.derivative(curve_parameter, 1);
+    let (_, [su, sv]) = surface.first_derivatives(u, v);
+    let normal = su.cross(sv);
+    let lengths = speed.magnitude() * normal.magnitude();
+    if !(lengths > 0.0 && lengths.is_finite()) {
         return 1;
     }
-    let extent = point.distance(Point::ORIGIN) + 1.0;
-    if tangent.is_perpendicular(normal, tol.angular_for_extent(extent)) {
+    let sine = speed.dot(normal).abs() / lengths;
+    if sine <= tol.angular {
+        return 2;
+    }
+    if sine * sine > 2.0 / SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS {
+        return 1;
+    }
+    let unit_normal = normal * (1.0 / normal.magnitude());
+    let curve_bending = curvature_vector(curve, curve_parameter, speed).dot(unit_normal);
+    // The parameter step `(du, dv)` of the surface along the part of
+    // `speed` in its tangent plane: the first fundamental form times the
+    // step gives the step's dot products with the partials. Its
+    // determinant, `|Su|^2 |Sv|^2 - (Su . Sv)^2`, is `|Su x Sv|^2`.
+    let (_, _, [suu, suv, svv]) = surface.second_derivatives(u, v);
+    let (along_u, along_v) = (speed.dot(su), speed.dot(sv));
+    let determinant = normal.dot(normal);
+    let du = (sv.dot(sv) * along_u - su.dot(sv) * along_v) / determinant;
+    let dv = (su.dot(su) * along_v - su.dot(sv) * along_u) / determinant;
+    let surface_bending = (suu * (du * du) + suv * (2.0 * du * dv) + svv * (dv * dv))
+        .dot(unit_normal)
+        / speed.dot(speed);
+    let curvature_difference = (curve_bending - surface_bending).abs();
+    if sine * sine <= 2.0 * curvature_difference * tol.confusion {
         2
     } else {
         1
