@@ -49,6 +49,25 @@ shape_methods! {
         ))
     }
 
+    /// The least-squares sphere of `points`, with its residuals: the
+    /// algebraic sphere, refined on the distance. Its frame is
+    /// world-aligned.
+    ///
+    /// `points` is a list of points or an `(N, 3)` array-like, and `tol` is
+    /// `Tolerance.default()` when omitted. Raises `FitError` below 4 points,
+    /// or when every point lies within `tol.confusion` of their centroid,
+    /// of their least-squares line or of their least-squares plane.
+    #[staticmethod]
+    #[pyo3(signature = (points, tol = None))]
+    fn fit(
+        points: crate::arrays::Points<geomcore::Point>,
+        tol: Option<crate::values::ToleranceArgument>,
+    ) -> PyResult<crate::fit::PySphereFit> {
+        Ok(crate::fit::PySphereFit(
+            Sphere::fit(&points.0, crate::tolerance(tol)).map_err(python_error)?,
+        ))
+    }
+
     /// The sphere center.
     fn center(&self) -> PyPoint {
         PyPoint(self.0.center())

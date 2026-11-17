@@ -7,6 +7,9 @@
 //! 2x2 to 4x4 solves on stack arrays. That is deliberate: projection, extrema, and
 //! intersection never need large dense systems, so the kernel keeps zero
 //! runtime dependencies and no linear-algebra crate in its public API.
+//! The least-squares fits of the elementary shapes add the eigenvectors of
+//! a small symmetric matrix and Levenberg–Marquardt steps on a few
+//! unknowns, both on the stack too.
 //!
 //! Near-multiple roots are first-class: `real_roots` clusters with
 //! multiplicity, because tangencies (a grazing line, kissing circles)
@@ -15,7 +18,9 @@
 
 pub(crate) mod bernstein;
 pub(crate) mod boxtree;
+pub(crate) mod eigen;
 pub(crate) mod equation;
+pub(crate) mod least_squares;
 pub(crate) mod poly;
 pub(crate) mod quadrature;
 pub(crate) mod solve;
