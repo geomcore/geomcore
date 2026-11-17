@@ -717,7 +717,14 @@ impl PyIntersectionCurve {
     }
 
     /// The curve: a line, circle, ellipse, parabola or hyperbola from a
-    /// closed form, a `BSplineCurve` traced by marching otherwise.
+    /// closed form, a `BSplineCurve` traced by marching otherwise. A fitted
+    /// curve, marched or fitted from a closed form (a loop where two
+    /// cylinders cross), is a cubic `BSplineCurve` whose parameter is its
+    /// arc length, to within the fit. A fitted closed loop is periodic, its
+    /// period its length, so a piece of it can run across its start as an
+    /// arc of a circle runs across its seam. Where the surfaces touch along
+    /// a marched curve, its parameter runs from 0 to 1 instead, and a loop
+    /// is not periodic.
     #[getter]
     fn curve(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         curve_classes::to_py(py, self.0.curve.clone())
@@ -727,10 +734,12 @@ impl PyIntersectionCurve {
     /// parameter as `curve`: the surface's point at its `(u, v)` at `t` is
     /// `curve`'s point at `t`. A marched curve always has one, fitted from
     /// the parameters the march walked, as does a curve fitted from a
-    /// closed form (a loop where two cylinders cross). Another exact curve
-    /// has the exact one where a closed form exists, and `None` otherwise
-    /// (an ellipse on a cylinder): `curve_3d_to_uv_within` maps it within
-    /// a deviation.
+    /// closed form (a loop where two cylinders cross). Those of a fitted
+    /// closed loop are not periodic, as one around a cylinder ends a period
+    /// away in `u`: a piece across the loop's start has them run on over a
+    /// second turn. Another exact curve has the exact one where a closed
+    /// form exists, and `None` otherwise (an ellipse on a cylinder):
+    /// `curve_3d_to_uv_within` maps it within a deviation.
     #[getter]
     fn first_uv_curve(&self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
         self.0

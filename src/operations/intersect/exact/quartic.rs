@@ -41,7 +41,9 @@
 use crate::Direction;
 use std::f64::consts::{FRAC_PI_2, PI, SQRT_2, TAU};
 
-use crate::geometry::curves::fitting::{hermite_knots, hermite_spline, segment_length};
+use crate::geometry::curves::fitting::{
+    hermite_knots, hermite_spline, periodic_hermite_spline, segment_length,
+};
 use crate::geometry::curves::{Curve, Curve2D, ParametricCurve};
 use crate::operations::intersect::{IntersectionCurve, SurfaceSurfaceIntersection};
 use crate::{
@@ -3488,7 +3490,8 @@ trait CurveFamily: Copy {
         let points: Vec<Point> = samples.iter().map(|s| s.point).collect();
         let tangents: Vec<Vector> = samples.iter().map(|s| s.tangent).collect();
         let knots = hermite_knots(&points, &tangents);
-        let curve = hermite_spline(&points, &tangents, &knots).ok()?;
+        // A loop: periodic, so that a piece of it can run across its start.
+        let curve = periodic_hermite_spline(&points, &tangents, &knots).ok()?;
         let [first, second] = std::array::from_fn(|side| {
             if side == 1 && !self.second_parameters_fit() {
                 return Ok(None);

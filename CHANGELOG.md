@@ -125,6 +125,15 @@ the Python distribution are versioned in lockstep.
   five sizes of the pair wide, as the march's seeding windows do, so the
   same hits come back at any size and placement. 15 `curve-surface` lines
   leave the list of the similarity judge; 6 remain.
+- A closed fitted intersection loop, marched or fitted from a closed
+  form, is a periodic B-spline, its period its length, and a trimmed
+  surface keeps the arc across its start whole (#315), as it does on a
+  circle's seam. Two cylinders crossing, cut by a short wall, gave three
+  pieces for each loop's two arcs, and joining the two by hand raised
+  `TrimmedCurveConstructionError`. The curves in parameters of the arc
+  run on over a second turn. The parameter of a fitted curve, its arc
+  length to within 1e-4, is documented on `IntersectionCurve` and in the
+  intersection guide.
 
 ## [0.48.0] - 2026-11-16
 

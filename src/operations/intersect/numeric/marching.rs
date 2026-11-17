@@ -22,7 +22,8 @@ pub(crate) use pair::{REACH, anchor, own_size};
 
 use crate::BSplineConstructionError;
 use crate::geometry::curves::fitting::{
-    hermite_knots, hermite_spline, interpolate_with_companions, without_confused,
+    hermite_knots, hermite_spline, interpolate_with_companions, periodic_hermite_spline,
+    without_confused,
 };
 use crate::geometry::curves::{
     BSplineCurve, BSplineCurve2D, Curve, Curve2D, ParametricCurve, ParametricCurve2D,
@@ -673,7 +674,10 @@ impl Fitted {
     /// [`SurfacePair::parameter_shifts`]). The curve on a surface then
     /// meets the curve in space to the same order between the points.
     /// Where the tangent plane degenerates, at a pole or an apex, the
-    /// derivative is the one of the chords to the neighbouring points.
+    /// derivative is the one of the chords to the neighbouring points. A
+    /// closed loop's curve in space is periodic (see
+    /// [`periodic_hermite_spline`]); its curves in parameters are not, as
+    /// one around a periodic direction ends a period away from its start.
     ///
     /// Where the surfaces touch, the tangents followed are directions of
     /// contact, which the curve need not take, and its points are found
@@ -719,7 +723,13 @@ impl Fitted {
                 let derivatives = chord_derivatives(&uv_points[side], &derivatives[side], &knots);
                 hermite_spline(&uv_points[side], &derivatives, &knots)
             };
-            let curve = hermite_spline(points, &tangents, &knots)?;
+            // A closed loop ends on its first point: periodic, so that a
+            // piece of it can run across its start.
+            let curve = if points.first() == points.last() {
+                periodic_hermite_spline(points, &tangents, &knots)?
+            } else {
+                hermite_spline(points, &tangents, &knots)?
+            };
             (curve, [curve_on(0)?, curve_on(1)?])
         };
         Ok(Fitted {
