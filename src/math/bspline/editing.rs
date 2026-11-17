@@ -19,10 +19,10 @@ pub(crate) use cutting::{
     check_piece, check_split, cut, is_clamped_to, reversed_knots, reversed_slot,
 };
 pub(crate) use elevation::Elevation;
-pub(crate) use removal::{Deviation, check_removal, remove_knots};
+pub(crate) use removal::{check_removal, remove_knots};
 
 use super::curve::KnotVector;
-use super::poles::{HomogeneousPole, Pole, PolePoint};
+use crate::base::pole::{HomogeneousPole, Pole, PolePoint};
 use crate::math::bspline::errors::KnotInsertionError;
 
 /// The poles an edit reads, by index: a slice of them, or a rational

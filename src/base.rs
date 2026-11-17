@@ -12,6 +12,8 @@ pub(crate) mod frame;
 mod inline_list;
 /// Points in 2D and 3D space.
 mod point;
+/// The algebra of the poles a B-spline blends, for both tiers.
+pub(crate) mod pole;
 /// Which side of a knot or a seam a one-sided query takes.
 mod side;
 /// The two tiers of curves, space and the plane, and the trait naming one.

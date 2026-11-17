@@ -212,6 +212,8 @@ Reprs print floats as Python does and show coordinates below `1e-15` as
 a coordinate is the one place a repr pastes back to a slightly different
 object. A tolerance keeps its tiny values.
 
-A Python API reference generated from docstrings, and tutorials, are on
-the roadmap. Until then, the Rust items on
-[docs.rs](https://docs.rs/geomcore) mirror the Python surface one-to-one.
+A Python API reference generated from docstrings is on the roadmap.
+Until then, the Rust items on
+[docs.rs](https://docs.rs/geomcore) mirror the Python surface one-to-one,
+and the [getting-started tutorial](getting-started.md) plus the
+[how-to guides](viewer.md) show the calls in context.

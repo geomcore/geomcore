@@ -6,7 +6,6 @@
 use super::{Edited, Kept, Lanes, Pole, PolePoint, Source, Weighted, from_homogeneous};
 use crate::math::bspline::curve::{KnotVector, MAX_DEGREE};
 use crate::math::bspline::errors::KnotRemovalError;
-use crate::{Point, Point2D};
 
 /// A direction with knots removed, its poles and weights laid out as the
 /// input's, and how many copies were removed.
@@ -63,7 +62,7 @@ pub(crate) fn check_removal(
 /// non-negative and sum to one. A pole computed twice takes the blend of
 /// its two values that minimizes that bound. A rational direction is
 /// solved in homogeneous coordinates and its bound carried over to the
-/// points (see [`Deviation::bound`]). Each bound adds to the bounds of the
+/// points (see [`deviation_bound`]). Each bound adds to the bounds of the
 /// knot intervals the deviation reaches, so the deviation from the
 /// original stays within `max_deviation` however many knots are removed.
 ///
@@ -79,8 +78,7 @@ pub(crate) fn remove_knots<G>(
     max_deviation: f64,
 ) -> Option<Removed<G>>
 where
-    G: PolePoint + Deviation,
-    G::Homogeneous: Deviation,
+    G: PolePoint,
 {
     match weights {
         None => {
@@ -114,166 +112,78 @@ where
     }
 }
 
-/// A pole whose removal deviation can be bounded.
-pub trait Deviation: Pole + Default {
-    /// A bound on how far the points of the shape move when each lane's
-    /// pole moves by its `diffs` times `coefficient` (a basis function's
-    /// maximum), or `None` if it exceeds `max` or is not finite: `centre`
-    /// is a pole near the change, and `reach` every pole of every lane
-    /// whose function the change overlaps.
-    fn bound(
-        diffs: &[Self],
-        coefficient: f64,
-        centre: Self,
-        reach: impl Iterator<Item = Self>,
-        max: f64,
-    ) -> Option<f64>;
-
-    /// Whether the pole can weight a shape: a positive weight.
-    fn is_valid(self) -> bool;
-}
-
-impl Deviation for Point {
-    #[inline]
-    fn bound(
-        diffs: &[Self],
-        coefficient: f64,
-        _: Self,
-        _: impl Iterator<Item = Self>,
-        _: f64,
-    ) -> Option<f64> {
+/// A bound on how far the points of the shape move when each lane's pole
+/// moves by its `diffs` times `coefficient` (a basis function's maximum),
+/// or `None` if it exceeds `max` or is not finite: `centre` is a pole near
+/// the change, and `reach` every pole of every lane whose function the
+/// change overlaps.
+///
+/// A point pole moves the shape by its own displacement. Measured about a
+/// point `c`, a homogeneous deviation `e` of the shape `(w (S - c), w)`
+/// moves its points by at most `e sqrt(1 + |S - c|^2) / (w - e)`,
+/// unbounded if `e` reaches `w`. Where the deviation is non-zero, `S`
+/// blends the `reach` poles and `w` their weights: `|S - c|` is at most the
+/// largest distance from `c` to a pole, and `w` at least the smallest
+/// weight. On a surface the deviation blends those of its lanes, so every
+/// lane is measured about the same `c`, the point of `centre`. The bound
+/// neither grows with the distance to the origin nor depends on poles far
+/// away.
+fn deviation_bound<P: Pole>(
+    diffs: &[P],
+    coefficient: f64,
+    centre: P,
+    reach: impl Iterator<Item = P>,
+    max: f64,
+) -> Option<f64> {
+    if !P::WEIGHTED {
         let squared = diffs
             .iter()
-            .map(|d| d.x * d.x + d.y * d.y + d.z * d.z)
+            .map(|d| {
+                let d = d.lanes();
+                (1..P::DIM).fold(d[0] * d[0], |sum, k| sum + d[k] * d[k])
+            })
             .fold(0.0, f64::max);
-        squared.is_finite().then(|| coefficient * squared.sqrt())
+        return squared.is_finite().then(|| coefficient * squared.sqrt());
     }
-
-    #[inline]
-    fn is_valid(self) -> bool {
-        true
+    let centre = centre.lanes();
+    let weight = centre[3];
+    let c: [f64; 3] = std::array::from_fn(|k| centre[k] / weight);
+    let length_squared = |pole: [f64; 4]| {
+        let delta = |k: usize| pole[k] - c[k] * pole[3];
+        (1..P::DIM).fold(delta(0) * delta(0), |sum, k| sum + delta(k) * delta(k))
+    };
+    let squared = diffs
+        .iter()
+        .map(|d| {
+            let d = d.lanes();
+            length_squared(d) + d[3] * d[3]
+        })
+        .fold(0.0, f64::max);
+    let e = coefficient * squared.sqrt();
+    // The weight of `centre` is at least the smallest, so this bounds the
+    // bound from below.
+    if !(e < weight && e <= max * (weight - e)) {
+        return None;
     }
+    let (mut min_weight, mut radius_squared) = (weight, 0.0_f64);
+    for pole in reach {
+        let pole = pole.lanes();
+        let w = pole[3];
+        min_weight = min_weight.min(w);
+        radius_squared = radius_squared.max(length_squared(pole) / (w * w));
+    }
+    let bound = if e < min_weight {
+        e * (1.0 + radius_squared).sqrt() / (min_weight - e)
+    } else {
+        f64::INFINITY
+    };
+    (bound <= max).then_some(bound)
 }
 
-impl Deviation for Point2D {
-    #[inline]
-    fn bound(
-        diffs: &[Self],
-        coefficient: f64,
-        _: Self,
-        _: impl Iterator<Item = Self>,
-        _: f64,
-    ) -> Option<f64> {
-        let squared = diffs
-            .iter()
-            .map(|d| d.x * d.x + d.y * d.y)
-            .fold(0.0, f64::max);
-        squared.is_finite().then(|| coefficient * squared.sqrt())
-    }
-
-    #[inline]
-    fn is_valid(self) -> bool {
-        true
-    }
-}
-
-impl Deviation for [f64; 4] {
-    /// Measured about a point `c`, a homogeneous deviation `e` of the shape
-    /// `(w (S - c), w)` moves its points by at most
-    /// `e sqrt(1 + |S - c|^2) / (w - e)`, unbounded if `e` reaches `w`.
-    /// Where the deviation is non-zero, `S` blends the `reach` poles and `w`
-    /// their weights: `|S - c|` is at most the largest distance from `c` to
-    /// a pole, and `w` at least the smallest weight. On a surface the
-    /// deviation blends those of its lanes, so every lane is measured about
-    /// the same `c`, the point of `centre`. The bound neither grows with the
-    /// distance to the origin nor depends on poles far away.
-    fn bound(
-        diffs: &[Self],
-        coefficient: f64,
-        centre: Self,
-        reach: impl Iterator<Item = Self>,
-        max: f64,
-    ) -> Option<f64> {
-        let weight = centre[3];
-        let c = [centre[0] / weight, centre[1] / weight, centre[2] / weight];
-        let length_squared = |[x, y, z, w]: [f64; 4]| {
-            let (dx, dy, dz) = (x - c[0] * w, y - c[1] * w, z - c[2] * w);
-            dx * dx + dy * dy + dz * dz
-        };
-        let squared = diffs
-            .iter()
-            .map(|&d| length_squared(d) + d[3] * d[3])
-            .fold(0.0, f64::max);
-        let e = coefficient * squared.sqrt();
-        // The weight of `centre` is at least the smallest, so this bounds the
-        // bound from below.
-        if !(e < weight && e <= max * (weight - e)) {
-            return None;
-        }
-        let (mut min_weight, mut radius_squared) = (weight, 0.0_f64);
-        for pole in reach {
-            let w = pole[3];
-            min_weight = min_weight.min(w);
-            radius_squared = radius_squared.max(length_squared(pole) / (w * w));
-        }
-        let bound = if e < min_weight {
-            e * (1.0 + radius_squared).sqrt() / (min_weight - e)
-        } else {
-            f64::INFINITY
-        };
-        (bound <= max).then_some(bound)
-    }
-
-    #[inline]
-    fn is_valid(self) -> bool {
-        self[3] > 0.0
-    }
-}
-
-/// The homogeneous deviation of the plane tier, the bound of the 3D
-/// homogeneous one measured about a plane point.
-impl Deviation for [f64; 3] {
-    fn bound(
-        diffs: &[Self],
-        coefficient: f64,
-        centre: Self,
-        reach: impl Iterator<Item = Self>,
-        max: f64,
-    ) -> Option<f64> {
-        let weight = centre[2];
-        let c = [centre[0] / weight, centre[1] / weight];
-        let length_squared = |[x, y, w]: [f64; 3]| {
-            let (dx, dy) = (x - c[0] * w, y - c[1] * w);
-            dx * dx + dy * dy
-        };
-        let squared = diffs
-            .iter()
-            .map(|&d| length_squared(d) + d[2] * d[2])
-            .fold(0.0, f64::max);
-        let e = coefficient * squared.sqrt();
-        // The weight of `centre` is at least the smallest, so this bounds the
-        // bound from below.
-        if !(e < weight && e <= max * (weight - e)) {
-            return None;
-        }
-        let (mut min_weight, mut radius_squared) = (weight, 0.0_f64);
-        for pole in reach {
-            let w = pole[2];
-            min_weight = min_weight.min(w);
-            radius_squared = radius_squared.max(length_squared(pole) / (w * w));
-        }
-        let bound = if e < min_weight {
-            e * (1.0 + radius_squared).sqrt() / (min_weight - e)
-        } else {
-            f64::INFINITY
-        };
-        (bound <= max).then_some(bound)
-    }
-
-    #[inline]
-    fn is_valid(self) -> bool {
-        self[2] > 0.0
-    }
+/// Whether `pole` can weight a shape: a positive weight, any point.
+#[inline]
+fn is_valid<P: Pole>(pole: P) -> bool {
+    !P::WEIGHTED || pole.lanes()[3] > 0.0
 }
 
 /// What [`run`] returns: the new direction and poles, the poles at either
@@ -286,7 +196,7 @@ struct Run<P> {
 }
 
 /// [`remove_knots`] on the poles, converted if rational.
-fn run<P: Deviation>(
+fn run<P: Pole>(
     direction: &KnotVector,
     poles: Vec<P>,
     lanes: Lanes,
@@ -391,7 +301,7 @@ struct Solved {
     count: usize,
 }
 
-impl<P: Deviation> Removal<P> {
+impl<P: Pole> Removal<P> {
     /// Flat knot `k`, tiled endlessly with the period on a periodic
     /// direction.
     #[inline]
@@ -518,7 +428,7 @@ impl<P: Deviation> Removal<P> {
             }
             if !run[width..(w + 1) * width]
                 .iter()
-                .all(|&pole| pole.is_valid())
+                .all(|&pole| is_valid(pole))
             {
                 self.scratch = scratch;
                 self.diffs = diffs;
@@ -529,7 +439,7 @@ impl<P: Deviation> Removal<P> {
         let reach_poles = reach.flat_map(|f| {
             (0..this.rows).flat_map(move |row| this.poles_at(row, f).iter().copied())
         });
-        let bound = P::bound(
+        let bound = deviation_bound(
             &diffs,
             coefficient,
             this.poles_at(0, start)[0],

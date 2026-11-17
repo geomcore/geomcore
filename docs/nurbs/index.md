@@ -55,7 +55,10 @@ cells it supports — here 3 × 2 of the 4 × 3 spans — and the rest stays fla
 <figcaption>Raising P₄,₄ moves only u in [¼, 1) by v in [⅓, 1); the rest of the patch keeps its shape.</figcaption>
 </figure>
 
-<iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/nurbs-raised-pole.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="A bicubic B-spline surface with one raised control point and its control net"></iframe>
+```viewer
+scene: assets/scenes/nurbs-raised-pole.json
+title: A bicubic B-spline surface with one raised control point and its control net
+```
 
 ## Rational curves
 
@@ -87,11 +90,13 @@ shape — the operation behind refinement, splitting and extraction in
 - Every curve or surface is either elementary or a B-spline — there is
   no third representation, and exact conversions bridge the two.
 - The running example below is the geomdl tutorial curve as a clamped
-  degree-2 B-spline; the viewer draws it sampled (native B-spline
-  protocol types are
-  [viewer#5](https://github.com/geomcore/geomcore-viewer/issues/5)).
+  degree-2 B-spline. The viewer evaluates B-splines in the page with de
+  Boor, so the display refines as you zoom.
 
-<iframe src="https://geomcore.github.io/geomcore-viewer/?scene=https://geomcore.github.io/geomcore/assets/scenes/nurbs-curve.json" width="100%" height="480" style="border: 1px solid #333; border-radius: 8px;" allow="fullscreen" title="Quadratic B-spline with control polygon"></iframe>
+```viewer
+scene: assets/scenes/nurbs-curve.json
+title: Quadratic B-spline with control polygon
+```
 
 ## This module
 

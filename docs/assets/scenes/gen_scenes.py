@@ -4,7 +4,7 @@ Uses the real kernel + the real viewer client, so every scene is computed,
 not drawn: exact intersections, marching loops, projection feet.
 
 Run:  python3 docs/assets/scenes/gen_scenes.py
-Needs the released packages: pip install "geomcore>=0.36" "geomcore-viewer>=0.2"
+Needs the released packages: pip install "geomcore==0.47.*" "geomcore-viewer==0.5.*"
 (the viewer only writes the JSON here; no server is started). A scene that
 shows an unreleased API needs this repo's geomcore-py build instead.
 """
@@ -17,6 +17,7 @@ from pathlib import Path
 
 from geomcore import (
     BSplineSurface,
+    Circle,
     Cone,
     Cylinder,
     Ellipse,
@@ -54,6 +55,19 @@ def meeting(result):
     """What a surface-surface intersection draws: its curves, then the
     isolated points where the surfaces touch."""
     return [piece.curve for piece in result.curves] + list(result.contact_points)
+
+
+def getting_started_scene() -> None:
+    """The tutorial's circle and ellipse, with their four exact crossings."""
+    view = gv.Viewer(
+        "A circle and an ellipse", spawn=False, open_browser=False, view="2d"
+    )
+    ellipse = Ellipse.from_frame(Frame.world(), 3.0, 2.0)
+    circle = Circle(Point(0.5, 0.0, 0.0), Vector.unit_z(), 2.0)
+    view.add(ellipse, label="E", color="#4568dc", width=3)
+    view.add(circle, label="C", color="#a0651b", width=3)
+    view.add(circle.intersect(ellipse), label="C ∩ E")
+    save(view, "getting-started.json")
 
 
 def exact_scene() -> None:
@@ -350,6 +364,7 @@ def raised_pole_scene() -> None:
 exact_scene()
 marching_scene()
 projection_scene()
+getting_started_scene()
 three_curves_scenes()
 uniform_grid_scene()
 elementary_scenes()

@@ -164,6 +164,13 @@ the Python distribution are versioned in lockstep.
   `DegreeElevationError`, `BSplineSplitError`) move to
   `math/bspline/errors.rs`, beside the checks that raise them. Nothing
   public changes: every item keeps its path at the crate root.
+- Internal: the values no longer depend on the math. The pole algebra
+  the B-spline engine runs on (`Pole`, `HomogeneousPole`, `PolePoint`)
+  moves to `base/pole.rs`, so `TierPoint` requires it without importing
+  from `math/`, and `tests/module_dependencies.rs` fails when a file under
+  `src/base` names the math. The bound of a knot removal is one function
+  over any pole instead of a trait with four implementations; its
+  results are unchanged. Nothing public changes.
 - Internal: the solvers ask whether directions are parallel or
   perpendicular, whether axes are coaxial and what part of a vector lies
   across a direction through the predicates of `Direction`, `Vector` and
@@ -215,6 +222,22 @@ the Python distribution are versioned in lockstep.
   only when it is still the same contact (ADR 0034). It reports
   `multiplicity` 2. The list of the similarity judge is empty. The
   numeric curve–surface benchmarks spend up to 1.3% more instructions.
+- A curve–surface hit's multiplicity depended on where the shapes sat
+  and on their size (#428). The numeric search read a hit as a touch
+  when the curve's tangent was perpendicular to the surface's normal
+  within an angle shrinking with the hit's distance to the origin plus
+  one unit. A segment crossing a plane at a slope of 1e-8 came back with
+  `multiplicity` 2 at the origin and scaled by 2^20, and 1 translated by
+  1e3 or 1e7 or scaled by 2^-20. Curve–surface hits now follow the
+  size-free rule of curve–curve hits (ADR 0034): exactly tangent is a
+  touch, and a crossing at the sine `s` is a touch when
+  `s^2 <= 2 k tol.confusion`, `k` the difference between the curve's
+  curvature along the surface's normal and the surface's normal
+  curvature along the curve. A line crossing a plane at a shallow angle
+  is a crossing at every placement and size, and a circle grazing a plane
+  or touching a cylinder from inside is a touch. The similarity judge
+  compares curve–surface multiplicities and gains a segment and an arc
+  meeting a plane at a shallow angle; its list stays empty.
 - A marched curve's curves in the parameters of its surfaces keep within
   the confusion of its curve in space (#393). The march sized its steps
   on the curve in space alone, so where a surface's parameters turn fast

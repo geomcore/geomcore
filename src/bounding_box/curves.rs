@@ -26,7 +26,7 @@ use std::f64::consts::{PI, TAU};
 pub(crate) type BoundingBoxOf<P> = <P as PointOperations>::BoundingBox;
 
 /// The coordinates of `p` in the first lanes of a four-wide array, the
-/// layout [`PolePoint::point_of`](crate::math::bspline::poles::PolePoint::point_of)
+/// layout [`PolePoint::point_of`](crate::base::pole::PolePoint::point_of)
 /// reads back.
 fn lanes<P: TierPoint>(p: P) -> [f64; 4] {
     std::array::from_fn(|k| if k < P::DIM { p.coord(k) } else { 0.0 })
