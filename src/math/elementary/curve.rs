@@ -72,6 +72,7 @@ pub(crate) fn ellipse_d0<F: FrameOperations>(frame: &F, maj: f64, min: f64, u: f
 ///
 /// Cycles with period 4 in `order`, mirroring [`circle_dn`] but with
 /// independent major/minor scaling on the x/y components.
+#[inline]
 pub(crate) fn ellipse_dn<F: FrameOperations>(
     frame: &F,
     maj: f64,
