@@ -120,7 +120,10 @@ def _piece(curve, trimmed_class):
 
 def _operands_3d():
     whole = _curves_3d()
-    return whole + [_piece(c, geomcore.TrimmedCurve) for c in whole[:2]] + _surfaces()
+    pieces = [_piece(c, geomcore.TrimmedCurve) for c in whole[:2]]
+    surfaces = _surfaces()
+    face = geomcore.TrimmedSurface(surfaces[1], (0.0, 3.0), (-1.0, 1.0))
+    return whole + pieces + surfaces + [face]
 
 
 def _operands_2d():
@@ -211,8 +214,10 @@ def test_every_class_has_a_fixture():
 def test_every_class_takes_its_tier_method_set():
     for name in _shape_classes():
         if name == "TrimmedSurface":
-            # A patch answers what every parametric surface does; the
-            # isoparametric curves, reversals and transforms are its basis's.
+            # A patch answers what every parametric surface does, and
+            # writes its own transform, trimming and intersection, which
+            # map or clip its ranges; the isoparametric curves and the
+            # reversals are its basis's.
             tier = "_ParametricSurfaceMethods"
         elif name in _SURFACE_CLASSES:
             tier = "_SurfaceMethods"
@@ -462,9 +467,6 @@ def _fixtures():
     fixtures = {}
     for shape in _operands_3d() + _operands_2d():
         fixtures.setdefault(type(shape).__name__, shape)
-    # A patch intersects surfaces only, so it is no operand of the
-    # curve-surface parity checks.
-    fixtures["TrimmedSurface"] = fixtures["Cylinder"].trimmed((0.0, 3.0), (-1.0, 1.0))
     return fixtures
 
 
@@ -609,7 +611,8 @@ def test_2d_curves_do_not_intersect_3d_shapes():
 
 
 def test_curve_surface_results_name_the_operands_by_role():
-    for surface in _surfaces():
+    surfaces = [s for s in _operands_3d() if isinstance(s, tuple(_SURFACE_CLASSES.values()))]
+    for surface in surfaces:
         for curve in _curves_3d():
             assert surface.intersect(curve).surface is surface
             assert curve.intersect(surface).curve is curve

@@ -47,7 +47,7 @@ The curve a swept surface moves.
 _Avoid_: generatrix, basis curve, directrix
 
 **Trimmed surface**:
-A surface restricted to a rectangle of its parameters, a `u` range by a `v` range: the patch a face of a model lies on, without the face's edges or orientation. It evaluates as its basis, past the ranges too; a periodic direction's range may cross the seam. Its intersection with another surface is the intersection of the bases, cut to the pieces inside the ranges (ADR 0039).
+A surface restricted to a rectangle of its parameters, a `u` range by a `v` range: the patch a face of a model lies on, without the face's edges or orientation. It evaluates as its basis, past the ranges too; a periodic direction's range may cross the seam. Its intersection with another surface, or with a curve, is the intersection with the basis, cut to the pieces inside the ranges (ADR 0039). A transform maps its ranges with the basis's parametrization: a range of a length scales, a range of an angle is kept.
 _Avoid_: face (which adds edges and topology), patch for the type name, bounded surface
 
 **UV curve**:

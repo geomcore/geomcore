@@ -142,6 +142,14 @@ pub(crate) fn intersect(
         }
         .into_pyobject(py)?
         .into_any(),
+        (Operand::Curve(curve), Operand::TrimmedSurface(face))
+        | (Operand::TrimmedSurface(face), Operand::Curve(curve)) => PyCurveSurfaceIntersection {
+            result: py.detach(|| routed_curve_trimmed_surface(curve, face, tol)),
+            first,
+            second,
+        }
+        .into_pyobject(py)?
+        .into_any(),
         (Operand::Curve2D(a), Operand::Curve2D(b)) => PyCurveCurveIntersection2D {
             result: py.detach(|| routed_curve_curve_2d(a, b, tol)),
             first,
@@ -149,12 +157,6 @@ pub(crate) fn intersect(
         }
         .into_pyobject(py)?
         .into_any(),
-        (Operand::Curve(_), Operand::TrimmedSurface(_))
-        | (Operand::TrimmedSurface(_), Operand::Curve(_)) => {
-            return Err(PyTypeError::new_err(
-                "a TrimmedSurface intersects surfaces only: intersect the curve with its basis()",
-            ));
-        }
         _ => {
             return Err(PyTypeError::new_err(format!(
                 "cannot intersect a 2D curve with a 3D curve or a surface ({} and {})",
@@ -223,5 +225,18 @@ pub(crate) fn routed_curve_surface(
     match curve {
         CurveArg::Whole(curve) => curve.intersect(surface, tol),
         CurveArg::Trimmed(curve) => curve.intersect(surface, tol),
+    }
+}
+
+/// The routed intersection of a curve and a trimmed surface passed from
+/// Python.
+fn routed_curve_trimmed_surface(
+    curve: &CurveArg,
+    face: &TrimmedSurface,
+    tol: Tolerance,
+) -> CurveSurfaceIntersection {
+    match curve {
+        CurveArg::Whole(curve) => curve.intersect(face, tol),
+        CurveArg::Trimmed(curve) => curve.intersect(face, tol),
     }
 }

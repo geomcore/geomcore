@@ -8,12 +8,19 @@
 use crate::geometry::curves::{Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
 
 use crate::Continuity;
+use crate::geometry::curves::RangeOperations;
 use crate::geometry::surfaces::{
-    Curve3DToUvError, ParametricSurface, Surface, SurfaceCurvatures, UvCurveTo3DError,
+    BSplineSurface, BezierSurface, Cone, Curve3DToUvError, Cylinder, ElementarySurface,
+    ExtrusionSurface, ParametricSurface, Plane, RevolutionSurface, Sphere, Surface,
+    SurfaceCurvatures, Torus, UvCurveTo3DError, elementary_surface_dispatch, surface_dispatch,
+    surface_variants,
 };
 use crate::math::numeric::newton_min_1d;
 use crate::math::parameter_range::in_range;
-use crate::{BoundingBox, Direction, HasBoundingBox, Point, SurfaceProjection, Tolerance, Vector};
+use crate::{
+    BoundingBox, Direction, HasBoundingBox, Point, SurfaceProjection, Tolerance, Transform,
+    TransformError, Transformable, Vector,
+};
 use std::fmt;
 
 /// Error returned when a [`TrimmedSurface`] cannot be constructed from the
@@ -29,6 +36,13 @@ pub enum TrimmedSurfaceConstructionError {
     /// A range is longer than the period of a periodic parameter of the
     /// basis.
     ExceedsPeriod,
+    /// A range given to [`TrimmedSurface::trimmed`] does not overlap the
+    /// trimmed surface's range.
+    DisjointRanges,
+    /// A range given to [`TrimmedSurface::trimmed`] meets the trimmed
+    /// surface's range on a periodic parameter in two pieces, one on each
+    /// side of the seam, which no single range holds.
+    RangeInTwoPieces,
 }
 
 impl fmt::Display for TrimmedSurfaceConstructionError {
@@ -41,6 +55,12 @@ impl fmt::Display for TrimmedSurfaceConstructionError {
             TrimmedSurfaceConstructionError::OutsideBasis => "a range leaves the basis bounds",
             TrimmedSurfaceConstructionError::ExceedsPeriod => {
                 "a range is longer than the basis period"
+            }
+            TrimmedSurfaceConstructionError::DisjointRanges => {
+                "a range does not overlap the trimmed surface's range"
+            }
+            TrimmedSurfaceConstructionError::RangeInTwoPieces => {
+                "a range meets the trimmed surface's range in two pieces, across the seam"
             }
         };
         f.write_str(message)
@@ -75,6 +95,41 @@ fn check_range(
     }
 }
 
+/// The part of `face_range`, a range of a trimmed surface, that
+/// `requested` covers, on a basis parameter with `period`. On a periodic
+/// parameter `requested` is read modulo the period: its copies shifted by
+/// whole periods are intersected with `face_range`, and a range of a whole
+/// period covers all of it.
+fn intersected_range(
+    face_range: (f64, f64),
+    requested: (f64, f64),
+    period: Option<f64>,
+) -> Result<(f64, f64), TrimmedSurfaceConstructionError> {
+    check_range(requested, (f64::NEG_INFINITY, f64::INFINITY), period)?;
+    let overlap = |shift: f64| {
+        let (first, last) = (
+            face_range.0.max(requested.0 + shift),
+            face_range.1.min(requested.1 + shift),
+        );
+        (first < last).then_some((first, last))
+    };
+    let Some(period) = period else {
+        return overlap(0.0).ok_or(TrimmedSurfaceConstructionError::DisjointRanges);
+    };
+    if requested.1 - requested.0 >= period * (1.0 - 1e-12) {
+        return Ok(face_range);
+    }
+    // Both ranges span at most a period, so at most two of the copies
+    // starting from the last one ending before `face_range` meet it.
+    let first_copy = ((face_range.0 - requested.1) / period).floor();
+    let mut pieces = (0..4).filter_map(|copy| overlap((first_copy + f64::from(copy)) * period));
+    match (pieces.next(), pieces.next()) {
+        (None, _) => Err(TrimmedSurfaceConstructionError::DisjointRanges),
+        (Some(piece), None) => Ok(piece),
+        (Some(_), Some(_)) => Err(TrimmedSurfaceConstructionError::RangeInTwoPieces),
+    }
+}
+
 /// A surface restricted to a `u` range and a `v` range of a basis surface:
 /// the surface of a face, as a patch of a cylinder, a piece of a plane, a
 /// band of a torus.
@@ -96,6 +151,12 @@ fn check_range(
 /// [`intersect`](crate::Intersect::intersect) lies inside both and ends
 /// where it leaves either, and nothing is unbounded (see
 /// [`IntersectionCurve::parameter_range`](crate::IntersectionCurve::parameter_range)).
+/// A curve meets a trimmed surface within its rectangle: a hit reports
+/// its surface parameters in the ranges, shifted by a period on a range
+/// across the seam, and an overlap is cut to its pieces inside them.
+/// [`transformed`](Transformable::transformed) maps the ranges with the
+/// basis's parametrization, and [`trimmed`](Self::trimmed) intersects
+/// them.
 ///
 /// # Examples
 ///
@@ -176,6 +237,60 @@ impl<S: ParametricSurface> TrimmedSurface<S> {
         check_range(v_range, basis.v_bounds(), basis.v_period())?;
         Ok(TrimmedSurface {
             basis,
+            u_range,
+            v_range,
+        })
+    }
+
+    /// The patch of the basis over the part of each range that `u_range`
+    /// and `v_range`, each `(first, last)`, cover: the trimmed surface
+    /// trimmed again, over the same basis.
+    ///
+    /// On a periodic parameter of the basis a range is read modulo the
+    /// period, so `(0, π/4)` on a face from 3π/2 to 5π/2 of a cylinder
+    /// gives `(2π, 2π + π/4)`, and a range of a whole period keeps the
+    /// face's range. A range must have finite ends with `first < last`
+    /// ([`NonFinite`](TrimmedSurfaceConstructionError::NonFinite),
+    /// [`EmptyRange`](TrimmedSurfaceConstructionError::EmptyRange)), span
+    /// at most a period of a periodic parameter
+    /// ([`ExceedsPeriod`](TrimmedSurfaceConstructionError::ExceedsPeriod)),
+    /// and overlap the face's range
+    /// ([`DisjointRanges`](TrimmedSurfaceConstructionError::DisjointRanges))
+    /// in one piece, not one on each side of the seam
+    /// ([`RangeInTwoPieces`](TrimmedSurfaceConstructionError::RangeInTwoPieces)).
+    ///
+    /// The method of [`ParametricSurface`], reached as
+    /// `ParametricSurface::trimmed(face, ..)`, restricts the face itself
+    /// instead, a `TrimmedSurface<TrimmedSurface<S>>` whose ranges must lie
+    /// in the face's.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Cylinder, Point, TrimmedSurfaceConstructionError, Vector};
+    /// use std::f64::consts::{FRAC_PI_4, PI};
+    ///
+    /// let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    /// // A half cylinder across the seam, 5 high.
+    /// let face = cylinder.trimmed((1.5 * PI, 2.5 * PI), (0.0, 5.0)).unwrap();
+    /// let quarter = face.trimmed((0.0, FRAC_PI_4), (-1.0, 2.0)).unwrap();
+    /// assert_eq!(quarter.u_range(), (2.0 * PI, 2.0 * PI + FRAC_PI_4));
+    /// assert_eq!(quarter.v_range(), (0.0, 2.0));
+    /// assert_eq!(
+    ///     face.trimmed((0.0, FRAC_PI_4), (6.0, 7.0)),
+    ///     Err(TrimmedSurfaceConstructionError::DisjointRanges)
+    /// );
+    /// ```
+    pub fn trimmed(
+        self,
+        u_range: (f64, f64),
+        v_range: (f64, f64),
+    ) -> Result<TrimmedSurface<S>, TrimmedSurfaceConstructionError> {
+        let u_range = intersected_range(self.u_range, u_range, self.basis.u_period())?;
+        let v_range = intersected_range(self.v_range, v_range, self.basis.v_period())?;
+        Ok(TrimmedSurface {
+            basis: self.basis,
             u_range,
             v_range,
         })
@@ -419,6 +534,94 @@ impl<S: ParametricSurface + HasBoundingBox> HasBoundingBox for TrimmedSurface<S>
         patch.map_or_else(|| self.basis.bounding_box(), |patch| patch.bounding_box())
     }
 }
+
+/// Which parameters of a surface are lengths, which its
+/// [`Transformable::transformed`] scales by the transform's scale factor:
+/// a plane's two, a cylinder's and a cone's `v`, a swept surface's sweep
+/// and its profile's parameter where the profile's is a length (a line, a
+/// parabola). The others, angles and B-spline parameters, are kept. No
+/// surface's `transformed` reverses a parameter: under a mirror an
+/// elementary surface's frame turns indirect and a revolution surface's
+/// axis is reversed, so the image has the image point at the same
+/// parameters.
+pub(crate) trait LengthParameters {
+    /// Whether `u` is a length, and whether `v` is.
+    fn length_parameters(&self) -> (bool, bool);
+}
+
+/// Makes each surface a [`LengthParameters`] with the given answer.
+macro_rules! length_parameters {
+    ($($surface:ty => $answer:expr),+ $(,)?) => {$(
+        impl LengthParameters for $surface {
+            #[inline]
+            fn length_parameters(&self) -> (bool, bool) {
+                let read: fn(&$surface) -> (bool, bool) = $answer;
+                read(self)
+            }
+        }
+    )+};
+}
+
+length_parameters! {
+    Plane => |_| (true, true),
+    Cylinder => |_| (false, true),
+    Cone => |_| (false, true),
+    Sphere => |_| (false, false),
+    Torus => |_| (false, false),
+    ExtrusionSurface => |surface| (surface.profile().parameter_is_length(), true),
+    RevolutionSurface => |surface| (false, surface.profile().parameter_is_length()),
+    BSplineSurface => |_| (false, false),
+    BezierSurface => |_| (false, false),
+    Surface => |surface| surface_dispatch!(surface, s => s.length_parameters()),
+    ElementarySurface => |surface| elementary_surface_dispatch!(surface, s => s.length_parameters()),
+}
+
+/// The image of `patch` under `transform`: the basis's image, and each
+/// range scaled by the scale factor where its parameter is a length.
+fn transformed_patch<S: Transformable + LengthParameters>(
+    patch: &TrimmedSurface<S>,
+    transform: Transform,
+) -> Result<TrimmedSurface<S>, TransformError> {
+    let basis = patch.basis.transformed(transform)?;
+    let scale = transform.scale_factor();
+    let (u_is_length, v_is_length) = patch.basis.length_parameters();
+    let mapped = |(first, last): (f64, f64), is_length: bool| {
+        let factor = if is_length { scale } else { 1.0 };
+        let range = (first * factor, last * factor);
+        if range.0.is_finite() && range.1.is_finite() {
+            Ok(range)
+        } else {
+            Err(TransformError::NonFinite)
+        }
+    };
+    Ok(TrimmedSurface {
+        basis,
+        u_range: mapped(patch.u_range, u_is_length)?,
+        v_range: mapped(patch.v_range, v_is_length)?,
+    })
+}
+
+/// Makes a trimmed surface over each surface of [`Surface`]'s variant
+/// list, and over the two surface enums, [`Transformable`].
+macro_rules! transformable_trimmed_surfaces {
+    ([] $enum:ty; $($variant:path: $shape:ty),+) => {
+        transformable_trimmed_surfaces!($($shape),+, $enum, ElementarySurface);
+    };
+    ($($shape:ty),+) => {$(
+        impl Transformable for TrimmedSurface<$shape> {
+            /// The basis maps through the transform, and each range with
+            /// it: scaled by the transform's scale factor where the
+            /// basis's parameter is a length (a cylinder's height), kept
+            /// otherwise (an angle, a B-spline parameter). The image holds
+            /// the image of every point of the patch.
+            fn transformed(&self, transform: Transform) -> Result<Self, TransformError> {
+                transformed_patch(self, transform)
+            }
+        }
+    )+};
+}
+
+surface_variants!(Surface, transformable_trimmed_surfaces! {});
 
 /// A basis surface and the parameter ranges restricting it, the basis read
 /// as a trait object so the clipping of an intersection to the ranges is

@@ -42,7 +42,7 @@ use crate::{
     BoundingBox, HasBoundingBox, Point, Point2D, TierPoint, Tolerance, Transform, Transformable,
     Vector,
 };
-use trimmed_surface::{route_restricted, trimmed};
+use trimmed_surface::{clip_to_face, route_restricted, trimmed};
 
 // The list macros come before the submodules, which use `shapes!` too.
 
@@ -246,6 +246,11 @@ pub(crate) trait CurveOperand: ParametricCurve {
     fn moved_by(&self, offset: Vector) -> Option<Self>
     where
         Self: Sized;
+
+    /// The curve whose parameters the result's ranges are in, as a
+    /// [`Curve`]: the curve itself, or a trimmed curve's basis. Read only
+    /// to clip an overlap with a trimmed surface.
+    fn untrimmed_curve(&self) -> Curve;
 }
 
 /// `curve` moved by `offset`; `None` where it overflows.
@@ -270,6 +275,10 @@ macro_rules! own_curve_basis {
             fn moved_by(&self, offset: Vector) -> Option<$curve> {
                 translated(self, offset)
             }
+
+            fn untrimmed_curve(&self) -> Curve {
+                (*self).into()
+            }
         }
     )*};
 }
@@ -288,6 +297,10 @@ impl CurveOperand for BSplineCurve {
     fn moved_by(&self, offset: Vector) -> Option<BSplineCurve> {
         translated(self, offset)
     }
+
+    fn untrimmed_curve(&self) -> Curve {
+        self.clone().into()
+    }
 }
 
 impl CurveOperand for BezierCurve {
@@ -300,6 +313,10 @@ impl CurveOperand for BezierCurve {
     #[inline]
     fn moved_by(&self, offset: Vector) -> Option<BezierCurve> {
         translated(self, offset)
+    }
+
+    fn untrimmed_curve(&self) -> Curve {
+        self.clone().into()
     }
 }
 
@@ -314,6 +331,10 @@ impl CurveOperand for QuarticBranch {
     fn moved_by(&self, offset: Vector) -> Option<QuarticBranch> {
         translated(self, offset)
     }
+
+    fn untrimmed_curve(&self) -> Curve {
+        self.clone().into()
+    }
 }
 
 impl CurveOperand for Curve {
@@ -326,6 +347,10 @@ impl CurveOperand for Curve {
     #[inline]
     fn moved_by(&self, offset: Vector) -> Option<Curve> {
         translated(self, offset)
+    }
+
+    fn untrimmed_curve(&self) -> Curve {
+        self.clone()
     }
 }
 
@@ -348,6 +373,11 @@ impl<C: CurveOperand> CurveOperand for TrimmedCurve<C> {
             self.start_parameter(),
             self.end_parameter(),
         ))
+    }
+
+    /// The basis: the result's ranges are in its parameters.
+    fn untrimmed_curve(&self) -> Curve {
+        self.basis().untrimmed_curve()
     }
 }
 
@@ -617,6 +647,80 @@ macro_rules! trimmed_curve_surface {
 }
 
 surface_operands!(trimmed_curve_surface);
+
+/// Intersects a curve with a trimmed surface: the curve is intersected
+/// with the basis, and the hits and overlaps clipped to the ranges (see
+/// `trimmed_surface`).
+#[inline]
+fn route_curve_trimmed_surface<'s, C: CurveOperand, X: SurfaceOperand>(
+    curve: &C,
+    face: &'s TrimmedSurface<X>,
+    tol: Tolerance,
+) -> CurveSurfaceIntersection
+where
+    C::Basis: ExactFamily<X::Basis<'s>, Family = CurveSurfaceIntersection>,
+{
+    let on_basis = route_curve_surface(curve, face.basis(), tol);
+    clip_to_face(on_basis, curve, face, tol)
+}
+
+/// Implements [`Intersect`] between each curve and a trimmed surface over
+/// any surface operand, in both orders.
+macro_rules! curve_trimmed_surface {
+    ([$($curve:ty),*]) => {$(
+        impl<X: SurfaceOperand + 'static> Intersect<TrimmedSurface<X>> for $curve
+        where
+            for<'a> <$curve as CurveOperand>::Basis:
+                ExactFamily<X::Basis<'a>, Family = CurveSurfaceIntersection>,
+        {
+            type Output = CurveSurfaceIntersection;
+
+            #[inline]
+            fn intersect(&self, other: &TrimmedSurface<X>, tol: Tolerance) -> CurveSurfaceIntersection {
+                route_curve_trimmed_surface(self, other, tol)
+            }
+        }
+
+        impl<X: SurfaceOperand + 'static> Intersect<$curve> for TrimmedSurface<X>
+        where
+            for<'a> <$curve as CurveOperand>::Basis:
+                ExactFamily<X::Basis<'a>, Family = CurveSurfaceIntersection>,
+        {
+            type Output = CurveSurfaceIntersection;
+
+            #[inline]
+            fn intersect(&self, other: &$curve, tol: Tolerance) -> CurveSurfaceIntersection {
+                route_curve_trimmed_surface(other, self, tol)
+            }
+        }
+    )*};
+}
+
+curve_operands!(curve_trimmed_surface);
+
+impl<Y: CurveOperand, X: SurfaceOperand + 'static> Intersect<TrimmedSurface<X>> for TrimmedCurve<Y>
+where
+    for<'a> Y::Basis: ExactFamily<X::Basis<'a>, Family = CurveSurfaceIntersection>,
+{
+    type Output = CurveSurfaceIntersection;
+
+    #[inline]
+    fn intersect(&self, other: &TrimmedSurface<X>, tol: Tolerance) -> CurveSurfaceIntersection {
+        route_curve_trimmed_surface(self, other, tol)
+    }
+}
+
+impl<Y: CurveOperand, X: SurfaceOperand + 'static> Intersect<TrimmedCurve<Y>> for TrimmedSurface<X>
+where
+    for<'a> Y::Basis: ExactFamily<X::Basis<'a>, Family = CurveSurfaceIntersection>,
+{
+    type Output = CurveSurfaceIntersection;
+
+    #[inline]
+    fn intersect(&self, other: &TrimmedCurve<Y>, tol: Tolerance) -> CurveSurfaceIntersection {
+        route_curve_trimmed_surface(other, self, tol)
+    }
+}
 
 /// Intersects two surfaces: in closed form when the table lists the
 /// pair, by marching otherwise. The pair is matched on the two kinds: the

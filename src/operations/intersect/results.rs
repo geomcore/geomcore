@@ -695,6 +695,18 @@ impl CurveSurfaceIntersection {
         }
     }
 
+    /// The result with its hits and overlaps changed by `restrict`, its
+    /// method and completeness kept: the intersection of a curve and a
+    /// basis clipped to the ranges of a trimmed surface. `restrict` keeps
+    /// the hits sorted.
+    pub(crate) fn restricted(
+        mut self,
+        restrict: impl FnOnce(&mut CurveSurfaceHitList, &mut CurveSurfaceOverlapList),
+    ) -> Self {
+        restrict(&mut self.hits, &mut self.overlaps);
+        self
+    }
+
     /// A numeric result with the status of its search.
     pub(crate) fn numeric(
         hits: Vec<CurveSurfaceHit>,
