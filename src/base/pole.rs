@@ -1,0 +1,280 @@
+//! The poles a B-spline blends: one algebra for the 3D and the 2D tier,
+//! points and homogeneous points alike. The engine under `math/bspline/`
+//! runs every algorithm on it; [`TierPoint`](crate::TierPoint) requires
+//! [`PolePoint`], so a shape generic over its tier reaches the engine.
+
+use crate::{Point, Point2D};
+
+/// A pole an algorithm combines linearly (knot insertion, de Casteljau,
+/// degree elevation): a point of a nonrational shape, or a homogeneous
+/// point `(w x, w y, (w z,) w)` of a rational one, the weight in the last
+/// coordinate.
+pub trait Pole: Copy + Default {
+    /// The tier's Cartesian points, a homogeneous pole dehomogenizing to.
+    type Cartesian: Copy;
+
+    /// Euclidean coordinates per pole: 3 in space, 2 in the plane.
+    const DIM: usize;
+
+    /// Whether the pole carries a weight: a homogeneous pole does, a point
+    /// does not.
+    const WEIGHTED: bool;
+
+    /// The pole as four-wide lanes: the coordinates in `[0..DIM]`, the
+    /// spare coordinate of the plane tier zero, and the weight in the last
+    /// lane if [`Self::WEIGHTED`], zero otherwise.
+    fn lanes(self) -> [f64; 4];
+
+    /// `a self + b other`.
+    fn combine(self, a: f64, other: Self, b: f64) -> Self;
+
+    /// `a self`.
+    fn scale(self, a: f64) -> Self;
+
+    /// The points of `poles` and their weights, if rational.
+    fn parts(poles: &[Self]) -> (Vec<Self::Cartesian>, Option<Vec<f64>>);
+}
+
+impl Pole for Point {
+    type Cartesian = Point;
+    const DIM: usize = 3;
+    const WEIGHTED: bool = false;
+
+    #[inline]
+    fn lanes(self) -> [f64; 4] {
+        [self.x, self.y, self.z, 0.0]
+    }
+
+    #[inline]
+    fn combine(self, a: f64, other: Self, b: f64) -> Self {
+        Point::new(
+            a * self.x + b * other.x,
+            a * self.y + b * other.y,
+            a * self.z + b * other.z,
+        )
+    }
+
+    #[inline]
+    fn scale(self, a: f64) -> Self {
+        Point::new(a * self.x, a * self.y, a * self.z)
+    }
+
+    fn parts(poles: &[Self]) -> (Vec<Point>, Option<Vec<f64>>) {
+        (poles.to_vec(), None)
+    }
+}
+
+impl Pole for Point2D {
+    type Cartesian = Point2D;
+    const DIM: usize = 2;
+    const WEIGHTED: bool = false;
+
+    #[inline]
+    fn lanes(self) -> [f64; 4] {
+        [self.x, self.y, 0.0, 0.0]
+    }
+
+    #[inline]
+    fn combine(self, a: f64, other: Self, b: f64) -> Self {
+        Point2D::new(a * self.x + b * other.x, a * self.y + b * other.y)
+    }
+
+    #[inline]
+    fn scale(self, a: f64) -> Self {
+        Point2D::new(a * self.x, a * self.y)
+    }
+
+    fn parts(poles: &[Self]) -> (Vec<Point2D>, Option<Vec<f64>>) {
+        (poles.to_vec(), None)
+    }
+}
+
+impl Pole for [f64; 4] {
+    type Cartesian = Point;
+    const DIM: usize = 3;
+    const WEIGHTED: bool = true;
+
+    #[inline]
+    fn lanes(self) -> [f64; 4] {
+        self
+    }
+
+    #[inline]
+    fn combine(self, a: f64, other: Self, b: f64) -> Self {
+        std::array::from_fn(|c| a * self[c] + b * other[c])
+    }
+
+    #[inline]
+    fn scale(self, a: f64) -> Self {
+        self.map(|c| a * c)
+    }
+
+    fn parts(poles: &[Self]) -> (Vec<Point>, Option<Vec<f64>>) {
+        (
+            poles.iter().map(|&h| h.cartesian()).collect(),
+            Some(poles.iter().map(|&h| h.weight()).collect()),
+        )
+    }
+}
+
+impl Pole for [f64; 3] {
+    type Cartesian = Point2D;
+    const DIM: usize = 2;
+    const WEIGHTED: bool = true;
+
+    #[inline]
+    fn lanes(self) -> [f64; 4] {
+        [self[0], self[1], 0.0, self[2]]
+    }
+
+    #[inline]
+    fn combine(self, a: f64, other: Self, b: f64) -> Self {
+        std::array::from_fn(|c| a * self[c] + b * other[c])
+    }
+
+    #[inline]
+    fn scale(self, a: f64) -> Self {
+        self.map(|c| a * c)
+    }
+
+    fn parts(poles: &[Self]) -> (Vec<Point2D>, Option<Vec<f64>>) {
+        (
+            poles.iter().map(|&h| h.cartesian()).collect(),
+            Some(poles.iter().map(|&h| h.weight()).collect()),
+        )
+    }
+}
+
+/// The tier's homogeneous pole: blended linearly as any [`Pole`], and read
+/// back as a Cartesian point and a weight. As four-wide lane arrays, the
+/// coordinates sit in `[0..DIM]`, the weight in the last lane, and the
+/// spare coordinate of the 2D tier is zero.
+pub trait HomogeneousPole: Pole<Cartesian: PolePoint<Homogeneous = Self>> {
+    /// The homogeneous pole of `p` with the weight `w` folded in.
+    fn fold(p: Self::Cartesian, w: f64) -> Self;
+
+    /// The Cartesian point: the coordinates over the weight.
+    fn cartesian(self) -> Self::Cartesian;
+
+    /// The weight, the pole's last coordinate.
+    fn weight(self) -> f64;
+
+    /// The homogeneous pole of four-wide lanes as [`Pole::lanes`] gives
+    /// them, the spare coordinate dropped.
+    fn of_lanes(s: [f64; 4]) -> Self;
+}
+
+impl HomogeneousPole for [f64; 4] {
+    #[inline]
+    fn fold(p: Point, w: f64) -> Self {
+        [w * p.x, w * p.y, w * p.z, w]
+    }
+
+    #[inline]
+    fn cartesian(self) -> Point {
+        let [x, y, z, w] = self;
+        let inverse = 1.0 / w;
+        Point::new(x * inverse, y * inverse, z * inverse)
+    }
+
+    #[inline]
+    fn weight(self) -> f64 {
+        self[3]
+    }
+
+    #[inline]
+    fn of_lanes(s: [f64; 4]) -> Self {
+        s
+    }
+}
+
+impl HomogeneousPole for [f64; 3] {
+    #[inline]
+    fn fold(p: Point2D, w: f64) -> Self {
+        [w * p.x, w * p.y, w]
+    }
+
+    #[inline]
+    fn cartesian(self) -> Point2D {
+        let [x, y, w] = self;
+        let inverse = 1.0 / w;
+        Point2D::new(x * inverse, y * inverse)
+    }
+
+    #[inline]
+    fn weight(self) -> f64 {
+        self[2]
+    }
+
+    #[inline]
+    fn of_lanes(s: [f64; 4]) -> Self {
+        [s[0], s[1], s[3]]
+    }
+}
+
+/// The points a B-spline's poles are, and the geometry its evaluation
+/// produces: [`Point`] in space, [`Point2D`] in the plane. One
+/// implementation per tier, monomorphized, so every loop over coordinates
+/// unrolls and no evaluation allocates. A supertrait of
+/// [`TierPoint`](crate::TierPoint), which adds the vector arithmetic; the
+/// trait is public in a crate-private module, so it seals the tier trait.
+pub trait PolePoint: Copy + Pole<Cartesian = Self> {
+    /// The tier's homogeneous pole, the weight folded in.
+    type Homogeneous: HomogeneousPole<Cartesian = Self>;
+
+    /// Coordinate `c` of the pole, `c < DIM`.
+    fn coord(self, c: usize) -> f64;
+
+    /// The point of homogeneous sums `s`: the coordinates in `[0..DIM]`
+    /// and the weight in the last of a four-wide array, the spare
+    /// coordinate zero and ignored.
+    fn point_of(s: [f64; 4]) -> Self;
+
+    /// The point in space: itself in 3D, at `z = 0` in the plane.
+    fn embedded(self) -> Point;
+}
+
+impl PolePoint for Point {
+    type Homogeneous = [f64; 4];
+
+    #[inline]
+    fn coord(self, c: usize) -> f64 {
+        match c {
+            0 => self.x,
+            1 => self.y,
+            _ => self.z,
+        }
+    }
+
+    #[inline]
+    fn point_of(s: [f64; 4]) -> Self {
+        Point::new(s[0], s[1], s[2])
+    }
+
+    #[inline]
+    fn embedded(self) -> Point {
+        self
+    }
+}
+
+impl PolePoint for Point2D {
+    type Homogeneous = [f64; 3];
+
+    #[inline]
+    fn coord(self, c: usize) -> f64 {
+        match c {
+            0 => self.x,
+            _ => self.y,
+        }
+    }
+
+    #[inline]
+    fn point_of(s: [f64; 4]) -> Self {
+        Point2D::new(s[0], s[1])
+    }
+
+    #[inline]
+    fn embedded(self) -> Point {
+        Point::new(self.x, self.y, 0.0)
+    }
+}
