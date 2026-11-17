@@ -214,7 +214,7 @@ the Python distribution are versioned in lockstep.
   tangent plane, pinned at a curve end the touch lies beyond, and kept
   only when it is still the same contact (ADR 0034). It reports
   `multiplicity` 2. The list of the similarity judge is empty. The
-  numeric curve–surface benchmarks spend up to 2% more instructions.
+  numeric curve–surface benchmarks spend up to 1.3% more instructions.
 - A marched curve's curves in the parameters of its surfaces keep within
   the confusion of its curve in space (#393). The march sized its steps
   on the curve in space alone, so where a surface's parameters turn fast
