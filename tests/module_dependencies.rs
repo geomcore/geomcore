@@ -5,10 +5,12 @@
 //! modules, nor any name the crate root re-exports from them. It works on
 //! the values of `base/` and on its own types.
 //!
-//! The values sit under the math: no production file under `src/base/`
-//! names the `math` module, nor any name the crate root re-exports from it.
-//! The pole algebra the B-spline engine runs on lives in `base/pole.rs`, so
-//! the tier trait requires it without reaching up.
+//! The values sit under everything else: no production file under
+//! `src/base/` names the `math`, `geometry`, `operations` or `bounding_box`
+//! modules, nor any name the crate root re-exports from them. The pole
+//! algebra the B-spline engine runs on lives in `base/pole.rs`, and the
+//! box types in `base/bounding_box.rs` and `base/bounding_box_2d.rs`, so
+//! the tier trait requires them without reaching up.
 //!
 //! Curves do not depend on surfaces: a surface owns the mapping between its
 //! UV curves and 3D curves both ways (ADRs 0030, 0031), so no production
@@ -187,11 +189,26 @@ fn no_math_source_names_a_shape_or_an_operation() {
 }
 
 #[test]
-fn no_base_source_names_the_math() {
+fn no_base_source_names_a_module_above_it() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let names = reexported_names(root, "math::bspline::errors");
+    let modules = ["math", "geometry", "operations", "bounding_box"];
+    let names: Vec<String> = modules
+        .iter()
+        .flat_map(|module| reexported_names(root, module))
+        .collect();
     // A parse that found nothing would pass every file, so pin the list.
-    for expected in ["BSplineConstructionError", "KnotRemovalError"] {
+    for expected in [
+        "BSplineConstructionError",
+        "KnotRemovalError",
+        "BSplineCurve",
+        "Curve",
+        "Plane",
+        "HasBoundingBox",
+        "HasBoundingBox2D",
+        "Discretize",
+        "Intersect",
+        "CurveProjection",
+    ] {
         assert!(
             names.iter().any(|name| name == expected),
             "{expected} missing from {names:?}"
@@ -203,8 +220,10 @@ fn no_base_source_names_the_math() {
     let mut offenders = Vec::new();
     for path in &files {
         let code = code_of(&fs::read_to_string(path).unwrap());
-        if code.contains("crate::math") {
-            offenders.push(format!("{}: crate::math", path.display()));
+        for module in modules {
+            if code.contains(&format!("crate::{module}")) {
+                offenders.push(format!("{}: crate::{module}", path.display()));
+            }
         }
         for name in &names {
             if names_word(&code, name) {
@@ -214,7 +233,7 @@ fn no_base_source_names_the_math() {
     }
     assert!(
         offenders.is_empty(),
-        "base must not depend on the math: {offenders:#?}"
+        "base must not depend on a module above it: {offenders:#?}"
     );
 }
 

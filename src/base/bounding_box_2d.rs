@@ -1,6 +1,9 @@
-//! The 2D axis-aligned box and the query that asks a 2D curve for it.
+//! The axis-aligned box in the plane. The query that asks a 2D curve for
+//! its box, `HasBoundingBox2D`, lives with the curves it bounds, in
+//! `bounding_box/`.
 
-use crate::{Point2D, Tolerance, Vector2D};
+use crate::base::tier::operations::BoxOperations;
+use crate::{Point2D, Vector2D};
 
 /// An axis-aligned box in the plane: the points whose coordinates all lie
 /// between those of its [`min_corner`](BoundingBox2D::min_corner) and
@@ -24,8 +27,8 @@ use crate::{Point2D, Tolerance, Vector2D};
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct BoundingBox2D {
-    pub(super) min: Point2D,
-    pub(super) max: Point2D,
+    min: Point2D,
+    max: Point2D,
 }
 
 fn coordinates(p: Point2D) -> [f64; 2] {
@@ -299,54 +302,32 @@ impl BoundingBox2D {
     }
 }
 
-/// The axis-aligned box bounding a 2D curve, or `None` for an unbounded
-/// one. The planar counterpart of [`HasBoundingBox`](crate::HasBoundingBox).
-///
-/// A [`Circle2D`](crate::Circle2D) reports its tightest box, which touches
-/// it on every side (up to the rounding of evaluating it). A
-/// [`BSplineCurve2D`](crate::BSplineCurve2D) reports a box holding the
-/// whole curve, from its control points, which may be larger than the
-/// tightest. A [`Line2D`](crate::Line2D) is unbounded and reports `None`;
-/// a [`TrimmedCurve2D`](crate::TrimmedCurve2D) always has a box,
-/// over its range.
-///
-/// # Examples
-///
-/// ```
-/// use geomcore::prelude::*;
-/// use geomcore::{Circle2D, Line2D, Point2D, Vector2D};
-///
-/// let circle = Circle2D::new(Point2D::new(1.0, 0.0), 2.0).unwrap();
-/// let b = circle.bounding_box().unwrap();
-/// assert_eq!(b.min_corner(), Point2D::new(-1.0, -2.0));
-/// assert_eq!(b.max_corner(), Point2D::new(3.0, 2.0));
-///
-/// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
-/// assert_eq!(line.bounding_box(), None);
-/// ```
-pub trait HasBoundingBox2D {
-    /// The axis-aligned box bounding the curve, or `None` if the curve is
-    /// unbounded.
-    fn bounding_box(&self) -> Option<BoundingBox2D>;
+impl BoxOperations for BoundingBox2D {
+    type Point = Point2D;
 
-    /// The axis-aligned box bounding the curve as tightly as
-    /// `tol.confusion`: it holds the curve, and each of its sides is within
-    /// `tol.confusion` of a point of the curve. `None` if the curve is
-    /// unbounded. As [`HasBoundingBox::tight_bounding_box`](crate::HasBoundingBox::tight_bounding_box)
-    /// in the plane.
-    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox2D> {
-        let _ = tol;
-        self.bounding_box()
-    }
-}
-
-impl<T: HasBoundingBox2D + ?Sized> HasBoundingBox2D for &T {
-    fn bounding_box(&self) -> Option<BoundingBox2D> {
-        (**self).bounding_box()
+    #[inline]
+    fn new(a: Point2D, b: Point2D) -> BoundingBox2D {
+        BoundingBox2D::new(a, b)
     }
 
-    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox2D> {
-        (**self).tight_bounding_box(tol)
+    #[inline]
+    fn from_corners(min: Point2D, max: Point2D) -> BoundingBox2D {
+        BoundingBox2D { min, max }
+    }
+
+    #[inline]
+    fn including(self, point: Point2D) -> BoundingBox2D {
+        BoundingBox2D::including(self, point)
+    }
+
+    #[inline]
+    fn min_corner(self) -> Point2D {
+        BoundingBox2D::min_corner(self)
+    }
+
+    #[inline]
+    fn max_corner(self) -> Point2D {
+        BoundingBox2D::max_corner(self)
     }
 }
 
