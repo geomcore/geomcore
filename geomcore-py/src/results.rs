@@ -2,8 +2,8 @@
 //! the Rust result types.
 //!
 //! Every class is frozen. Its fields are read-only properties named as in
-//! Rust, compared by value. The intersection results and the curve–curve
-//! extrema also hold the operands they were computed from, as `first` and
+//! Rust, compared by value. The intersection and extrema results also
+//! hold the operands they were computed from, as `first` and
 //! `second`, and the projections hold the object they project onto, as
 //! `target`: the exact objects passed, shared rather than copied.
 
@@ -12,9 +12,10 @@ use crate::values::{PyPoint, PyPoint2D, PyVector, coordinates, coordinates_2d, f
 use geomcore::{
     Completeness, CurveCurveExtrema, CurveCurveExtremum, CurveCurveHit, CurveCurveHit2D,
     CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveCurveRegion,
-    CurveProjection, CurveProjection2D, CurveSurfaceHit, CurveSurfaceIntersection,
-    CurveSurfaceOverlap, CurveSurfaceRegion, IncompleteReason, IntersectionCurve, Point, Point2D,
-    SurfaceCurvatures, SurfaceProjection, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
+    CurveProjection, CurveProjection2D, CurveSurfaceExtrema, CurveSurfaceExtremum, CurveSurfaceHit,
+    CurveSurfaceIntersection, CurveSurfaceOverlap, CurveSurfaceRegion, IncompleteReason,
+    IntersectionCurve, Point, Point2D, SurfaceCurvatures, SurfaceProjection, SurfaceSurfaceExtrema,
+    SurfaceSurfaceExtremum, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
 };
 use pyo3::prelude::*;
 use pyo3::type_object::PyTypeInfo;
@@ -1559,125 +1560,320 @@ impl PyCurveCurveExtremum {
     }
 }
 
-/// The local minima of the distance between two curves, closest first,
-/// with whether the search proved there is no other.
-///
-/// `first` and `second` are the curves, in the order of the call.
-#[pyclass(name = "CurveCurveExtrema", module = "geomcore", frozen)]
-pub(crate) struct PyCurveCurveExtrema {
-    pub(crate) result: CurveCurveExtrema,
-    pub(crate) first: Py<PyAny>,
-    pub(crate) second: Py<PyAny>,
+/// The `#[pyclass]` of an extrema result: the minima of the distance
+/// between two operands, closest first, with whether the search proved
+/// there is no other, holding the operands as `first` and `second`. The
+/// tokens after the semicolon are the class's own methods.
+macro_rules! extrema_result {
+    (
+        $(#[$doc:meta])*
+        $class:ident, $name:literal, $result:ty, $extremum:ident, $completeness:ident;
+        $($methods:tt)*
+    ) => {
+        $(#[$doc])*
+        #[pyclass(name = $name, module = "geomcore", frozen)]
+        pub(crate) struct $class {
+            pub(crate) result: $result,
+            pub(crate) first: Py<PyAny>,
+            pub(crate) second: Py<PyAny>,
+        }
+
+        #[pymethods]
+        impl $class {
+            fn __reduce__<'py>(
+                slf: &Bound<'py, Self>,
+            ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+                let (this, py) = (slf.get(), slf.py());
+                let operands = vec![this.first.clone_ref(py), this.second.clone_ref(py)];
+                crate::result_states::pickled(slf.as_any(), operands, &this.result)
+            }
+
+            /// Rebuilds a pickled result (see `__reduce__`).
+            #[staticmethod]
+            fn _from_state(
+                py: Python<'_>,
+                version: &str,
+                first: Py<PyAny>,
+                second: Py<PyAny>,
+                state: &Bound<'_, PyAny>,
+            ) -> PyResult<Self> {
+                let result = crate::result_states::unpickled(py, version, state.extract()?)?;
+                Ok(Self {
+                    result,
+                    first,
+                    second,
+                })
+            }
+
+            /// The number of minima; an extrema result is falsy when there is none.
+            fn __len__(&self) -> usize {
+                self.result.minima().len()
+            }
+
+            /// The closest minimum, the first of `minima`, or `None` when there
+            /// is none.
+            fn closest(&self) -> Option<$extremum> {
+                self.result.closest().copied().map($extremum)
+            }
+
+            /// Iterates over the minima, closest first.
+            fn __iter__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+                self.minima(py)?.try_iter()
+            }
+
+            /// A minimum, or a list for a slice, closest first.
+            fn __getitem__<'py>(
+                &self,
+                py: Python<'py>,
+                index: &Bound<'py, PyAny>,
+            ) -> PyResult<Bound<'py, PyAny>> {
+                self.minima(py)?.as_any().get_item(index)
+            }
+
+            /// Iterates over the minima, farthest first.
+            fn __reversed__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
+                let minima = self.minima(py)?;
+                minima.reverse()?;
+                minima.try_iter()
+            }
+
+            /// The minima, closest first.
+            #[getter]
+            fn minima<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
+                PyList::new(py, self.result.minima().iter().map(|m| $extremum(*m)))
+            }
+
+            /// Whether the search proved there is no other minimum.
+            #[getter]
+            fn completeness(&self) -> PyCompleteness {
+                PyCompleteness::$completeness(self.result.completeness())
+            }
+
+            /// The operand the method was called on.
+            #[getter]
+            fn first(&self, py: Python<'_>) -> Py<PyAny> {
+                self.first.clone_ref(py)
+            }
+
+            /// The operand passed to the method.
+            #[getter]
+            fn second(&self, py: Python<'_>) -> Py<PyAny> {
+                self.second.clone_ref(py)
+            }
+
+            /// Whether the search proved there is no other minimum.
+            fn is_complete(&self) -> bool {
+                self.result.is_complete()
+            }
+
+            fn __eq__(&self, py: Python<'_>, other: PyRef<'_, Self>) -> PyResult<bool> {
+                Ok(self.result == other.result
+                    && same_operand(py, &self.first, &other.first)?
+                    && same_operand(py, &self.second, &other.second)?)
+            }
+
+            fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
+                Ok(format!(
+                    "{}(first={}, second={}, completeness={}, minima={})",
+                    $name,
+                    self.first.bind(py).get_type().name()?,
+                    self.second.bind(py).get_type().name()?,
+                    self.completeness().status.repr(),
+                    list_repr(self.result.minima(), |m| $extremum(*m).__repr__()),
+                ))
+            }
+
+            $($methods)*
+        }
+    };
 }
 
+extrema_result! {
+    /// The local minima of the distance between two curves, closest first,
+    /// with whether the search proved there is no other.
+    ///
+    /// `first` and `second` are the curves, in the order of the call.
+    PyCurveCurveExtrema, "CurveCurveExtrema", CurveCurveExtrema, PyCurveCurveExtremum,
+    curve_curve;
+}
+
+// ---------------------------------------------------------------------------
+// Curve–surface and surface–surface extrema
+// ---------------------------------------------------------------------------
+
+/// A local minimum of the distance between a curve and a surface.
+#[pyclass(name = "CurveSurfaceExtremum", module = "geomcore", eq, frozen)]
+#[derive(Clone, PartialEq)]
+pub(crate) struct PyCurveSurfaceExtremum(pub(crate) CurveSurfaceExtremum);
+
 #[pymethods]
-impl PyCurveCurveExtrema {
+impl PyCurveSurfaceExtremum {
     fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
-        let (this, py) = (slf.get(), slf.py());
-        let operands = vec![this.first.clone_ref(py), this.second.clone_ref(py)];
-        crate::result_states::pickled(slf.as_any(), operands, &this.result)
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
     }
 
-    /// Rebuilds a pickled result (see `__reduce__`).
+    /// Rebuilds a pickled object (see `__reduce__`).
     #[staticmethod]
-    fn _from_state(
-        py: Python<'_>,
-        version: &str,
-        first: Py<PyAny>,
-        second: Py<PyAny>,
-        state: &Bound<'_, PyAny>,
-    ) -> PyResult<Self> {
-        let result = crate::result_states::unpickled(py, version, state.extract()?)?;
-        Ok(Self {
-            result,
-            first,
-            second,
-        })
-    }
-
-    /// The number of minima; an extrema result is falsy when there is none.
-    fn __len__(&self) -> usize {
-        self.result.minima().len()
-    }
-
-    /// The closest minimum, the first of `minima`, or `None` when there
-    /// is none.
-    fn closest(&self) -> Option<PyCurveCurveExtremum> {
-        self.result.closest().copied().map(PyCurveCurveExtremum)
-    }
-
-    /// Iterates over the minima, closest first.
-    fn __iter__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
-        self.minima(py)?.try_iter()
-    }
-
-    /// A minimum, or a list for a slice, closest first.
-    fn __getitem__<'py>(
-        &self,
-        py: Python<'py>,
-        index: &Bound<'py, PyAny>,
-    ) -> PyResult<Bound<'py, PyAny>> {
-        self.minima(py)?.as_any().get_item(index)
-    }
-
-    /// Iterates over the minima, farthest first.
-    fn __reversed__<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyIterator>> {
-        let minima = self.minima(py)?;
-        minima.reverse()?;
-        minima.try_iter()
-    }
-
-    /// The minima, closest first.
-    #[getter]
-    fn minima<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyList>> {
-        PyList::new(
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
             py,
-            self.result
-                .minima()
-                .iter()
-                .map(|m| PyCurveCurveExtremum(*m)),
+            version,
+            state.extract()?,
+        )?))
+    }
+
+    /// The parameter on the curve.
+    #[getter]
+    fn curve_parameter(&self) -> f64 {
+        self.0.curve_parameter
+    }
+
+    /// The parameters `(u, v)` on the surface.
+    #[getter]
+    fn surface_parameters(&self) -> (f64, f64) {
+        self.0.surface_parameters
+    }
+
+    /// The point of the curve at `curve_parameter`.
+    #[getter]
+    fn curve_point(&self) -> PyPoint {
+        PyPoint(self.0.curve_point)
+    }
+
+    /// The point of the surface at `surface_parameters`.
+    #[getter]
+    fn surface_point(&self) -> PyPoint {
+        PyPoint(self.0.surface_point)
+    }
+
+    /// The distance between `curve_point` and `surface_point`.
+    #[getter]
+    fn distance(&self) -> f64 {
+        self.0.distance
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CurveSurfaceExtremum(curve_parameter={}, surface_parameters={}, curve_point={}, \
+             surface_point={}, distance={})",
+            float_repr(self.0.curve_parameter),
+            range_repr(self.0.surface_parameters),
+            point3_repr(self.0.curve_point),
+            point3_repr(self.0.surface_point),
+            float_repr(self.0.distance),
         )
     }
+}
 
-    /// Whether the search proved there is no other minimum.
+/// Whether `operand` is a surface, whole or trimmed.
+fn is_surface(py: Python<'_>, operand: &Py<PyAny>) -> bool {
+    let operand = operand.bind(py);
+    operand.cast::<crate::surfaces::PyTrimmedSurface>().is_ok()
+        || surface_classes::of(operand).is_some()
+}
+
+extrema_result! {
+    /// The local minima of the distance between a curve and a surface,
+    /// closest first, with whether the search proved there is no other.
+    ///
+    /// `first` and `second` are the operands, in the order of the call;
+    /// whichever order that was, the minima keep their roles, and `curve`
+    /// and `surface` name the operands by role.
+    PyCurveSurfaceExtrema, "CurveSurfaceExtrema", CurveSurfaceExtrema, PyCurveSurfaceExtremum,
+    curve_surface;
+
+    /// The curve operand, whichever of `first` and `second` it is.
     #[getter]
-    fn completeness(&self) -> PyCompleteness {
-        PyCompleteness::curve_curve(self.result.completeness())
+    fn curve(&self, py: Python<'_>) -> Py<PyAny> {
+        if is_surface(py, &self.first) {
+            self.second.clone_ref(py)
+        } else {
+            self.first.clone_ref(py)
+        }
     }
 
-    /// The first curve.
+    /// The surface operand, whichever of `first` and `second` it is.
     #[getter]
-    fn first(&self, py: Python<'_>) -> Py<PyAny> {
-        self.first.clone_ref(py)
+    fn surface(&self, py: Python<'_>) -> Py<PyAny> {
+        if is_surface(py, &self.first) {
+            self.first.clone_ref(py)
+        } else {
+            self.second.clone_ref(py)
+        }
+    }
+}
+
+/// A local minimum of the distance between two surfaces.
+#[pyclass(name = "SurfaceSurfaceExtremum", module = "geomcore", eq, frozen)]
+#[derive(Clone, PartialEq)]
+pub(crate) struct PySurfaceSurfaceExtremum(pub(crate) SurfaceSurfaceExtremum);
+
+#[pymethods]
+impl PySurfaceSurfaceExtremum {
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
     }
 
-    /// The second curve.
+    /// Rebuilds a pickled object (see `__reduce__`).
+    #[staticmethod]
+    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
+        Ok(Self(crate::result_states::unpickled(
+            py,
+            version,
+            state.extract()?,
+        )?))
+    }
+
+    /// The parameters `(u, v)` on the first surface.
     #[getter]
-    fn second(&self, py: Python<'_>) -> Py<PyAny> {
-        self.second.clone_ref(py)
+    fn first_parameters(&self) -> (f64, f64) {
+        self.0.first_parameters
     }
 
-    /// Whether the search proved there is no other minimum.
-    fn is_complete(&self) -> bool {
-        self.result.is_complete()
+    /// The parameters `(u, v)` on the second surface.
+    #[getter]
+    fn second_parameters(&self) -> (f64, f64) {
+        self.0.second_parameters
     }
 
-    fn __eq__(&self, py: Python<'_>, other: PyRef<'_, Self>) -> PyResult<bool> {
-        Ok(self.result == other.result
-            && same_operand(py, &self.first, &other.first)?
-            && same_operand(py, &self.second, &other.second)?)
+    /// The point of the first surface at `first_parameters`.
+    #[getter]
+    fn first_point(&self) -> PyPoint {
+        PyPoint(self.0.first_point)
     }
 
-    fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
-        Ok(format!(
-            "CurveCurveExtrema(first={}, second={}, completeness={}, minima={})",
-            self.first.bind(py).get_type().name()?,
-            self.second.bind(py).get_type().name()?,
-            self.completeness().status.repr(),
-            list_repr(self.result.minima(), |m| PyCurveCurveExtremum(*m)
-                .__repr__()),
-        ))
+    /// The point of the second surface at `second_parameters`.
+    #[getter]
+    fn second_point(&self) -> PyPoint {
+        PyPoint(self.0.second_point)
     }
+
+    /// The distance between `first_point` and `second_point`.
+    #[getter]
+    fn distance(&self) -> f64 {
+        self.0.distance
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "SurfaceSurfaceExtremum(first_parameters={}, second_parameters={}, first_point={}, \
+             second_point={}, distance={})",
+            range_repr(self.0.first_parameters),
+            range_repr(self.0.second_parameters),
+            point3_repr(self.0.first_point),
+            point3_repr(self.0.second_point),
+            float_repr(self.0.distance),
+        )
+    }
+}
+
+extrema_result! {
+    /// The local minima of the distance between two surfaces, closest
+    /// first, with whether the search proved there is no other.
+    ///
+    /// `first` and `second` are the surfaces, in the order of the call.
+    PySurfaceSurfaceExtrema, "SurfaceSurfaceExtrema", SurfaceSurfaceExtrema,
+    PySurfaceSurfaceExtremum, surface_surface;
 }
 
 // ---------------------------------------------------------------------------

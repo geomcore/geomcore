@@ -792,7 +792,8 @@ def test_elementary_reprs_use_the_constructor_keywords():
 #
 # A row is a method name, checked with `hasattr` on the 2D twin, or a form
 # of a method both have (`extrema(curve)`), checked by its own probe.
-# Every method a 3D class has beyond its twin's needs a row.
+# Every method a 3D class has beyond its twin's needs a row; the rows of
+# `_CurveMethods` serve every curve class, each with a probe.
 
 REQUIRED, EXCLUDED, PENDING = "required", "excluded", "pending"
 
@@ -873,6 +874,11 @@ TWO_D_PARITY = {
     },
     "_CurveMethods": {
         "extrema(curve)": _Row(PENDING, "#422: curve–curve extrema in 2D", _takes_a_2d_curve),
+        "minimum_distance": _Row(
+            PENDING,
+            "#422: curve–curve extrema in 2D",
+            lambda: hasattr(geomcore.Circle2D, "minimum_distance"),
+        ),
     },
 }
 
@@ -890,7 +896,8 @@ CLASSES_WITHOUT_A_2D_TWIN = {
             "PlaneFit", "SphereFit", "CylinderFit",
             "CurveSurfaceHit", "CurveSurfaceIntersection", "CurveSurfaceOverlap",
             "CurveSurfaceRegion", "SurfaceSurfaceIntersection", "SurfaceSurfaceRegion",
-            "IntersectionCurve",
+            "IntersectionCurve", "CurveSurfaceExtrema", "CurveSurfaceExtremum",
+            "SurfaceSurfaceExtrema", "SurfaceSurfaceExtremum",
         ],
         _IN_SPACE_ONLY,
     ),
@@ -946,7 +953,9 @@ def _class_rows():
 
 def test_every_method_a_3d_class_has_beyond_its_2d_twin_has_a_parity_row():
     for cls, twin in _twins():
-        unlisted = _public_names(cls) - _public_names(twin) - set(TWO_D_PARITY.get(cls.__name__, {}))
+        shared = set(TWO_D_PARITY["_CurveMethods"]) if hasattr(cls, "extrema") else set()
+        listed = set(TWO_D_PARITY.get(cls.__name__, {})) | shared
+        unlisted = _public_names(cls) - _public_names(twin) - listed
         assert not unlisted, (cls.__name__, sorted(unlisted))
 
 

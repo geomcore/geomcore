@@ -13,7 +13,7 @@ use geomcore::BezierSurface;
 pub(crate) struct PyBezierSurface(pub(crate) BezierSurface);
 
 shape_methods! {
-    PyBezierSurface: [parametric_surface, surface, sided_surface_evaluation, surface_extrema];
+    PyBezierSurface: [parametric_surface, surface, sided_surface_evaluation];
 
     /// Build a non-rational Bézier surface from `u_degree + 1` rows of
     /// `v_degree + 1` poles, `poles[i_u][i_v]`, over `[0, 1] x [0, 1]`.

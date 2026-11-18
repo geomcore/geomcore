@@ -1818,10 +1818,128 @@ class CurveCurveExtrema:
         """Whether the search proved there is no other minimum."""
     @property
     def first(self) -> Curve | TrimmedCurve:
-        """The first curve."""
+        """The operand the method was called on."""
     @property
     def second(self) -> Curve | TrimmedCurve:
-        """The second curve."""
+        """The operand passed to the method."""
+    def is_complete(self) -> bool:
+        """Whether the search proved there is no other minimum."""
+
+@final
+class CurveSurfaceExtremum:
+    """A local minimum of the distance between a curve and a surface."""
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def curve_parameter(self) -> float:
+        """The parameter on the curve."""
+    @property
+    def surface_parameters(self) -> Tuple[float, float]:
+        """The parameters `(u, v)` on the surface."""
+    @property
+    def curve_point(self) -> Point:
+        """The point of the curve at `curve_parameter`."""
+    @property
+    def surface_point(self) -> Point:
+        """The point of the surface at `surface_parameters`."""
+    @property
+    def distance(self) -> float:
+        """The distance between `curve_point` and `surface_point`."""
+
+@final
+class CurveSurfaceExtrema:
+    """The local minima of the distance between a curve and a surface,
+    closest first, with whether the search proved there is no other.
+
+    `first` and `second` are the operands, in the order of the call;
+    whichever order that was, the minima keep their roles, and `curve`
+    and `surface` name the operands by role.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    def __len__(self) -> int: ...
+    def closest(self) -> Optional[CurveSurfaceExtremum]:
+        """The closest minimum, the first of `minima`, or `None` when there
+        is none.
+        """
+    def __iter__(self) -> Iterator[CurveSurfaceExtremum]: ...
+    def __reversed__(self) -> Iterator[CurveSurfaceExtremum]:
+        """Iterates over the minima, farthest first."""
+    @overload
+    def __getitem__(self, index: int, /) -> CurveSurfaceExtremum: ...
+    @overload
+    def __getitem__(self, index: slice, /) -> List[CurveSurfaceExtremum]: ...
+    @property
+    def minima(self) -> List[CurveSurfaceExtremum]:
+        """The minima, closest first."""
+    @property
+    def completeness(self) -> Completeness:
+        """Whether the search proved there is no other minimum."""
+    @property
+    def first(self) -> Curve | TrimmedCurve | Surface | TrimmedSurface:
+        """The operand the method was called on."""
+    @property
+    def second(self) -> Curve | TrimmedCurve | Surface | TrimmedSurface:
+        """The operand passed to the method."""
+    def is_complete(self) -> bool:
+        """Whether the search proved there is no other minimum."""
+    @property
+    def curve(self) -> Curve | TrimmedCurve:
+        """The curve operand, whichever of `first` and `second` it is."""
+    @property
+    def surface(self) -> Surface | TrimmedSurface:
+        """The surface operand, whichever of `first` and `second` it is."""
+
+@final
+class SurfaceSurfaceExtremum:
+    """A local minimum of the distance between two surfaces."""
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def first_parameters(self) -> Tuple[float, float]:
+        """The parameters `(u, v)` on the first surface."""
+    @property
+    def second_parameters(self) -> Tuple[float, float]:
+        """The parameters `(u, v)` on the second surface."""
+    @property
+    def first_point(self) -> Point:
+        """The point of the first surface at `first_parameters`."""
+    @property
+    def second_point(self) -> Point:
+        """The point of the second surface at `second_parameters`."""
+    @property
+    def distance(self) -> float:
+        """The distance between `first_point` and `second_point`."""
+
+@final
+class SurfaceSurfaceExtrema:
+    """The local minima of the distance between two surfaces, closest
+    first, with whether the search proved there is no other.
+
+    `first` and `second` are the surfaces, in the order of the call.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    def __len__(self) -> int: ...
+    def closest(self) -> Optional[SurfaceSurfaceExtremum]:
+        """The closest minimum, the first of `minima`, or `None` when there
+        is none.
+        """
+    def __iter__(self) -> Iterator[SurfaceSurfaceExtremum]: ...
+    def __reversed__(self) -> Iterator[SurfaceSurfaceExtremum]:
+        """Iterates over the minima, farthest first."""
+    @overload
+    def __getitem__(self, index: int, /) -> SurfaceSurfaceExtremum: ...
+    @overload
+    def __getitem__(self, index: slice, /) -> List[SurfaceSurfaceExtremum]: ...
+    @property
+    def minima(self) -> List[SurfaceSurfaceExtremum]:
+        """The minima, closest first."""
+    @property
+    def completeness(self) -> Completeness:
+        """Whether the search proved there is no other minimum."""
+    @property
+    def first(self) -> Surface | TrimmedSurface:
+        """The operand the method was called on."""
+    @property
+    def second(self) -> Surface | TrimmedSurface:
+        """The operand passed to the method."""
     def is_complete(self) -> bool:
         """Whether the search proved there is no other minimum."""
 
@@ -2054,27 +2172,49 @@ class _CurveMethods(
     def extrema(
         self, other: _PointLike, tol: Optional[_ToleranceLike] = None
     ) -> List[CurveProjection]:
-        """The extrema of the distance to `other`, a point or a curve.
+        """The extrema of the distance to `other`, a point, a curve or
+        a surface.
 
         From a point: the local minima of its distance to the
         curve, an end of a bounded curve among them where the
         distance grows from it into the curve, as `CurveProjection`
         objects ordered by ascending distance.
 
-        From a curve or `TrimmedCurve`: a `CurveCurveExtrema` of the
-        local minima of the distance between the two curves, closest
-        first, with whether the search proved there is no other.
-        Parallel lines, concentric circles and other continuous
-        families of equal minima report the distance once, with a
-        representative pair. The result holds this curve as `first`
-        and `other` as `second`. Other Python threads run during the
-        search. Raises `TypeError` for anything else, a 2D curve
-        included.
+        From a curve or `TrimmedCurve`: a `CurveCurveExtrema`; from
+        a surface or `TrimmedSurface`: a `CurveSurfaceExtrema`. Each
+        holds the local minima of the distance between the two,
+        closest first, with whether the search proved there is no
+        other. Parallel lines, concentric circles and other
+        continuous families of equal minima report the distance
+        once, with a representative pair; a curve that meets a
+        surface reports each crossing at distance zero. The result
+        holds this curve as `first` and `other` as `second`. Other
+        Python threads run during the search. Raises `TypeError`
+        for anything else, a 2D curve included.
         """
     @overload
     def extrema(
         self, other: _CurveMethods, tol: Optional[_ToleranceLike] = None
     ) -> CurveCurveExtrema: ...
+    @overload
+    def extrema(
+        self, other: _SurfaceMethods[Any, Any] | TrimmedSurface, tol: Optional[_ToleranceLike] = None
+    ) -> CurveSurfaceExtrema: ...
+    @overload
+    def minimum_distance(
+        self, other: _CurveMethods, tol: Optional[_ToleranceLike] = None
+    ) -> Optional[CurveCurveExtremum]:
+        """The minimum distance to `other`, a curve or a surface: the
+        closest of `extrema(other)`, a `CurveCurveExtremum` or
+        `CurveSurfaceExtremum` with the two points where it is
+        reached, or `None` when there is no minimum. Whether the
+        search proved it the global one is the `completeness` of
+        `extrema(other)`. Raises `TypeError` for anything else.
+        """
+    @overload
+    def minimum_distance(
+        self, other: _SurfaceMethods[Any, Any] | TrimmedSurface, tol: Optional[_ToleranceLike] = None
+    ) -> Optional[CurveSurfaceExtremum]: ...
 
 class _Curve2DMethods(
     _CurveMethodsInEitherDimension[Point2D, Vector2D, BoundingBox2D, CurveProjection2D]
@@ -3628,6 +3768,53 @@ class _ParametricSurfaceMethods:
         `Tolerance.default()` when omitted. Other Python threads run
         during the approximation.
         """
+    @overload
+    def extrema(
+        self, other: _PointLike, tol: Optional[_ToleranceLike] = None
+    ) -> List[SurfaceProjection]:
+        """The extrema of the distance to `other`, a point, a curve or
+        a surface.
+
+        From a point, on a B-spline or Bézier surface: the local
+        minima of its distance to the surface, as `SurfaceProjection`
+        objects ordered by ascending distance. Other surfaces raise
+        `TypeError` for a point: `project_point` gives the nearest.
+
+        From a curve or `TrimmedCurve`: a `CurveSurfaceExtrema`; from
+        a surface or `TrimmedSurface`: a `SurfaceSurfaceExtrema`. Each
+        holds the local minima of the distance between the two,
+        closest first, with whether the search proved there is no
+        other. Parallel planes, concentric spheres and other
+        continuous families of equal minima report the distance once,
+        with a representative pair; shapes that meet report a meeting
+        point at distance zero. The result holds this surface as
+        `first` and `other` as `second`. Other Python threads run
+        during the search. Raises `TypeError` for anything else, a 2D
+        curve included.
+        """
+    @overload
+    def extrema(
+        self, other: _CurveMethods, tol: Optional[_ToleranceLike] = None
+    ) -> CurveSurfaceExtrema: ...
+    @overload
+    def extrema(
+        self, other: _SurfaceMethods[Any, Any] | TrimmedSurface, tol: Optional[_ToleranceLike] = None
+    ) -> SurfaceSurfaceExtrema: ...
+    @overload
+    def minimum_distance(
+        self, other: _CurveMethods, tol: Optional[_ToleranceLike] = None
+    ) -> Optional[CurveSurfaceExtremum]:
+        """The minimum distance to `other`, a curve or a surface: the
+        closest of `extrema(other)`, a `CurveSurfaceExtremum` or
+        `SurfaceSurfaceExtremum` with the two points where it is
+        reached, or `None` when there is no minimum. Whether the
+        search proved it the global one is the `completeness` of
+        `extrema(other)`. Raises `TypeError` for anything else.
+        """
+    @overload
+    def minimum_distance(
+        self, other: _SurfaceMethods[Any, Any] | TrimmedSurface, tol: Optional[_ToleranceLike] = None
+    ) -> Optional[SurfaceSurfaceExtremum]: ...
 
 
 class _SurfaceMethods(_ParametricSurfaceMethods, Generic[_UIsoCurveType, _VIsoCurveType]):
@@ -3727,16 +3914,6 @@ class _SidedSurfaceEvaluationMethods:
         `1 <= du + dv <= 2`, at `(u, v)`, each direction from its own
         side, as `first_derivatives_sided`.
         """
-
-class _SurfaceExtremaMethods:
-    def extrema(
-        self, point: _PointLike, tol: Optional[_ToleranceLike] = None
-    ) -> List[SurfaceProjection]:
-        """The local minima of the distance from `point` to the
-        surface, as `SurfaceProjection` objects ordered by ascending
-        distance.
-        """
-
 
 @final
 class Plane(_SurfaceMethods[Line, Line]):
@@ -4037,7 +4214,6 @@ class RevolutionSurface(_SurfaceMethods[Curve, Circle]):
 class BSplineSurface(
     _SurfaceMethods[BSplineCurve, BSplineCurve],
     _SidedSurfaceEvaluationMethods,
-    _SurfaceExtremaMethods,
 ):
     """A tensor-product B-spline (optionally rational, optionally periodic) surface."""
     def __repr__(self) -> str: ...
@@ -4232,7 +4408,6 @@ class BSplineSurface(
 class BezierSurface(
     _SurfaceMethods[BezierCurve, BezierCurve],
     _SidedSurfaceEvaluationMethods,
-    _SurfaceExtremaMethods,
 ):
     """A Bézier surface (optionally rational): a grid of
     `(u_degree + 1) x (v_degree + 1)` control poles over one parameter
@@ -4429,6 +4604,10 @@ __all__ = [
     "SurfaceProjection",
     "CurveCurveExtremum",
     "CurveCurveExtrema",
+    "CurveSurfaceExtremum",
+    "CurveSurfaceExtrema",
+    "SurfaceSurfaceExtremum",
+    "SurfaceSurfaceExtrema",
     "SurfaceCurvatures",
     "CurveApproximation",
     "CurveApproximation2D",
