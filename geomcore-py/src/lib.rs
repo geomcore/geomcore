@@ -146,8 +146,8 @@ use results::{
 };
 use surfaces::{py_curve_3d_to_uv_within, py_uv_curve_to_3d_within};
 use values::{
-    PyAxis, PyAxis2D, PyFrame, PyFrame2D, PyPoint, PyPoint2D, PyTolerance, PyTransform, PyVector,
-    PyVector2D,
+    PyAxis, PyAxis2D, PyFrame, PyFrame2D, PyPoint, PyPoint2D, PyTolerance, PyTransform,
+    PyTransform2D, PyVector, PyVector2D,
 };
 
 // ---------------------------------------------------------------------------
@@ -168,6 +168,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyFrame>()?;
     m.add_class::<PyTolerance>()?;
     m.add_class::<PyTransform>()?;
+    m.add_class::<PyTransform2D>()?;
     m.add_class::<PyBoundingBox>()?;
     m.add_class::<PyBoundingBox2D>()?;
     m.add_class::<PyDiscretization2D>()?;

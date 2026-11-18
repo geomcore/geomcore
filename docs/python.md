@@ -58,8 +58,8 @@ so `p.coincides(q, 1e-3)` loosens the distance tolerance alone:
   `is_closed()`, `continuity(u)` and `min_continuity()`, `reversed()`
   with `reversed_parameter(u)` mapping a parameter onto the reversed
   curve, and `transformed(transform)`.
-- 2D curves: the same queries but `transformed`; `curvature(u)` is
-  signed (positive where the tangent turns left). `bounding_box()` and
+- 2D curves: the same queries, `transformed` taking a `Transform2D`;
+  `curvature(u)` is signed (positive where the tangent turns left). `bounding_box()` and
   `tight_bounding_box()` return a `BoundingBox2D`, or `None` when the
   curve is unbounded.
 - Surfaces: `normal(u, v)` (on a `Plane` the same at every point,
@@ -178,6 +178,12 @@ numpy.array((pose @ back).to_matrix())
 `from_matrix` raises `ConstructionError` for a matrix that shears or
 scales the directions unequally, since a curve or surface keeps its shape
 only under a uniform scale of a rotation or a mirror.
+
+`Transform2D`, its plane twin, moves the 2D curves, points, vectors, axes
+and frames, and reads and writes 3×3 homogeneous matrices the same way.
+Its `rotation(center, angle)` turns counterclockwise about a point, and
+`mirror_axis(axis)` reflects across a line, which turns a counterclockwise
+`Circle2D` clockwise (`is_counterclockwise()` is then false).
 
 Every value and every curve and surface pickles, and copies with `copy` and
 `copy.deepcopy`, so shapes cross to `multiprocessing` workers and into
