@@ -39,6 +39,20 @@ the Python distribution are versioned in lockstep.
   mirror across a line turns a counterclockwise `Circle2D` or arc
   clockwise, and reversing the image turns it back. `Vector` and `Axis`
   gain the `transformed` that `Point` and `Frame` had.
+- Curve–surface and surface–surface extrema, and the minimum distance of
+  a pair (#251). `curve_surface_extrema` and `surface_surface_extrema`
+  give the local minima of the distance, closest first, each with the
+  parameters on both shapes and both points, in a `CurveSurfaceExtrema`
+  or `SurfaceSurfaceExtrema` that says whether the search proved there is
+  no other; `closest()` is the pair's minimum distance. A line against a
+  plane, a sphere or a cylinder, a circle against a plane, two planes, two
+  spheres and two parallel or coaxial cylinders are solved in closed form
+  and complete; every other pair is searched from samples of both shapes
+  and reports `SAMPLED`. The results do not depend on the model's size or
+  placement (ADR 0051). In Python, a curve's `extrema` takes a surface, a
+  surface's `extrema` takes a curve or a surface on every surface class
+  and `TrimmedSurface`, and `minimum_distance(other)` gives the closest
+  minimum or `None`.
 
 ### Fixed
 

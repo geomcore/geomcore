@@ -80,10 +80,15 @@ src/
 │   ├── discretization/      Discretize: proven point sequences on bounded curves;
 │   │                        sampled.rs measures the curves with no closed-form
 │   │                        deviations (a quartic branch)
-│   ├── extrema/             distance extrema between two curves (ADR 0033)
+│   ├── extrema/             distance extrema between two shapes (ADR 0033)
 │   │   ├── curve_curve.rs   curve_curve_extrema: seeds, refinement and its results
-│   │   └── curve_curve_pieces.rs  the minima search on the Bézier pieces of two
-│   │                        B-splines
+│   │   ├── curve_curve_pieces.rs  the minima search on the Bézier pieces of two
+│   │   │                    B-splines
+│   │   ├── curve_surface.rs curve_surface_extrema: closed forms, the sampled
+│   │   │                    search and its results
+│   │   ├── surface_surface.rs  surface_surface_extrema, likewise
+│   │   └── surface_search.rs  what the two sampled searches share: samples, seeds,
+│   │                        the nested Newton's projections and the basin merge
 │   ├── intersect/           intersections, by method (ADR 0011)
 │   │   ├── routing.rs       Intersect: exact when a closed form exists, numeric otherwise
 │   │   ├── routing/closed_form.rs  the closed-form pair table: which pairs have a closed
@@ -299,8 +304,8 @@ both, in `pair.rs` (ADR 0025). A new surface kind joins the patch-pair
 searches of marching and the curve searches by converting to patches in
 `operations/intersect/numeric/surface_patches.rs` (ADR 0026).
 
-**A new extrema query.** A new pair (curve–surface, surface–surface)
-goes in its own file under `operations/extrema/`, next to its result
+**A new extrema query.** A new pair goes in its own file under
+`operations/extrema/`, next to its result
 type, re-exported from `extrema.rs` and `lib.rs`. A numeric search on
 B-spline pieces reuses the driver in
 `operations/intersect/numeric/subdivision.rs`, as `curve_curve_pieces.rs`
