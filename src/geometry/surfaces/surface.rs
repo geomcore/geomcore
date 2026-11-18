@@ -316,6 +316,8 @@ impl ReversibleSurface for Surface {
 }
 
 impl Transformable for Surface {
+    type Transform = Transform;
+
     fn transformed(&self, transform: Transform) -> Result<Surface, TransformError> {
         surface_dispatch!(self, s => s.transformed(transform).map(Surface::from))
     }
@@ -528,6 +530,8 @@ impl ReversibleSurface for ElementarySurface {
 }
 
 impl Transformable for ElementarySurface {
+    type Transform = Transform;
+
     fn transformed(&self, transform: Transform) -> Result<ElementarySurface, TransformError> {
         elementary_surface_dispatch!(self, s => s.transformed(transform).map(ElementarySurface::from))
     }

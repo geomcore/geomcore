@@ -2,7 +2,9 @@
 //! surfaces are positioned in.
 
 use crate::Tolerance;
-use crate::{Direction, Direction2D, Point, Point2D, Transform, TransformError, Vector, Vector2D};
+use crate::base::transform::frame_image_error;
+use crate::{Direction, Direction2D, Point, Point2D, Transform, Transform2D, TransformError};
+use crate::{Vector, Vector2D};
 use std::fmt;
 
 /// Error returned when an axis or frame cannot be constructed from the
@@ -268,6 +270,34 @@ impl Axis {
             direction: -self.direction,
             ..self
         }
+    }
+
+    /// Returns the image of the axis under `transform`: the origin maps
+    /// point-wise and the direction as a free vector, normalized again.
+    ///
+    /// # Errors
+    ///
+    /// [`TransformError::Collapsed`] when the transform has a zero scale
+    /// factor and [`TransformError::NonFinite`] when the image overflows
+    /// `f64`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis, Point, Transform, Vector};
+    /// use std::f64::consts::FRAC_PI_2;
+    /// let axis = Axis::new(Point::new(1.0, 0.0, 0.0), Vector::X).unwrap();
+    /// let z_axis = Axis::new(Point::ORIGIN, Vector::Z).unwrap();
+    /// let moved = axis.transformed(Transform::rotation(z_axis, FRAC_PI_2)).unwrap();
+    /// assert!(moved.origin().distance(Point::new(0.0, 1.0, 0.0)) < 1e-15);
+    /// assert!((moved.direction().vector() - Vector::Y).magnitude() < 1e-15);
+    /// ```
+    pub fn transformed(self, transform: Transform) -> Result<Axis, TransformError> {
+        Axis::new(
+            transform.apply_point(self.origin),
+            transform.apply_vector(self.direction),
+        )
+        .map_err(frame_image_error)
     }
 }
 
@@ -975,6 +1005,35 @@ impl Axis2D {
             ..self
         }
     }
+
+    /// Returns the image of the axis under `transform`: the origin maps
+    /// point-wise and the direction as a free vector, normalized again.
+    ///
+    /// # Errors
+    ///
+    /// [`TransformError::Collapsed`] when the transform has a zero scale
+    /// factor and [`TransformError::NonFinite`] when the image overflows
+    /// `f64`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Axis2D, Point2D, Transform2D, TransformError, Vector2D};
+    /// let axis = Axis2D::new(Point2D::new(1.0, 0.0), Vector2D::X).unwrap();
+    /// let half_turn = Transform2D::mirror_point(Point2D::ORIGIN);
+    /// let moved = axis.transformed(half_turn).unwrap();
+    /// assert_eq!(moved.origin(), Point2D::new(-1.0, 0.0));
+    /// assert_eq!(moved.direction(), -Vector2D::X);
+    /// let collapse = Transform2D::scaling(Point2D::ORIGIN, 0.0);
+    /// assert_eq!(axis.transformed(collapse), Err(TransformError::Collapsed));
+    /// ```
+    pub fn transformed(self, transform: Transform2D) -> Result<Axis2D, TransformError> {
+        Axis2D::new(
+            transform.apply_point(self.origin),
+            transform.apply_vector(self.direction),
+        )
+        .map_err(frame_image_error)
+    }
 }
 
 /// A 2D coordinate frame: an origin and two orthogonal unit directions
@@ -1296,6 +1355,32 @@ impl Frame2D {
     /// ```
     pub fn local_components(self, vector: Vector2D) -> (f64, f64) {
         (vector.dot(self.x_dir), vector.dot(self.y_dir))
+    }
+
+    /// Returns the image of the frame under `transform`: a point at local
+    /// coordinates `(u, v)` in this frame maps to the point at the same
+    /// local coordinates, scaled by [`Transform2D::scale_factor`], in the
+    /// image. A mirror across an axis changes the handedness (see
+    /// [`Frame2D::is_direct`]).
+    ///
+    /// # Errors
+    ///
+    /// [`TransformError::Collapsed`] when the transform has a zero scale
+    /// factor and [`TransformError::NonFinite`] when the image overflows
+    /// `f64`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Frame2D, Point2D, Transform2D, Vector2D};
+    /// let shift = Transform2D::translation(Vector2D::new(1.0, 2.0));
+    /// let moved = Frame2D::WORLD.transformed(shift).unwrap();
+    /// assert_eq!(moved.origin(), Point2D::new(1.0, 2.0));
+    /// let mirror = Transform2D::mirror_axis(Frame2D::WORLD.x_axis());
+    /// assert!(!Frame2D::WORLD.transformed(mirror).unwrap().is_direct());
+    /// ```
+    pub fn transformed(self, transform: Transform2D) -> Result<Frame2D, TransformError> {
+        transform.apply_frame(self).map(|(image, _)| image)
     }
 }
 

@@ -193,8 +193,8 @@ fn compare_pairs<A, B>(
     operation: impl Fn(&A, &B, Tolerance) -> (String, Vec<Point>),
 ) -> Vec<Mismatch>
 where
-    A: Transformable + Clone + Debug,
-    B: Transformable + Clone + Debug,
+    A: Transformable<Transform = Transform> + Clone + Debug,
+    B: Transformable<Transform = Transform> + Clone + Debug,
 {
     let mut mismatches = Vec::new();
     let mut compared = 0;

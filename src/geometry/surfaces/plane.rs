@@ -475,6 +475,8 @@ impl ReversibleSurface for Plane {
 }
 
 impl Transformable for Plane {
+    type Transform = Transform;
+
     /// The frame maps through the transform; the parameters, lengths,
     /// scale with it.
     fn transformed(&self, transform: Transform) -> Result<Plane, TransformError> {

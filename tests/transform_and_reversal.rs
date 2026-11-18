@@ -1,8 +1,9 @@
 //! The `Transformable`, `ReversibleCurve` and `ReversibleSurface`
 //! contracts, checked on every variant of every shape enum and on trimmed
-//! curves: transforming commutes with evaluation, reversing twice gives
-//! the shape back, a reversed shape meets itself at the reversed
-//! parameter, and every shape fails a transform the same way.
+//! curves, in space and in the plane: transforming commutes with
+//! evaluation, reversing twice gives the shape back, a reversed shape
+//! meets itself at the reversed parameter, and every shape fails a
+//! transform the same way.
 
 mod common;
 
@@ -12,7 +13,8 @@ use common::samples::{
 };
 use geomcore::prelude::*;
 use geomcore::{
-    Axis, Cone, Curve, Frame, Point, Surface, Transform, TransformError, TrimmedCurve, Vector,
+    Axis, Axis2D, Circle2D, Cone, Curve, Curve2D, Frame, Point, Point2D, Surface, Transform,
+    Transform2D, TransformError, TrimmedCurve, TrimmedCurve2D, Vector, Vector2D,
 };
 use std::fmt::Debug;
 
@@ -42,6 +44,40 @@ fn similarities() -> Vec<(&'static str, Transform, f64)> {
     ]
 }
 
+/// The plane twins of [`similarities`]: a similarity of the plane with
+/// its scale factor on lengths.
+fn similarities_2d() -> Vec<(&'static str, Transform2D, f64)> {
+    let center = Point2D::new(-0.3, 0.4);
+    let mirror = Axis2D::new(Point2D::new(0.2, 0.1), Vector2D::new(0.5, 0.7)).unwrap();
+    vec![
+        (
+            "rotation and translation",
+            Transform2D::rotation(Point2D::new(1.0, 0.0), 0.7)
+                .then(Transform2D::translation(Vector2D::new(1.0, 2.0))),
+            1.0,
+        ),
+        (
+            "mirror across an axis",
+            Transform2D::mirror_axis(mirror),
+            1.0,
+        ),
+        ("half turn", Transform2D::mirror_point(center), 1.0),
+        ("uniform scale", Transform2D::scaling(center, 1.7), 1.7),
+        ("negative scale", Transform2D::scaling(center, -0.6), 0.6),
+    ]
+}
+
+/// Whether a 2D curve's parameter is a length, and so scales with a
+/// transform.
+fn curve_2d_parameter_is_length(curve: &Curve2D) -> bool {
+    matches!(curve, Curve2D::Line(_) | Curve2D::Parabola(_))
+}
+
+/// The signed curvature of a plane curve: positive where it turns left.
+fn signed_curvature(first: Vector2D, second: Vector2D) -> f64 {
+    first.cross(second) / first.magnitude().powi(3)
+}
+
 fn scaled(parameter: f64, is_length: bool, scale: f64) -> f64 {
     if is_length {
         parameter * scale
@@ -52,7 +88,7 @@ fn scaled(parameter: f64, is_length: bool, scale: f64) -> f64 {
 
 fn check_curve_transform<C>(curve: &C, is_length: bool)
 where
-    C: ParametricCurve + Transformable + Debug,
+    C: ParametricCurve + Transformable<Transform = Transform> + Debug,
 {
     for (name, transform, scale) in similarities() {
         let image = curve.transformed(transform).unwrap();
@@ -75,9 +111,48 @@ where
     }
 }
 
+/// Checks that the image of a plane curve passes through the images of its
+/// points with the image derivatives, and that its signed curvature
+/// scales by the inverse of the scale factor, its sign flipped by a
+/// mirror.
+fn check_curve_2d_transform<C>(curve: &C, is_length: bool)
+where
+    C: ParametricCurve2D + Transformable<Transform = Transform2D> + Debug,
+{
+    for (name, transform, scale) in similarities_2d() {
+        let image = curve.transformed(transform).unwrap();
+        let factor = if is_length { scale } else { 1.0 };
+        let turning = if transform.preserves_orientation() {
+            1.0
+        } else {
+            -1.0
+        };
+        for u in parameters(curve.bounds()) {
+            let (point, first, second) = curve.second_derivatives(u);
+            let (image_point, image_first, image_second) = image.second_derivatives(u * factor);
+            let context = format!("{name} of {curve:?} at {u}");
+            assert!(
+                image_point.distance(transform.apply_point(point)) < 1e-10,
+                "point: {context}"
+            );
+            assert!(
+                (image_first - (1.0 / factor) * transform.apply_vector(first)).magnitude() < 1e-10,
+                "derivative: {context}"
+            );
+            let curvature = signed_curvature(first, second);
+            let image_curvature = signed_curvature(image_first, image_second);
+            assert!(
+                (image_curvature - turning * curvature / scale).abs()
+                    < 1e-10 * (1.0 + curvature.abs()),
+                "curvature: {context}"
+            );
+        }
+    }
+}
+
 /// Every sample has a point with a coordinate of magnitude 2 or more, so
 /// its image under a scale of 1e308 about the origin overflows.
-fn check_transform_errors<S: Transformable + Debug>(shape: &S) {
+fn check_transform_errors<S: Transformable<Transform = Transform> + Debug>(shape: &S) {
     let collapse = Transform::scaling(Point::ORIGIN, 0.0);
     assert_eq!(
         shape.transformed(collapse).err(),
@@ -85,6 +160,24 @@ fn check_transform_errors<S: Transformable + Debug>(shape: &S) {
         "{shape:?}"
     );
     let overflow = Transform::scaling(Point::ORIGIN, 1e308);
+    assert_eq!(
+        shape.transformed(overflow).err(),
+        Some(TransformError::NonFinite),
+        "{shape:?}"
+    );
+}
+
+/// The plane twin of [`check_transform_errors`]. The scale is about a
+/// point that puts every sample at a coordinate of magnitude 2 or more
+/// from it, so the image overflows.
+fn check_transform_2d_errors<S: Transformable<Transform = Transform2D> + Debug>(shape: &S) {
+    let collapse = Transform2D::scaling(Point2D::ORIGIN, 0.0);
+    assert_eq!(
+        shape.transformed(collapse).err(),
+        Some(TransformError::Collapsed),
+        "{shape:?}"
+    );
+    let overflow = Transform2D::scaling(Point2D::new(-2.0, -2.0), 1e308);
     assert_eq!(
         shape.transformed(overflow).err(),
         Some(TransformError::NonFinite),
@@ -198,7 +291,7 @@ where
 
 fn check_surface_transform<S>(surface: &S, (u_length, v_length): (bool, bool))
 where
-    S: ParametricSurface + Transformable + Debug,
+    S: ParametricSurface + Transformable<Transform = Transform> + Debug,
 {
     for (name, transform, scale) in similarities() {
         let image = surface.transformed(transform).unwrap();
@@ -238,6 +331,15 @@ fn test_transform_commutes_with_evaluation_on_every_curve() {
 }
 
 #[test]
+fn test_transform_commutes_with_evaluation_on_every_2d_curve() {
+    for curve in curves_2d() {
+        let is_length = curve_2d_parameter_is_length(&curve);
+        check_curve_2d_transform(&curve, is_length);
+        check_curve_2d_transform(&trimmed_2d(&curve), is_length);
+    }
+}
+
+#[test]
 fn test_transform_commutes_with_evaluation_on_every_surface() {
     for surface in surfaces() {
         let lengths = surface_parameters_are_lengths(&surface);
@@ -262,6 +364,10 @@ fn test_every_shape_fails_a_transform_the_same_way() {
         if let Some(elementary) = surface.as_elementary() {
             check_transform_errors(&elementary);
         }
+    }
+    for curve in curves_2d() {
+        check_transform_2d_errors(&curve);
+        check_transform_2d_errors(&trimmed_2d(&curve));
     }
 }
 
@@ -319,6 +425,33 @@ fn test_a_mirror_then_a_reversal_restores_the_orientation_of_every_surface() {
             );
         }
     }
+}
+
+#[test]
+fn test_a_mirror_turns_circles_and_arcs_clockwise_and_a_reversal_turns_them_back() {
+    let (_, mirror, _) = similarities_2d().remove(1);
+    let (_, rigid, _) = similarities_2d().remove(0);
+    let circle = Circle2D::new(Point2D::new(0.5, -1.0), 2.0).unwrap();
+    assert!(circle.transformed(rigid).unwrap().is_counterclockwise());
+    let mirrored = circle.transformed(mirror).unwrap();
+    assert!(!mirrored.is_counterclockwise());
+    assert!(mirrored.reversed().is_counterclockwise());
+
+    let start = Point2D::new(2.0, 0.0);
+    let arc = TrimmedCurve2D::arc_through(start, Point2D::new(0.0, 2.0), Point2D::new(-2.0, 0.0))
+        .unwrap();
+    assert!(arc.basis().is_counterclockwise());
+    let mirrored_arc = arc.transformed(mirror).unwrap();
+    assert!(!mirrored_arc.basis().is_counterclockwise());
+    assert_eq!(mirrored_arc.bounds(), arc.bounds());
+    let (first, _) = arc.bounds();
+    assert!(
+        mirrored_arc
+            .point_at(first)
+            .distance(mirror.apply_point(start))
+            < 1e-12
+    );
+    assert!(mirrored_arc.reversed().basis().is_counterclockwise());
 }
 
 #[test]

@@ -9,7 +9,9 @@ use crate::geometry::curves::{
     BSplineCurve2D, BezierCurve2D, Circle2D, Ellipse2D, Hyperbola2D, Line2D, Parabola2D,
 };
 use crate::operations::projection::CurveProjection2D;
-use crate::{Direction2D, Point2D, Tolerance, Vector2D};
+use crate::{
+    Direction2D, Point2D, Tolerance, Transform2D, TransformError, Transformable, Vector2D,
+};
 
 /// Calls `worker!` on the variants of [`Curve2D`] (see
 /// [`crate::geometry::enum_variants`]), or with `Elementary` first on its elementary
@@ -200,6 +202,14 @@ impl ReversibleCurve for Curve2D {
 
     fn reversed_parameter(&self, u: f64) -> f64 {
         curve_2d_dispatch!(self, c => c.reversed_parameter(u))
+    }
+}
+
+impl Transformable for Curve2D {
+    type Transform = Transform2D;
+
+    fn transformed(&self, transform: Transform2D) -> Result<Curve2D, TransformError> {
+        curve_2d_dispatch!(self, c => c.transformed(transform).map(Curve2D::from))
     }
 }
 

@@ -648,6 +648,8 @@ impl ReversibleSurface for RevolutionSurface {
 }
 
 impl Transformable for RevolutionSurface {
+    type Transform = Transform;
+
     /// The profile and the axis map through the transform. The angle `u`
     /// is kept and `v` follows the profile's parameter. A mirror turns the
     /// other way, so the image's axis is the mirrored axis reversed.

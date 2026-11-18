@@ -5,6 +5,7 @@
 //! carries no vertices, orientation or tolerance; those belong to the
 //! topology (edges) of a kernel built on top of geomcore.
 
+use crate::base::tier::operations::TransformOperations;
 use crate::base::tier::{TierPoint, impl_for_both_tiers_over_basis};
 use crate::geometry::curves::{
     Circle, Circle2D, CircleConstructionError, Curve, Curve2D, ElementaryCurve,
@@ -16,7 +17,7 @@ use crate::math::bspline::curve as bspline_math;
 use crate::math::parameter_range::representative;
 use crate::operations::projection::{CurveProjection, grows_inward, snap_distance};
 use crate::{BSplineSplitError, Continuity, Frame, Frame2D, Point, Point2D, Tolerance, Vector};
-use crate::{Transform, TransformError, Transformable};
+use crate::{TransformError, Transformable};
 use std::f64::consts::TAU;
 use std::fmt;
 use std::marker::PhantomData;
@@ -817,11 +818,17 @@ impl<P: TierPoint, C: ReversibleCurve> ReversibleCurve for GenericTrimmedCurve<P
     }
 }
 
-impl<C: Transformable + RangeOperations<Point = Point>> Transformable for TrimmedCurve<C> {
+impl<P, C> Transformable for GenericTrimmedCurve<P, C>
+where
+    P: TierPoint,
+    C: Transformable<Transform = P::Transform> + RangeOperations<Point = P>,
+{
+    type Transform = P::Transform;
+
     /// The basis maps through the transform. The range is kept, or scaled
     /// by the transform's scale factor where the basis's parameter is a
     /// length (a line, a parabola).
-    fn transformed(&self, transform: Transform) -> Result<Self, TransformError> {
+    fn transformed(&self, transform: P::Transform) -> Result<Self, TransformError> {
         let scale = if self.basis.parameter_is_length() {
             transform.scale_factor()
         } else {
