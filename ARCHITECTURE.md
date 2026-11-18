@@ -81,7 +81,10 @@ src/
 │   │                        sampled.rs measures the curves with no closed-form
 │   │                        deviations (a quartic branch)
 │   ├── extrema/             distance extrema between two shapes (ADR 0033)
-│   │   ├── curve_curve.rs   curve_curve_extrema: seeds, refinement and its results
+│   │   ├── curve_curve.rs   curve_curve_extrema: seeds, refinement and its results,
+│   │   │                    generic over the tier's point
+│   │   ├── operand.rs       CurveExtremaOperand: the curves curve_curve_extrema takes,
+│   │   │                    a 2D pair searched embedded in space at z = 0
 │   │   ├── curve_curve_pieces.rs  the minima search on the Bézier pieces of two
 │   │   │                    B-splines
 │   │   ├── curve_surface.rs curve_surface_extrema: closed forms, the sampled

@@ -53,6 +53,21 @@ the Python distribution are versioned in lockstep.
   surface's `extrema` takes a curve or a surface on every surface class
   and `TrimmedSurface`, and `minimum_distance(other)` gives the closest
   minimum or `None`.
+- Curve–curve extrema of 2D curves, in Rust and Python (#422).
+  `curve_curve_extrema` takes two 2D curves (`Curve2D`, each concrete 2D
+  curve and `TrimmedCurve2D`) and returns a `CurveCurveExtrema2D` of
+  `CurveCurveExtremum2D` minima, with the same contract as in space:
+  local minima closest first, both parameters and both points of each, a
+  valley of equal minima (parallel lines, concentric circles) reported
+  once, and the search's completeness. The results are
+  `GenericCurveCurveExtrema<P>` and `GenericCurveCurveExtremum<P>` over
+  the tier's point, with `CurveCurveExtrema` and `CurveCurveExtremum` the
+  aliases in space, and the curves the function takes are named by the
+  new trait `CurveExtremaOperand`, which every 3D `ParametricCurve`
+  implements. In Python, a 2D curve's `extrema(other)` takes a 2D curve
+  as well as a point, `minimum_distance(other)` is new on 2D curves, the
+  deprecated `curve_curve_extrema` takes 2D pairs, and a 2D curve against
+  a 3D curve raises `TypeError` saying so.
 
 ### Fixed
 

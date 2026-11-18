@@ -15,7 +15,9 @@
 //! The 2D pairs follow: `intersect` on 64 pairs of each family of 2D
 //! lines and conics, each pair solved exactly, an arc of the ellipse
 //! against a conic, and the numeric search on 64 B-spline ellipses against
-//! a line and against an ellipse.
+//! a line and against an ellipse; then `curve_curve_extrema` on 64 circles
+//! against ellipses, B-spline ellipses against ellipses, and pairs of
+//! B-spline ellipses.
 //!
 //! Informational only, like `eval_throughput`; not a correctness gate.
 
@@ -299,6 +301,21 @@ fn bench_curve_curve_2d(c: &mut Criterion) {
     pairs!("intersect_arc_ellipse", arcs, shifted);
     pairs!("intersect_bspline_line", splines, lines);
     pairs!("intersect_bspline_ellipse", splines, shifted);
+    let shifted_splines: Vec<BSplineCurve2D> = shifted.iter().map(|e| e.to_bspline()).collect();
+    macro_rules! extrema {
+        ($name:literal, $first:expr, $second:expr) => {
+            group.bench_function($name, |b| {
+                b.iter(|| {
+                    for (p, q) in black_box(&$first).iter().zip($second.iter()) {
+                        black_box(curve_curve_extrema(p, q, tol));
+                    }
+                })
+            });
+        };
+    }
+    extrema!("extrema_circle_ellipse", circles, ellipses);
+    extrema!("extrema_bspline_ellipse", splines, shifted);
+    extrema!("extrema_bspline_bspline", splines, shifted_splines);
     group.finish();
 }
 

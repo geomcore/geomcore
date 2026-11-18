@@ -20,7 +20,7 @@
 //!
 //! | Set | Core | Classes |
 //! |---|---|---|
-//! | `curve`, `curve_2d` | `ParametricCurve(2D)`, `PointExtrema(2D)`, `ReversibleCurve`, `HasBoundingBox(2D)`, `Intersect`, `Transformable`, and in 3D the extrema with a curve or a surface | every curve |
+//! | `curve`, `curve_2d` | `ParametricCurve(2D)`, `PointExtrema(2D)`, `ReversibleCurve`, `HasBoundingBox(2D)`, `Intersect`, `Transformable`, the extrema with a curve of the same tier, and in 3D with a surface | every curve |
 //! | `bounded_curve`, `bounded_curve_2d` | `BoundedCurve(2D)`, `Discretize(2D)` | the bounded curves |
 //! | `sided_evaluation`, `sided_evaluation_2d` | the `*_sided` evaluations | B-spline and Bézier curves |
 //! | `parametric_surface` | `ParametricSurface` (with the UV curve mappings), `HasBoundingBox`, the extrema with a point (B-spline and Bézier surfaces only), a curve or a surface | every surface and `TrimmedSurface` |
@@ -176,31 +176,62 @@ macro_rules! curve_2d {
                     Ok(Self(self.0.transformed(transform.0).map_err(python_error)?))
                 }
 
-                /// The local minima of the distance from `point` to the
+                /// The extrema of the distance to `other`, a point or a 2D
+                /// curve.
+                ///
+                /// From a point, a `Point2D` or a sequence of its two
+                /// coordinates: the local minima of its distance to the
                 /// curve, an end of a bounded curve among them where the
                 /// distance grows from it into the curve, as
                 /// `CurveProjection2D` objects ordered by ascending distance.
-                /// `point` is a `Point2D` or a sequence of its two
-                /// coordinates. Raises `TypeError` for anything else: the
-                /// extrema between two 2D curves are not supported.
-                #[pyo3(signature = (point, tol = None))]
+                ///
+                /// From a 2D curve or `TrimmedCurve2D`: a `CurveCurveExtrema2D`
+                /// of the local minima of the distance between the two curves,
+                /// closest first, with whether the search proved there is no
+                /// other. Parallel lines, concentric circles and other
+                /// continuous families of equal minima report the distance
+                /// once, with a representative pair. The result holds this
+                /// curve as `first` and `other` as `second`. Other Python
+                /// threads run during the search. Raises `TypeError` for
+                /// anything else, a 3D curve included.
+                #[pyo3(signature = (other, tol = None))]
                 fn extrema(
                     slf: &Bound<'_, Self>,
-                    point: &Bound<'_, PyAny>,
+                    other: &Bound<'_, PyAny>,
                     tol: Option<ToleranceArgument>,
-                ) -> PyResult<Vec<PyCurveProjection2D>> {
-                    let Ok(point) = point.extract::<PyPoint2D>() else {
-                        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
-                            "extrema of a 2D curve takes a Point2D or a sequence of 2 numbers, \
-                             not {}; the extrema between two 2D curves are not supported",
-                            point.get_type().name()?
-                        )));
-                    };
-                    let projections = slf.borrow().0.extrema(point.0, tolerance(tol));
-                    Ok(projections
-                        .into_iter()
-                        .map(|projection| PyCurveProjection2D::new(projection, slf, point.0))
-                        .collect())
+                ) -> PyResult<Py<PyAny>> {
+                    let py = slf.py();
+                    let tol = tolerance(tol);
+                    if let Ok(PyPoint2D(point)) = other.extract::<PyPoint2D>() {
+                        let projections: Vec<PyCurveProjection2D> = slf
+                            .borrow()
+                            .0
+                            .extrema(point, tol)
+                            .into_iter()
+                            .map(|projection| PyCurveProjection2D::new(projection, slf, point))
+                            .collect();
+                        return Ok(projections.into_pyobject(py)?.into_any().unbind());
+                    }
+                    $crate::intersect::extrema_2d(slf.as_any(), other, tol)
+                }
+
+                /// The minimum distance to `other`, a 2D curve: the closest of
+                /// `extrema(other)`, a `CurveCurveExtremum2D` with the two
+                /// points where it is reached, or `None` when there is no
+                /// minimum. Whether the search proved it the global one is the
+                /// `completeness` of `extrema(other)`. Raises `TypeError` for
+                /// anything else.
+                #[pyo3(signature = (other, tol = None))]
+                fn minimum_distance(
+                    slf: &Bound<'_, Self>,
+                    other: &Bound<'_, PyAny>,
+                    tol: Option<ToleranceArgument>,
+                ) -> PyResult<Py<PyAny>> {
+                    $crate::method_sets::closest_of($crate::intersect::extrema_2d(
+                        slf.as_any(),
+                        other,
+                        tolerance(tol),
+                    )?, slf.py())
                 }
             }
         }
