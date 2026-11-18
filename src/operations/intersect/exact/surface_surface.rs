@@ -1504,7 +1504,15 @@ fn cone_and_crossing_cylinder(
         AroundSphere::cone(cone, centre),
         AroundSphere::cylinder(cylinder),
     );
+    // Spheres of one radius within its rounding: the conics cross where
+    // the surfaces touch. Otherwise, read them only where the curve stays
+    // within confusion of those points.
     let gap_bound = around_cone.gap_bound(&around_cylinder, miss);
+    let size = cylinder.radius() + apex.distance(centre);
+    if !offset_within_rounding(gap_bound, size) {
+        let around = (around_cone, around_cylinder, centre);
+        return cone_and_cylinder_near_a_sphere((cone, cylinder), around, gap_bound, size, tol);
+    }
     let conics = common_sphere_conics(
         around_cone,
         around_cylinder,
@@ -1512,19 +1520,42 @@ fn cone_and_crossing_cylinder(
         |plane| plane.intersect_exact(cylinder, tol),
         tol,
     );
-    let size = cylinder.radius() + apex.distance(centre);
-    let exact = offset_within_rounding(gap_bound, size);
+    match conics {
+        Some(conics) => ConeCylinderIntersection::TwoConics(conics),
+        None => cone_cylinder_quartic(cone, cylinder, tol),
+    }
+}
+
+/// The rest of [`cone_and_crossing_cylinder`], for a cone and a cylinder
+/// whose spheres around `centre` differ by more than their rounding: the
+/// two conics where the curve stays within confusion of the points where
+/// they cross, the quartic otherwise.
+#[cold]
+#[inline(never)]
+fn cone_and_cylinder_near_a_sphere(
+    (cone, cylinder): (&Cone, &Cylinder),
+    (around_cone, around_cylinder, centre): (AroundSphere, AroundSphere, Point),
+    gap_bound: f64,
+    size: f64,
+    tol: Tolerance,
+) -> ConeCylinderIntersection {
+    let conics = common_sphere_conics(
+        around_cone,
+        around_cylinder,
+        centre,
+        |plane| plane.intersect_exact(cylinder, tol),
+        tol,
+    );
     match conics {
         Some(conics)
-            if exact
-                || crossings_read_as_touching(
-                    cone,
-                    cylinder,
-                    conics.touching_points(),
-                    gap_bound,
-                    size,
-                    tol,
-                ) =>
+            if crossings_read_as_touching(
+                cone,
+                cylinder,
+                conics.touching_points(),
+                gap_bound,
+                size,
+                tol,
+            ) =>
         {
             ConeCylinderIntersection::TwoConics(conics)
         }
@@ -2219,6 +2250,7 @@ impl IntersectExact<Torus> for Torus {
 /// `reads_as_touching`), the curvature across it that of the circles,
 /// `1/r1 + 1/r2` outside and `1/r1 − 1/r2` inside; `place`, a point of
 /// the model, bounds the rounding of their offset.
+#[inline]
 fn meridian_circles_meet(
     first: &Circle2D,
     second: &Circle2D,
@@ -2229,6 +2261,20 @@ fn meridian_circles_meet(
     if !matches!(result, CircleCircle2DIntersection::Tangent(_)) {
         return result;
     }
+    meridian_circles_near_touching(first, second, place, result, tol)
+}
+
+/// The rest of [`meridian_circles_meet`], for two circles that `result`
+/// reads as tangent within confusion.
+#[cold]
+#[inline(never)]
+fn meridian_circles_near_touching(
+    first: &Circle2D,
+    second: &Circle2D,
+    place: Point,
+    result: CircleCircle2DIntersection,
+    tol: Tolerance,
+) -> CircleCircle2DIntersection {
     let d = (second.center() - first.center()).magnitude();
     let (r1, r2) = (first.radius(), second.radius());
     let (outside, inside) = (r1 + r2, (r1 - r2).abs());
@@ -2255,17 +2301,33 @@ fn meridian_circles_meet(
 /// within confusion of touching, read as touching where the two rings of
 /// the surfaces as given are within confusion of the one, the curvature
 /// across it the circle's.
+#[inline]
 fn meridian_line_meets_circle(
+    origin: Point2D,
+    direction: Vector2D,
+    circle: (Point2D, f64),
+    place: Point,
+    tol: Tolerance,
+) -> LineCircle2DIntersection {
+    let result = unit_line_meets_circle(origin, direction, circle, tol);
+    if !matches!(result, LineCircle2DIntersection::Tangent(..)) {
+        return result;
+    }
+    meridian_line_near_touching(origin, direction, circle, place, result, tol)
+}
+
+/// The rest of [`meridian_line_meets_circle`], for a line that `result`
+/// reads as tangent to the circle within confusion.
+#[cold]
+#[inline(never)]
+fn meridian_line_near_touching(
     origin: Point2D,
     direction: Vector2D,
     (centre, radius): (Point2D, f64),
     place: Point,
+    result: LineCircle2DIntersection,
     tol: Tolerance,
 ) -> LineCircle2DIntersection {
-    let result = unit_line_meets_circle(origin, direction, (centre, radius), tol);
-    if !matches!(result, LineCircle2DIntersection::Tangent(..)) {
-        return result;
-    }
     let w = origin - centre;
     let offset = (w.x * direction.y - w.y * direction.x).abs();
     let size = radius + offset + w.magnitude();

@@ -37,6 +37,10 @@ const OFFSET_ROUNDING: f64 = 16.0 * f64::EPSILON;
 /// `overlap` is within the rounding of `size`, the largest length it was
 /// computed from, and of the coordinates of `contact`: an exact contact
 /// placed anywhere reads as one.
+///
+/// The offset settles most contacts inline: the curvature is read out of
+/// line, only for an overlap beyond its rounding and within confusion.
+#[inline]
 pub(crate) fn reads_as_touching(
     first: &impl ParametricSurface,
     second: &impl ParametricSurface,
@@ -45,9 +49,39 @@ pub(crate) fn reads_as_touching(
     size: f64,
     tol: Tolerance,
 ) -> bool {
-    touches(overlap, contact, size, tol, || {
-        least_relative_curvature(first, second, contact, tol)
-    })
+    settled_by_offset(overlap, contact, size, tol)
+        .unwrap_or_else(|| curve_stays_within_confusion(first, second, contact, overlap, tol))
+}
+
+/// [`reads_as_touching`] kept out of line, for a closed form whose
+/// surfaces seldom come within confusion of a contact: its own code stays
+/// tight.
+#[cold]
+#[inline(never)]
+pub(crate) fn reads_as_touching_seldom(
+    first: &impl ParametricSurface,
+    second: &impl ParametricSurface,
+    contact: Point,
+    overlap: f64,
+    size: f64,
+    tol: Tolerance,
+) -> bool {
+    reads_as_touching(first, second, contact, overlap, size, tol)
+}
+
+/// The rest of [`reads_as_touching`], for an overlap the offset alone
+/// does not settle: `2 overlap ≤ κ confusion²`.
+#[cold]
+#[inline(never)]
+fn curve_stays_within_confusion(
+    first: &impl ParametricSurface,
+    second: &impl ParametricSurface,
+    contact: Point,
+    overlap: f64,
+    tol: Tolerance,
+) -> bool {
+    least_relative_curvature(first, second, contact, tol)
+        .is_some_and(|curvature| 2.0 * overlap <= curvature * tol.confusion * tol.confusion)
 }
 
 /// Whether two surfaces that come within `tol.confusion` of touching
@@ -55,6 +89,7 @@ pub(crate) fn reads_as_touching(
 /// bend alike every way, are read as touching there: as
 /// [`reads_as_touching`], `curvature` their relative curvature across
 /// the contact, known in closed form.
+#[inline]
 pub(crate) fn reads_as_touching_across(
     curvature: f64,
     contact: Point,
@@ -62,25 +97,22 @@ pub(crate) fn reads_as_touching_across(
     size: f64,
     tol: Tolerance,
 ) -> bool {
-    touches(overlap, contact, size, tol, || Some(curvature.abs()))
+    settled_by_offset(overlap, contact, size, tol)
+        .unwrap_or_else(|| 2.0 * overlap <= curvature.abs() * tol.confusion * tol.confusion)
 }
 
-/// The rule of [`reads_as_touching`], the relative curvature read only
-/// where the offset does not settle it.
-fn touches(
-    overlap: f64,
-    contact: Point,
-    size: f64,
-    tol: Tolerance,
-    curvature: impl FnOnce() -> Option<f64>,
-) -> bool {
+/// What the offset alone says of a contact (see [`reads_as_touching`]):
+/// beyond confusion, no contact; within its rounding, one; otherwise
+/// `None`, for the curvature to settle.
+#[inline]
+fn settled_by_offset(overlap: f64, contact: Point, size: f64, tol: Tolerance) -> Option<bool> {
     if overlap.abs() > tol.confusion {
-        return false;
+        Some(false)
+    } else if within_rounding(overlap, contact, size) {
+        Some(true)
+    } else {
+        None
     }
-    if within_rounding(overlap, contact, size) {
-        return true;
-    }
-    curvature().is_some_and(|curvature| 2.0 * overlap <= curvature * tol.confusion * tol.confusion)
 }
 
 /// Whether `first` and `second`, whose curve is read as conics crossing
@@ -121,6 +153,7 @@ pub(crate) fn offset_within_rounding(offset: f64, size: f64) -> bool {
 
 /// Whether `offset`, computed from lengths up to `size` and from the
 /// coordinates of `contact`, is within their rounding: no offset.
+#[inline]
 fn within_rounding(offset: f64, contact: Point, size: f64) -> bool {
     let reach = contact.x.abs().max(contact.y.abs()).max(contact.z.abs());
     offset <= OFFSET_ROUNDING * (size + reach)
