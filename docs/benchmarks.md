@@ -989,6 +989,40 @@ Reproduce with:
 cargo bench --bench uv_curve_composition -- --warm-up-time 1 --measurement-time 3
 ```
 
+# Curve–surface and surface–surface extrema
+
+`benches/surface_extrema.rs` times `curve_surface_extrema` and
+`surface_surface_extrema`: the closed forms on 64 lines against a sphere
+and 64 circles above a plane, and on 64 pairs of spheres; then the sampled
+search against the bicubic B-spline surface of `intersect_curve_surface`,
+with 16 cubic B-spline curves running above it, 16 circles standing
+above it, the same curves against a cylinder, 8 spheres above the
+surface, and the surface against 4 copies of itself turned upside down
+and raised.
+
+Machine: Linux 7.0, x86-64 desktop, single thread, `--warm-up-time 1
+--measurement-time 2 --sample-size 10` (2026-11-18). Times are per pair.
+
+| pair | time |
+|---|---|
+| closed forms, curve × surface (128 pairs) | ~0.13 µs |
+| closed forms, sphere × sphere (64 pairs) | ~0.12 µs |
+| cubic × bicubic | ~290 µs |
+| circle × bicubic | ~290 µs |
+| cubic × cylinder | ~390 µs |
+| bicubic × sphere | ~1.1 ms |
+| bicubic × bicubic | ~1.2 ms |
+
+The sampled search spends about half its time pairing the samples, and
+most of the rest projecting the curve's samples onto the surface. A
+proven search on Bézier pieces, as for two curves, is the follow-up.
+
+Reproduce with:
+
+```sh
+cargo bench --bench surface_extrema -- --warm-up-time 1 --measurement-time 2 --sample-size 10
+```
+
 ## Instruction budget
 
 CI fails a pull request that makes a benchmark heavier than its budget, and

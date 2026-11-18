@@ -5,6 +5,7 @@ use crate::Direction;
 use crate::geometry::curves::ParametricCurve;
 use crate::math::numeric::{newton_min_1d, newton_min_2d};
 use crate::operations::extrema::curve_curve_pieces::curve_curve_seeds;
+use crate::operations::extrema::{Extremum, parameters_apart};
 use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::{Completeness, CurveCurveRegion};
 use crate::{Point, Tolerance, Vector};
@@ -53,6 +54,17 @@ impl CurveCurveExtremum {
             self.first_parameter,
             self.first_point,
         )
+    }
+}
+
+impl Extremum for CurveCurveExtremum {
+    fn distance(&self) -> f64 {
+        self.distance
+    }
+
+    fn parameters_apart(&self, other: &Self, tol: Tolerance) -> bool {
+        parameters_apart(self.first_parameter, other.first_parameter, tol)
+            || parameters_apart(self.second_parameter, other.second_parameter, tol)
     }
 }
 
@@ -246,13 +258,13 @@ const SEED_GRID: usize = 32;
 const SEED_GRID_1D: usize = 256;
 /// Most seeds taken from one sampled grid (or edge) of the extrema
 /// search.
-const MAX_SEEDS: usize = 64;
+pub(crate) const MAX_SEEDS: usize = 64;
 /// Most halvings of span pairs in the search for the points where two
 /// curves may meet (see [`meeting_seeds`]).
 const MAX_MEETING_HALVINGS: usize = 256;
 /// Unbounded parameters are seeded until the curve has moved this many
 /// configuration scales from its reference point.
-const SEED_REACH: f64 = 64.0;
+pub(crate) const SEED_REACH: f64 = 64.0;
 
 impl ParameterDomain {
     /// Seed parameters, ascending. A finite domain gets `count` uniform
@@ -261,7 +273,7 @@ impl ParameterDomain {
     /// curve `scale / 16` and growing by a quarter per sample until the
     /// curve is [`SEED_REACH`] scales from its reference point: dense
     /// where the curves interact, sparse far out, at any absolute size.
-    fn seeds<C: ParametricCurve>(self, curve: &C, scale: f64, count: usize) -> Vec<f64> {
+    pub(crate) fn seeds<C: ParametricCurve>(self, curve: &C, scale: f64, count: usize) -> Vec<f64> {
         match self {
             ParameterDomain::Periodic { start, period } => (0..count)
                 .map(|i| start + period * i as f64 / count as f64)
@@ -960,7 +972,7 @@ where
 
 /// Length scale of a configuration: the gap between the curves'
 /// reference points plus both curves' sizes (`1` if that degenerates).
-fn configuration_scale(gap: f64, size_a: f64, size_b: f64) -> f64 {
+pub(crate) fn configuration_scale(gap: f64, size_a: f64, size_b: f64) -> f64 {
     let scale = gap + size_a + size_b;
     if scale.is_finite() && scale > 0.0 {
         scale
@@ -972,7 +984,7 @@ fn configuration_scale(gap: f64, size_a: f64, size_b: f64) -> f64 {
 /// Size of a curve for [`configuration_scale`]: the reach of a finite
 /// domain's grid points from its reference point, or for an unbounded
 /// domain the radius of curvature at the reference (`0` when straight).
-fn curve_size<C: ParametricCurve>(curve: &C, dom: ParameterDomain) -> f64 {
+pub(crate) fn curve_size<C: ParametricCurve>(curve: &C, dom: ParameterDomain) -> f64 {
     let u0 = dom.reference();
     if dom.is_finite() {
         let p0 = curve.point_at(u0);
@@ -994,7 +1006,11 @@ fn curve_size<C: ParametricCurve>(curve: &C, dom: ParameterDomain) -> f64 {
 /// Nodes of a row-major `shape[0] x shape[1]` grid of samples no higher
 /// than any of their 8 neighbours (wrapping across a periodic
 /// direction), lowest first, at most [`MAX_SEEDS`].
-fn grid_minima(values: &[f64], shape: [usize; 2], wrap: [bool; 2]) -> Vec<(usize, usize)> {
+pub(crate) fn grid_minima(
+    values: &[f64],
+    shape: [usize; 2],
+    wrap: [bool; 2],
+) -> Vec<(usize, usize)> {
     let [n, m] = shape;
     let neighbour = |i: usize, di: isize, len: usize, wrap: bool| {
         let k = i as isize + di;
@@ -1036,7 +1052,7 @@ fn grid_minima(values: &[f64], shape: [usize; 2], wrap: [bool; 2]) -> Vec<(usize
 /// `|g_i| / speed_i` within `tol.confusion`) or held at a bound by an
 /// outward gradient, and the Hessian over the stationary parameters is
 /// positive semidefinite (rejecting saddles a seed happened to start on).
-fn is_box_minimum(
+pub(crate) fn is_box_minimum(
     x: [f64; 2],
     g: [f64; 2],
     h: [[f64; 2]; 2],
@@ -1071,7 +1087,7 @@ fn is_box_minimum(
 /// distances agree and so does the distance along the straight parameter
 /// path between them (`along(f)`, `f` in `[0, 1]`), within
 /// `tol.confusion`. Copies of one minimum pass trivially.
-fn flat_between(d0: f64, d1: f64, along: impl Fn(f64) -> f64, tol: Tolerance) -> bool {
+pub(crate) fn flat_between(d0: f64, d1: f64, along: impl Fn(f64) -> f64, tol: Tolerance) -> bool {
     (d0 - d1).abs() <= tol.confusion
         && (1..8).all(|k| (along(k as f64 / 8.0) - d0).abs() <= tol.confusion)
 }
@@ -1080,20 +1096,18 @@ fn flat_between(d0: f64, d1: f64, along: impl Fn(f64) -> f64, tol: Tolerance) ->
 /// minimum) into a single entry, lowest distance first. A genuine
 /// valley, met by seeds at distinct parameters, is reported at its
 /// `representative` when that pair belongs to it.
-fn merge_valleys(
-    mut found: Vec<CurveCurveExtremum>,
-    same_valley: impl Fn(&CurveCurveExtremum, &CurveCurveExtremum) -> bool,
-    representative: impl Fn(&CurveCurveExtremum) -> CurveCurveExtremum,
+pub(crate) fn merge_valleys<E: Extremum>(
+    mut found: Vec<E>,
+    same_valley: impl Fn(&E, &E) -> bool,
+    representative: impl Fn(&E) -> E,
     tol: Tolerance,
-) -> Vec<CurveCurveExtremum> {
-    let apart = |u: f64, v: f64| (u - v).abs() > tol.parametric * (1.0 + u.abs());
-    found.sort_by(|x, y| x.distance.total_cmp(&y.distance));
-    let mut kept: Vec<(CurveCurveExtremum, bool)> = Vec::new();
+) -> Vec<E> {
+    found.sort_by(|x, y| x.distance().total_cmp(&y.distance()));
+    let mut kept: Vec<(E, bool)> = Vec::new();
     for e in found {
         match kept.iter_mut().find(|(k, _)| same_valley(k, &e)) {
             Some((k, valley)) => {
-                *valley |= apart(k.first_parameter, e.first_parameter)
-                    || apart(k.second_parameter, e.second_parameter);
+                *valley |= k.parameters_apart(&e, tol);
             }
             None => kept.push((e, false)),
         }

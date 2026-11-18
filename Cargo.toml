@@ -35,6 +35,10 @@ name = "intersect_curve_surface"
 harness = false
 
 [[bench]]
+name = "surface_extrema"
+harness = false
+
+[[bench]]
 name = "intersect_curve_curve"
 harness = false
 

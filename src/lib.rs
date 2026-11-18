@@ -200,7 +200,11 @@ pub use operations::discretization::{
     Discretization, Discretization2D, DiscretizationCriteria, DiscretizationCriteriaError,
     Discretize, Discretize2D,
 };
-pub use operations::extrema::{CurveCurveExtrema, CurveCurveExtremum, curve_curve_extrema};
+pub use operations::extrema::{
+    CurveCurveExtrema, CurveCurveExtremum, CurveSurfaceExtrema, CurveSurfaceExtremum,
+    SurfaceSurfaceExtrema, SurfaceSurfaceExtremum, curve_curve_extrema, curve_surface_extrema,
+    surface_surface_extrema,
+};
 pub use operations::intersect::{
     CircleCircle2DIntersection, CircleCircleIntersection, CircleSurfaceIntersection,
     CommonSphereConics, ConeConeIntersection, ConeCylinderIntersection, Conic2DIntersection,
