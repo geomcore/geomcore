@@ -885,20 +885,16 @@ fn generic_turns() -> Vec<Transform> {
         .collect()
 }
 
-/// Reads every turn of `first` and `second` as touching at `contact`.
-fn assert_touching_turned<A, B>(
-    first: &A,
-    second: &B,
+/// Reads every turn of a pair, `turned` placing it, as touching at
+/// `contact`.
+fn assert_touching_turned<A: ParametricSurface, B: ParametricSurface>(
+    turned: impl Fn(Transform) -> (A, B),
     contact: Point,
     intersect: impl Fn(&A, &B) -> Answer,
     case: &str,
-) where
-    A: Transformable + ParametricSurface + Clone,
-    B: Transformable + ParametricSurface + Clone,
-{
+) {
     for (index, turn) in generic_turns().into_iter().enumerate() {
-        let first = first.clone().transformed(turn).unwrap();
-        let second = second.clone().transformed(turn).unwrap();
+        let (first, second) = turned(turn);
         let answer = intersect(&first, &second);
         let case = format!("{case}, turn {index}");
         check(
@@ -918,8 +914,12 @@ fn test_a_sphere_touching_a_plane_placed_far_away_touches_it_turned() {
     let plane = Plane::new(Point::new(1000.0, 0.0, 2.0), Vector::Z).unwrap();
     let contact = Point::new(0.0, 0.0, 2.0);
     assert_touching_turned(
-        &sphere,
-        &plane,
+        |turn| {
+            (
+                sphere.transformed(turn).unwrap(),
+                plane.transformed(turn).unwrap(),
+            )
+        },
         contact,
         |sphere, plane| answer(None, &plane.intersect_exact(sphere, TOL)),
         "sphere and far plane",
@@ -932,8 +932,12 @@ fn test_crossing_cylinders_placed_far_away_touch_turned() {
     let second = Cylinder::new(Point::new(1000.0, 3.0, 0.0), Vector::X, 1.0).unwrap();
     let contact = Point::new(0.0, 2.0, 0.0);
     assert_touching_turned(
-        &first,
-        &second,
+        |turn| {
+            (
+                first.transformed(turn).unwrap(),
+                second.transformed(turn).unwrap(),
+            )
+        },
         contact,
         |first, second| cylinders(first, second, TOL),
         "far crossing cylinders",
@@ -946,8 +950,12 @@ fn test_a_sphere_touching_a_cylinder_placed_far_away_touches_it_turned() {
     let cylinder = Cylinder::new(Point::new(0.0, 0.0, 1000.0), Vector::Z, 1.0).unwrap();
     let contact = Point::new(1.0, 0.0, 0.0);
     assert_touching_turned(
-        &sphere,
-        &cylinder,
+        |turn| {
+            (
+                sphere.transformed(turn).unwrap(),
+                cylinder.transformed(turn).unwrap(),
+            )
+        },
         contact,
         |sphere, cylinder| sphere_cylinder(sphere, cylinder, TOL),
         "sphere and far cylinder",
@@ -960,8 +968,12 @@ fn test_a_torus_touching_a_plane_placed_far_away_touches_it_turned() {
     let plane = Plane::new(Point::new(1000.0, 500.0, 2.0), Vector::Z).unwrap();
     let contact = Point::new(10.0, 0.0, 2.0);
     assert_touching_turned(
-        &torus,
-        &plane,
+        |turn| {
+            (
+                torus.transformed(turn).unwrap(),
+                plane.transformed(turn).unwrap(),
+            )
+        },
         contact,
         |torus, plane| torus_plane(torus, plane, TOL),
         "torus and far plane",
