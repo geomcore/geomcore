@@ -804,16 +804,22 @@ fn test_cones_in_opposite_sectors_of_the_planes_touching_both_meet_at_two_points
 
 #[test]
 fn test_cones_in_opposite_sectors_within_confusion_of_touching_twice_touch() {
-    // The second cone `1e-10` wider or narrower, within confusion of both
-    // touches: the two points. `1e-3` wider, it crosses into the first
-    // cone's sectors at both: two loops; narrower, the cones miss.
-    for widen in [1e-10, -1e-10] {
-        let (first, second, _) = in_opposite_sectors(0.5, 1.0, 1.2, widen);
-        assert!(matches!(
-            first.intersect_exact(&second, TOL),
-            ConeConeIntersection::TwoTangentPoints(..)
-        ));
-    }
+    // The second cone `1e-10` narrower, within confusion of both touches
+    // from outside: the two points. `1e-10` wider, it crosses into the
+    // first cone's sectors at both, in two small loops whose curve lies
+    // far beyond confusion from the points (#439); `1e-3` wider, two
+    // large loops; narrower, the cones miss.
+    let (first, second, _) = in_opposite_sectors(0.5, 1.0, 1.2, -1e-10);
+    assert!(matches!(
+        first.intersect_exact(&second, TOL),
+        ConeConeIntersection::TwoTangentPoints(..)
+    ));
+    let (first, second, _) = in_opposite_sectors(0.5, 1.0, 1.2, 1e-10);
+    let ConeConeIntersection::Quartic(small) = first.intersect_exact(&second, TOL) else {
+        panic!("the quartic");
+    };
+    assert_eq!(small.component_count(), 2);
+    assert_eq!(small.contact_point(), None);
     let (first, second, _) = in_opposite_sectors(0.5, 1.0, 1.2, 1e-3);
     let ConeConeIntersection::Quartic(curve) = first.intersect_exact(&second, TOL) else {
         panic!("the quartic");

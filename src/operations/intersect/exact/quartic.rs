@@ -45,6 +45,7 @@ use crate::geometry::curves::fitting::{
     hermite_knots, hermite_spline, periodic_hermite_spline, segment_length,
 };
 use crate::geometry::curves::{Curve, Curve2D, ParametricCurve};
+use crate::geometry::surfaces::ParametricSurface;
 use crate::operations::intersect::{IntersectionCurve, SurfaceSurfaceIntersection};
 use crate::{
     Cone, Cylinder, InlineList, Line, Plane, Point, Point2D, Sphere, Surface, Tolerance, Torus,
@@ -60,6 +61,7 @@ pub(super) use octic::{OcticCut, torus_cone, torus_cylinder, torus_torus};
 use tube_circles::{OtherPlane, TubeCircles};
 pub(super) use tube_circles::{torus_plane, torus_sphere};
 
+use super::contact::reads_as_touching;
 use super::surface_surface::{
     ConeConeIntersection, ConeCylinderIntersection, CylinderCylinderIntersection,
     SphereConeIntersection, SphereCylinderIntersection,
@@ -443,22 +445,37 @@ pub(super) fn crossing_cylinders(
     if distance > r1 + r2 + tol.confusion {
         return Some(CylinderCylinderIntersection::Empty);
     }
+    // A contact within confusion, outside or inside, is read as one where
+    // the curve stays within confusion of it (see `reads_as_touching`);
+    // otherwise the loops of the cylinders as given follow.
+    let size = r1.max(r2) + distance;
     if distance >= r1 + r2 - tol.confusion {
         // From the first axis towards the second.
         let toward = normal * -d.signum();
-        return Some(CylinderCylinderIntersection::TangentPoint(touching_point(
-            (first, r1, toward),
-            (second, r2, -toward),
-        )));
-    }
-    if (distance - (r1 - r2).abs()).abs() <= tol.confusion {
-        if r1 > r2 {
-            let curve = nodal_cylinders(second, first, tol)?;
-            return Some(CylinderCylinderIntersection::Quartic(
-                curve.operands_swapped(),
-            ));
+        let contact = touching_point((first, r1, toward), (second, r2, -toward));
+        if reads_as_touching(first, second, contact, r1 + r2 - distance, size, tol) {
+            return Some(CylinderCylinderIntersection::TangentPoint(contact));
         }
-        return nodal_cylinders(first, second, tol).map(CylinderCylinderIntersection::Quartic);
+    }
+    let inside = distance - (r1 - r2).abs();
+    if inside.abs() <= tol.confusion {
+        // The thin one touches the thick one on its generator farthest
+        // from the thick axis, along the common normal.
+        let (thin, thick, toward) = if r1 > r2 {
+            (second, first, -normal * d.signum())
+        } else {
+            (first, second, normal * d.signum())
+        };
+        let (thin_radius, thick_radius) = (r1.min(r2), r1.max(r2));
+        let contact = touching_point((thin, thin_radius, toward), (thick, thick_radius, toward));
+        if reads_as_touching(thin, thick, contact, inside.abs(), size, tol) {
+            let curve = nodal_cylinders(thin, thick, tol)?;
+            return Some(CylinderCylinderIntersection::Quartic(if r1 > r2 {
+                curve.operands_swapped()
+            } else {
+                curve
+            }));
+        }
     }
     // The generator at `t` is at `δ(t) = d + r1 cos(t − tn)` from the
     // second axis, and meets the second cylinder where `|δ| ≤ r2`: between
@@ -509,18 +526,24 @@ pub(super) fn crossing_cylinders(
 }
 
 /// The loop that crosses itself where a thin cylinder touches a thick one
-/// from inside, their axes not parallel and `r2 − r1` apart within
-/// confusion. Every generator of the thin one meets the thick one twice,
-/// and the curve runs twice around through the crossing. The radii are
-/// moved half each to make the distance exact, so the loop crosses itself
-/// exactly where the cylinders touch; `None` when the axes meet, where the
-/// radii are equal (the two ellipses, or a hair from them).
+/// from inside, their axes not parallel and `r2 − r1` apart, read as
+/// touching (see [`reads_as_touching`]). Every generator of the thin one
+/// meets the thick one twice, and the curve runs twice around through the
+/// crossing. The radii are moved half each to make the distance exact, so
+/// the loop crosses itself exactly where the cylinders touch; `None` where
+/// the thin one, `2 |d|` from the thick one across from the contact, reads
+/// as touching it there too: the two ellipses, or a hair from them.
 fn nodal_cylinders(thin: &Cylinder, thick: &Cylinder, tol: Tolerance) -> Option<QuarticCurve> {
     let (a1, a2) = (thin.frame().z_direction(), thick.frame().z_direction());
     let normal = a1.cross(a2).normalized()?;
     let d = (thin.frame().origin() - thick.frame().origin()).dot(normal);
-    if d.abs() <= tol.confusion {
-        return None;
+    if 2.0 * d.abs() <= tol.confusion {
+        let away = normal * -d.signum();
+        let across = touching_point((thin, thin.radius(), away), (thick, thick.radius(), away));
+        let size = thick.radius() + d.abs();
+        if reads_as_touching(thin, thick, across, 2.0 * d.abs(), size, tol) {
+            return None;
+        }
     }
     let excess = thick.radius() - thin.radius() - d.abs();
     let thin = Cylinder::from_frame(thin.frame(), thin.radius() + 0.5 * excess).ok()?;
@@ -582,10 +605,17 @@ pub(super) fn sphere_off_cylinder_axis(
     if radius < (r - e).abs() - tol.confusion {
         return SphereCylinderIntersection::Empty;
     }
-    if radius <= (r - e).abs() + tol.confusion {
+    // Each contact within confusion is read as one where the curve stays
+    // within confusion of it (see `reads_as_touching`).
+    let size = radius + r + e;
+    if radius <= (r - e).abs() + tol.confusion
+        && reads_as_touching(sphere, cylinder, near, radius - (r - e).abs(), size, tol)
+    {
         return SphereCylinderIntersection::TangentPoint(near);
     }
-    let crossing = (radius - (r + e)).abs() <= tol.confusion;
+    let excess = radius - (r + e);
+    let crossing = excess.abs() <= tol.confusion
+        && reads_as_touching(sphere, cylinder, far, excess.abs(), size, tol);
     // Through the generator where it touches, the sphere is as wide as
     // `r + e`.
     let radius = if crossing { r + e } else { radius };
@@ -695,6 +725,7 @@ pub(super) fn sphere_off_cone_axis(
         shift: UNSHIFTED,
     };
     let reach = gamma.sqrt();
+    let size = radius + apex_distance;
     // At most an arc or a contact on each nappe.
     let (mut components, mut arcs) = ([Component::Apex; 2], 0);
     let (mut contacts, mut touching) = ([Point::ORIGIN; 2], 0);
@@ -709,24 +740,35 @@ pub(super) fn sphere_off_cone_axis(
         if sign * m_nearest <= 0.0 || off_line(nearest) > radius + tol.confusion {
             continue;
         }
-        if off_line(nearest) >= radius - tol.confusion {
-            contacts[touching] = apex + nearest * m_nearest;
+        // Each contact within confusion is read as one where the curve
+        // stays within confusion of it (see `reads_as_touching`).
+        let overlap = radius - off_line(nearest);
+        let contact = || apex + nearest * m_nearest;
+        if overlap <= tol.confusion
+            && reads_as_touching(sphere, cone, contact(), overlap, size, tol)
+        {
+            contacts[touching] = contact();
             touching += 1;
             continue;
         }
         if sign * m_farthest > 0.0 && off_line(farthest) <= radius + tol.confusion {
-            if off_line(farthest) < radius - tol.confusion {
+            let crossing = apex + farthest * m_farthest;
+            let excess = radius - off_line(farthest);
+            if excess.abs() <= tol.confusion
+                && reads_as_touching(sphere, cone, crossing, excess.abs(), size, tol)
+            {
+                // The sphere touches the farthest generator: as wide as
+                // its distance from the centre there.
+                let mut cosines = cosines_at(sign * m_farthest);
+                cosines[factor] = -sign;
+                let discriminant = factored(cosines);
+                let node = Component::node(factor, t0 + tau_nearest);
+                return quartic(off_line(farthest), discriminant, &[node], Some(crossing));
+            }
+            if excess > 0.0 {
                 // Every generator of this nappe crosses the sphere twice.
                 return quartic(radius, factored(cosines_at(reach)), &around, None);
             }
-            // The sphere touches the farthest generator: as wide as its
-            // distance from the centre there.
-            let mut cosines = cosines_at(sign * m_farthest);
-            cosines[factor] = -sign;
-            let discriminant = factored(cosines);
-            let crossing = apex + farthest * m_farthest;
-            let node = Component::node(factor, t0 + tau_nearest);
-            return quartic(off_line(farthest), discriminant, &[node], Some(crossing));
         }
         let half = cosines_at(reach)[factor].clamp(-1.0, 1.0).acos();
         components[arcs] = if factor == 0 {
@@ -845,12 +887,22 @@ pub(super) fn cone_off_cylinder_axis(
         // crate grew (#271).
         let factor = |n: Vector| linear(n * cos_phi.abs());
         let factors = [factor(normals[0]), factor(normals[1])];
-        // The circle `r` from the axis comes `r (1 − |cₖ|)` from a line.
-        let touches = |form: LinearForm| {
+        // The circle `r` from the axis comes `r (1 − |cₖ|)` from a line,
+        // the cone's tangent plane along it holding the cylinder's axis:
+        // the surfaces are that far apart on the generator nearest it.
+        let touches = |k: usize| {
+            let form = factors[k];
             let cosine = form.vanishing_cosine(form.amplitude());
-            r * (1.0 - cosine.abs()).abs() <= tol.confusion
+            let gap = r * (1.0 - cosine.abs());
+            gap.abs() <= tol.confusion && {
+                let (ruled, other) = (RuledCylinder::new(cylinder), OtherCone::new(cone));
+                let angle = FormZeros::touching_at(form.reference(), cosine);
+                let contact = touching_on_generator(&ruled, &other, angle);
+                let size = r + p.magnitude();
+                factor_touches(factors, k, angle, gap, (cylinder, cone, contact, size), tol)
+            }
         };
-        let touching = [touches(factors[0]), touches(factors[1])];
+        let touching = [touches(0), touches(1)];
         factored_loops(factors, touching, through_apex)?
     };
     let surfaces = Surfaces::ConeCylinder(*cone, *cylinder);
@@ -1109,19 +1161,24 @@ pub(super) fn cones_in_general_position(
         // `θₖ` where `cₖ > 0` and across from it otherwise. There the
         // middle of the generator's roots, `s = −β/A`, is off the second
         // cone by `|Q| / |∇Q|`, `Q = −Δ/A` and `Δ` that factor times the
-        // other: within confusion, the surfaces touch.
+        // other: within confusion, the surfaces touch where their curve
+        // stays within confusion of the contact (see `factor_touches`).
         let touches = |k: usize| {
             let form = factors[k];
             let amplitude = form.amplitude();
             let cosine = form.vanishing_cosine(amplitude);
-            let (sin, cos) = FormZeros::touching_at(form.reference(), cosine).sin_cos();
+            let angle = FormZeros::touching_at(form.reference(), cosine);
+            let (sin, cos) = angle.sin_cos();
             let direction = ruled.generator(ruled.radial(sin, cos)).1;
             let (leading, half_linear, _, _) = other.coefficients(ruled.apex, direction);
             let nearest = ruled.apex + direction * (-half_linear / leading);
             let rest = factors[1 - k].at(cos, sin);
             let gradient = 2.0 * other.normal(nearest).magnitude();
-            amplitude * (1.0 - cosine.abs()).abs() * rest.abs()
-                <= tol.confusion * leading.abs() * gradient
+            let gap = amplitude * (1.0 - cosine.abs()) * rest.abs() / (leading.abs() * gradient);
+            gap.abs() <= tol.confusion && {
+                let size = w.magnitude();
+                factor_touches(factors, k, angle, gap, (first, second, nearest, size), tol)
+            }
         };
         let touching = [touches(0), touches(1)];
         factored_loops(factors, touching, through_apex)?
@@ -1356,6 +1413,32 @@ impl Loops {
             Loops::Empty => empty,
         }
     }
+}
+
+/// Whether factor `k` of `Δ = f₀ f₁`, least in size on the generator at
+/// `angle`, where the surfaces come `gap` from touching at `contact`, is
+/// read as vanishing twice there (see [`reads_as_touching`]). Their curve
+/// runs around or through the contact where the factor changes sign
+/// nearby, `|cₖ| < 1`, or where `Δ` is positive there, its two strands
+/// parted on each generator; it stays clear of it where the factor keeps
+/// its sign and `Δ` is negative there, the surfaces apart.
+fn factor_touches(
+    factors: [LinearForm; 2],
+    k: usize,
+    angle: f64,
+    gap: f64,
+    (first, second, contact, size): (&impl ParametricSurface, &impl ParametricSurface, Point, f64),
+    tol: Tolerance,
+) -> bool {
+    let cosine = factors[k].vanishing_cosine(factors[k].amplitude());
+    let (sin, cos) = angle.sin_cos();
+    let positive = factors[0].at(cos, sin) * factors[1].at(cos, sin) > 0.0;
+    let overlap = if cosine.abs() < 1.0 || positive {
+        gap.abs()
+    } else {
+        -gap.abs()
+    };
+    reads_as_touching(first, second, contact, overlap, size, tol)
 }
 
 /// The loops where `Δ = f₀(t) f₁(t) ≥ 0`, each factor `k₀ + k₁ cos t + k₂ sin t`

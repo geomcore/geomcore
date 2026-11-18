@@ -1511,16 +1511,16 @@ fn test_surfaces_around_spheres_that_differ_are_not_conics() {
         cone.intersect_exact(&other, tol),
         ConeConeIntersection::Quartic(_)
     ));
-    // Within confusion: conics.
-    let near = cone_around(
-        Point::ORIGIN,
-        1.0 + 0.4 * tol.confusion,
-        Vector::X,
-        0.5,
-        1.0,
-    );
+    // Within confusion, the general quartic too: where the conics cross,
+    // the surfaces touch, and the curve of these parts some `1e-4` from
+    // there (#439). Within rounding: conics.
+    let near = |off: f64| cone_around(Point::ORIGIN, 1.0 + off, Vector::X, 0.5, 1.0);
     assert!(matches!(
-        near.intersect_exact(&cylinder, tol),
+        near(0.4 * tol.confusion).intersect_exact(&cylinder, tol),
+        ConeCylinderIntersection::Quartic(_)
+    ));
+    assert!(matches!(
+        near(1e-16).intersect_exact(&cylinder, tol),
         ConeCylinderIntersection::TwoConics(_)
     ));
     // Axes 2 × confusion apart: no meeting point.

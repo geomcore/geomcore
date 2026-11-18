@@ -11,6 +11,23 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- Two surfaces within confusion of a contact are answered with the
+  contact only where their curve stays within confusion of it (#438,
+  #439, ADR 0056). Near a contact two surfaces part quadratically, so an
+  offset `ε` puts their curve `√(2ε / κ)` from the contact point, `κ`
+  their relative curvature: a plane `5e-8` off a saddle level of a torus
+  was answered with a crossing `1.3e-3` from its loops, a thin cylinder
+  `1e-7` from touching a thick one inside with a crossing `1e-3` from
+  them. The offset that reads as a contact is now `κ confusion² / 2`, or
+  its rounding, where the surfaces cross; apart within confusion, they
+  still touch. This holds for the quartics of two cylinders, a sphere and
+  a cylinder or a cone, a cone and a cylinder, two cones, and a torus and
+  a plane or a sphere; for the two ellipses of equal cylinders and the
+  conics of quadrics around one sphere; and for the tangent points, lines
+  and circles of the elementary pairs, a plane and a sphere among them.
+  Results within confusion of a contact change: a sphere half a confusion
+  through a plane now meets it in a circle of radius `√(2rε)`.
+
 - The sampled curve–surface search finds the same hits at any size (#434).
   Its Newton steps read the tolerance, a length, as the pivot ratio of
   their linear solve, so at a large scale a crossing at a few degrees

@@ -66,6 +66,7 @@ and the text says so where it happens. For the current API, use the
 - [0049](0049-tube-circles-meet-a-cylinder-or-a-cone-in-up-to-four-points.md) — Tube circles meet a cylinder or a cone in up to four points
 - [0050](0050-a-second-torus-is-read-along-the-same-tube-circles.md) — A second torus is read along the same tube circles
 - [0052](0052-a-boundary-curve-lying-on-the-other-surface-is-one-whole-curve.md) — A boundary curve lying on the other surface is one whole curve
+- [0056](0056-a-contact-is-read-where-its-curve-stays-within-confusion.md) — A contact is read where its curve stays within confusion
 
 ## Curves on surfaces
 
