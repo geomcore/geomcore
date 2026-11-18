@@ -3,7 +3,7 @@
 //! [`crate::math::elementary::curve`].
 
 use crate::base::frame::{frame_error, placement_error};
-use crate::base::tier::operations::FrameOperations;
+use crate::base::tier::operations::{FrameOperations, TransformOperations};
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
@@ -12,9 +12,7 @@ use crate::geometry::curves::{PointExtrema, PointExtrema2D};
 use crate::math::elementary::curve as elementary;
 use crate::math::numeric::{polish_root, real_roots};
 use crate::operations::projection::CurveProjection;
-use crate::{
-    Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D, operations::projection,
-};
+use crate::{Frame, Frame2D, Point, Point2D, Tolerance, Vector, Vector2D, operations::projection};
 use crate::{TransformError, Transformable};
 use std::fmt;
 
@@ -722,12 +720,14 @@ impl_for_both_tiers! {
     }
 }
 
-impl Transformable for Hyperbola {
+impl<P: TierPoint> Transformable for GenericHyperbola<P> {
+    type Transform = P::Transform;
+
     /// The frame maps through the transform and both radii scale by its
     /// scale factor.
-    fn transformed(&self, transform: Transform) -> Result<Hyperbola, TransformError> {
+    fn transformed(&self, transform: P::Transform) -> Result<GenericHyperbola<P>, TransformError> {
         let (frame, scale) = transform.apply_frame(self.frame())?;
-        Hyperbola::from_frame(
+        GenericHyperbola::from_frame(
             frame,
             self.major_radius() * scale,
             self.minor_radius() * scale,

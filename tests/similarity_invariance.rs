@@ -22,7 +22,7 @@ use geomcore::prelude::*;
 use geomcore::{
     BSplineCurve, BezierCurve, Circle, Completeness, Curve, ExtrusionSurface, Frame,
     IntersectionMethod, Line, Plane, Point, Surface, Tolerance, Torus, Transform, Vector,
-    curve_curve_extrema,
+    curve_curve_extrema, curve_surface_extrema, surface_surface_extrema,
 };
 
 /// A similarity, its factor on lengths and its inverse.
@@ -179,6 +179,51 @@ fn extrema(a: &Curve, b: &Curve, tol: Tolerance) -> (String, Vec<Point>) {
     (format!("extrema={}", result.len()), Vec::new())
 }
 
+/// The count and completeness of the curve–surface minima, with the
+/// distance of the closest relative to the tolerance it was asked with,
+/// and its two points when it is the only minimum (a valley's
+/// representative or a minimum among several may be any of its equals).
+fn curve_surface_minima(a: &Curve, b: &Surface, tol: Tolerance) -> (String, Vec<Point>) {
+    let result = curve_surface_extrema(a, b, tol);
+    let points = match result.minima() {
+        [only] => vec![only.curve_point, only.surface_point],
+        _ => Vec::new(),
+    };
+    let text = format!(
+        "{} minima={} closest={}",
+        completeness(result.completeness()),
+        result.len(),
+        closest_in_confusions(result.closest().map(|m| m.distance), tol)
+    );
+    (text, points)
+}
+
+/// [`curve_surface_minima`] for two surfaces.
+fn surface_surface_minima(a: &Surface, b: &Surface, tol: Tolerance) -> (String, Vec<Point>) {
+    let result = surface_surface_extrema(a, b, tol);
+    let points = match result.minima() {
+        [only] if only.distance > tol.confusion => vec![only.first_point, only.second_point],
+        _ => Vec::new(),
+    };
+    let text = format!(
+        "{} minima={} closest={}",
+        completeness(result.completeness()),
+        result.len(),
+        closest_in_confusions(result.closest().map(|m| m.distance), tol)
+    );
+    (text, points)
+}
+
+/// A distance in whole confusion tolerances, rounded down to a power of
+/// ten so that the rounding of the moved shapes does not change it.
+fn closest_in_confusions(distance: Option<f64>, tol: Tolerance) -> String {
+    match distance {
+        None => "none".to_string(),
+        Some(distance) if distance <= tol.confusion => "within confusion".to_string(),
+        Some(distance) => format!("1e{}", (distance / tol.confusion).log10().floor()),
+    }
+}
+
 /// A comparison that does not hold: its key in the list of known
 /// mismatches, and what changed.
 type Mismatch = (String, String);
@@ -193,8 +238,8 @@ fn compare_pairs<A, B>(
     operation: impl Fn(&A, &B, Tolerance) -> (String, Vec<Point>),
 ) -> Vec<Mismatch>
 where
-    A: Transformable + Clone + Debug,
-    B: Transformable + Clone + Debug,
+    A: Transformable<Transform = Transform> + Clone + Debug,
+    B: Transformable<Transform = Transform> + Clone + Debug,
 {
     let mut mismatches = Vec::new();
     let mut compared = 0;
@@ -432,6 +477,34 @@ fn curve_curve_extrema_are_similarity_invariant() {
     report(
         "extrema",
         compare_pairs("extrema", &curves(), &curves(), true, extrema),
+    );
+}
+
+#[test]
+fn curve_surface_extrema_are_similarity_invariant() {
+    report(
+        "curve-surface extrema",
+        compare_pairs(
+            "curve-surface extrema",
+            &curves(),
+            &surfaces(),
+            false,
+            curve_surface_minima,
+        ),
+    );
+}
+
+#[test]
+fn surface_surface_extrema_are_similarity_invariant() {
+    report(
+        "surface-surface extrema",
+        compare_pairs(
+            "surface-surface extrema",
+            &surfaces(),
+            &surfaces(),
+            true,
+            surface_surface_minima,
+        ),
     );
 }
 

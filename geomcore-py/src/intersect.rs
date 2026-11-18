@@ -1,5 +1,5 @@
-//! The routed `intersect` shared by every curve and surface class, the
-//! reading of Python operands it relies on, and the deprecated
+//! The routed `intersect` and `extrema` shared by every curve and surface
+//! class, the reading of Python operands they rely on, and the deprecated
 //! `geomcore.curve_curve_extrema`.
 
 use crate::arguments::{
@@ -7,14 +7,17 @@ use crate::arguments::{
 };
 use crate::curves::PyTrimmedCurve2D;
 use crate::results::{
-    PyCurveCurveIntersection, PyCurveCurveIntersection2D, PyCurveSurfaceIntersection,
+    PyCurveCurveExtrema, PyCurveCurveIntersection, PyCurveCurveIntersection2D,
+    PyCurveSurfaceExtrema, PyCurveSurfaceIntersection, PySurfaceSurfaceExtrema,
     PySurfaceSurfaceIntersection,
 };
 use crate::surfaces::PyTrimmedSurface;
 use geomcore::prelude::*;
 use geomcore::{
-    Curve2D, CurveCurveIntersection, CurveCurveIntersection2D, CurveSurfaceIntersection, Surface,
-    SurfaceSurfaceIntersection, Tolerance, TrimmedCurve2D, TrimmedSurface,
+    Curve2D, CurveCurveIntersection, CurveCurveIntersection2D, CurveSurfaceExtrema,
+    CurveSurfaceIntersection, Surface, SurfaceSurfaceExtrema, SurfaceSurfaceIntersection,
+    Tolerance, TrimmedCurve2D, TrimmedSurface, curve_curve_extrema, curve_surface_extrema,
+    surface_surface_extrema,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -52,10 +55,17 @@ enum SurfaceArg<'a> {
     Trimmed(&'a TrimmedSurface),
 }
 
+/// What `intersect` takes, leading the `TypeError` for anything else.
+const INTERSECT_TAKES: &str = "intersect takes a geomcore curve or surface";
+
+/// What `extrema` takes, leading the `TypeError` for anything else.
+pub(crate) const EXTREMA_TAKES: &str = "extrema takes a Point, a 3D curve or a surface";
+
 /// The operand `obj` holds, read by type tests that raise nothing on a
 /// miss: the surface classes first when `surfaces_first` (the other
-/// operand is a surface), the 3D curve classes first otherwise.
-fn operand_of(obj: &Bound<'_, PyAny>, surfaces_first: bool) -> PyResult<Operand> {
+/// operand is a surface), the 3D curve classes first otherwise. Anything
+/// else raises `TypeError`, `expected` leading its message.
+fn operand_of(obj: &Bound<'_, PyAny>, surfaces_first: bool, expected: &str) -> PyResult<Operand> {
     let surface = || {
         if let Ok(trimmed) = obj.downcast::<PyTrimmedSurface>() {
             return Some(Operand::TrimmedSurface(Box::new(
@@ -82,7 +92,7 @@ fn operand_of(obj: &Bound<'_, PyAny>, surfaces_first: bool) -> PyResult<Operand>
         return Ok(Operand::Curve2D(CurveArg2D::Whole(curve)));
     }
     Err(PyTypeError::new_err(format!(
-        "intersect takes a geomcore curve or surface, not {}",
+        "{expected}, not {}",
         obj.get_type().name()?
     )))
 }
@@ -115,8 +125,8 @@ pub(crate) fn intersect(
 ) -> PyResult<Py<PyAny>> {
     let py = first.py();
     // The receiver is read curves first: most calls are on curves.
-    let a = operand_of(first, false)?;
-    let b = operand_of(second, a.as_surface().is_some())?;
+    let a = operand_of(first, false, INTERSECT_TAKES)?;
+    let b = operand_of(second, a.as_surface().is_some(), INTERSECT_TAKES)?;
     let (first, second) = (first.clone().unbind(), second.clone().unbind());
     if let (Some(a), Some(b)) = (a.as_surface(), b.as_surface()) {
         let object = PySurfaceSurfaceIntersection {
@@ -168,6 +178,83 @@ pub(crate) fn intersect(
     Ok(object.unbind())
 }
 
+/// The extrema of the distance between `first` and `second`, each a 3D
+/// curve or a surface, whole or trimmed, wrapped with both operands. As
+/// for `intersect`, the interpreter lock is released for the search.
+pub(crate) fn extrema(
+    first: &Bound<'_, PyAny>,
+    second: &Bound<'_, PyAny>,
+    tol: Tolerance,
+) -> PyResult<Py<PyAny>> {
+    let py = first.py();
+    let a = operand_of(first, false, EXTREMA_TAKES)?;
+    let b = operand_of(second, a.as_surface().is_some(), EXTREMA_TAKES)?;
+    let (first, second) = (first.clone().unbind(), second.clone().unbind());
+    if let (Some(a), Some(b)) = (a.as_surface(), b.as_surface()) {
+        let object = PySurfaceSurfaceExtrema {
+            result: py.detach(|| routed_surface_surface_extrema(&a, &b, tol)),
+            first,
+            second,
+        };
+        return Ok(object.into_pyobject(py)?.into_any().unbind());
+    }
+    let object = match (&a, &b) {
+        (Operand::Curve(a), Operand::Curve(b)) => PyCurveCurveExtrema {
+            result: py.detach(|| curve_curve_extrema(a, b, tol)),
+            first,
+            second,
+        }
+        .into_pyobject(py)?
+        .into_any(),
+        (Operand::Curve(curve), other) | (other, Operand::Curve(curve))
+            if other.as_surface().is_some() =>
+        {
+            let surface = other.as_surface().expect("checked by the guard");
+            PyCurveSurfaceExtrema {
+                result: py.detach(|| routed_curve_surface_extrema(curve, &surface, tol)),
+                first,
+                second,
+            }
+            .into_pyobject(py)?
+            .into_any()
+        }
+        _ => {
+            return Err(PyTypeError::new_err(format!(
+                "{EXTREMA_TAKES}, not a 2D curve ({} and {})",
+                first.bind(py).get_type().name()?,
+                second.bind(py).get_type().name()?
+            )));
+        }
+    };
+    Ok(object.unbind())
+}
+
+/// The extrema of a curve and a surface passed from Python.
+fn routed_curve_surface_extrema(
+    curve: &CurveArg,
+    surface: &SurfaceArg<'_>,
+    tol: Tolerance,
+) -> CurveSurfaceExtrema {
+    match surface {
+        SurfaceArg::Whole(surface) => curve_surface_extrema(curve, *surface, tol),
+        SurfaceArg::Trimmed(face) => curve_surface_extrema(curve, *face, tol),
+    }
+}
+
+/// The extrema of two surfaces passed from Python.
+fn routed_surface_surface_extrema(
+    a: &SurfaceArg<'_>,
+    b: &SurfaceArg<'_>,
+    tol: Tolerance,
+) -> SurfaceSurfaceExtrema {
+    match (a, b) {
+        (SurfaceArg::Whole(a), SurfaceArg::Whole(b)) => surface_surface_extrema(*a, *b, tol),
+        (SurfaceArg::Whole(a), SurfaceArg::Trimmed(b)) => surface_surface_extrema(*a, *b, tol),
+        (SurfaceArg::Trimmed(a), SurfaceArg::Whole(b)) => surface_surface_extrema(*a, *b, tol),
+        (SurfaceArg::Trimmed(a), SurfaceArg::Trimmed(b)) => surface_surface_extrema(*a, *b, tol),
+    }
+}
+
 /// Deprecated: use `first.extrema(second, tol)`.
 #[pyfunction]
 #[pyo3(name = "curve_curve_extrema", signature = (first, second, tol = None))]
@@ -185,6 +272,7 @@ pub(crate) fn py_curve_curve_extrema<'py>(
         1,
     )?;
     extract_curve_arg(first)?;
+    extract_curve_arg(second)?;
     first.call_method1("extrema", (second, tol))
 }
 

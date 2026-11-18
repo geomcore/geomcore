@@ -179,6 +179,10 @@ class Point2D:
         """The coordinates as a tuple `(x, y)`."""
     def midpoint(self, other: _Point2DLike) -> Point2D:
         """The point halfway between this point and `other`."""
+    def transformed(self, transform: Transform2D) -> Point2D:
+        """The image of this point under `transform`, the same as
+        `transform.apply_point(point)`.
+        """
     def is_finite(self) -> bool:
         """Whether every coordinate is finite."""
     def __add__(self, offset: Vector2D, /) -> Point2D: ...
@@ -275,6 +279,11 @@ class Vector:
         """The part of this vector across `direction`: the vector less its
         component along `direction`.
         """
+    def transformed(self, transform: Transform) -> Vector:
+        """The image of this free vector under `transform`, the same as
+        `transform.apply_vector(vector)`: turned, mirrored and scaled,
+        never translated.
+        """
     def __add__(self, other: Vector, /) -> Vector: ...
     def __sub__(self, other: Vector, /) -> Vector: ...
     def __neg__(self) -> Vector: ...
@@ -353,6 +362,11 @@ class Vector2D:
         """The part of this vector across `direction`: the vector less its
         component along `direction`.
         """
+    def transformed(self, transform: Transform2D) -> Vector2D:
+        """The image of this free vector under `transform`, the same as
+        `transform.apply_vector(vector)`: turned, mirrored and scaled,
+        never translated.
+        """
     def magnitude(self) -> float:
         """Euclidean length of the vector."""
     def square_magnitude(self) -> float:
@@ -417,6 +431,12 @@ class Axis2D:
         """
     def reversed(self) -> Axis2D:
         """The axis with its direction negated, through the same origin."""
+    def transformed(self, transform: Transform2D) -> Axis2D:
+        """The image of the axis under `transform`: the origin maps as a
+        point and the direction as a free vector, normalized again.
+        Raises `ConstructionError` when the transform collapses the plane
+        or the image overflows.
+        """
     def __repr__(self) -> str: ...
 
 @final
@@ -464,6 +484,13 @@ class Frame2D:
         """The components `(u, v)` of `vector` along the x and y directions:
         `local_coordinates` for a direction, which ignores the origin.
         """
+    def transformed(self, transform: Transform2D) -> Frame2D:
+        """The image of the frame under `transform`: a point at local
+        coordinates `(u, v)` maps to the point at the same coordinates,
+        scaled by `transform.scale_factor()`, in the image. A mirror across
+        an axis changes the handedness. Raises `ConstructionError` when the
+        transform collapses the plane or the image overflows.
+        """
     def __repr__(self) -> str: ...
 
 @final
@@ -500,6 +527,12 @@ class Axis:
         """
     def reversed(self) -> Axis:
         """The axis with its direction negated, through the same origin."""
+    def transformed(self, transform: Transform) -> Axis:
+        """The image of the axis under `transform`: the origin maps as a
+        point and the direction as a free vector, normalized again.
+        Raises `ConstructionError` when the transform collapses space or
+        the image overflows.
+        """
 
 @final
 class Frame:
@@ -703,6 +736,94 @@ class Transform:
         a point (a scaling by 0).
         """
     def __matmul__(self, other: Transform, /) -> Transform: ...
+    def __repr__(self) -> str: ...
+
+@final
+class Transform2D:
+    """A similarity of the plane: a uniform scale composed with a rigid
+    motion or a mirror, the plane twin of `Transform`.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @staticmethod
+    def identity() -> Transform2D:
+        """The identity transformation."""
+    @staticmethod
+    def translation(offset: Vector2D) -> Transform2D:
+        """Translation by an offset vector."""
+    @staticmethod
+    def rotation(center: _Point2DLike, angle: float) -> Transform2D:
+        """Rotation by `angle` radians about `center`, counterclockwise for a
+        positive angle.
+        """
+    @staticmethod
+    def scaling(center: _Point2DLike, factor: float) -> Transform2D:
+        """Uniform scaling about `center`."""
+    @staticmethod
+    def mirror_point(center: _Point2DLike) -> Transform2D:
+        """Point reflection through `center`, which in the plane is the half
+        turn about it: it keeps the turning sense of curves.
+        """
+    @staticmethod
+    def mirror_axis(axis: Axis2D) -> Transform2D:
+        """Reflection across the line of `axis`, which reverses the turning
+        sense of curves.
+        """
+    @staticmethod
+    def between_frames(source: Frame2D, target: Frame2D) -> Transform2D:
+        """The rigid motion taking the `source` placement to the `target` one:
+        the point at local coordinates `(u, v)` in `source` maps to the
+        point at the same coordinates in `target`. It includes a mirror when
+        the frames have opposite handedness.
+        """
+    def scale_factor(self) -> float:
+        """The factor by which the transformation scales lengths: 1 for a
+        rotation, a translation or a mirror, 0 for a collapse onto a point.
+        """
+    def preserves_orientation(self) -> bool:
+        """Whether the transformation keeps the turning sense of the plane:
+        false for mirrors across an axis (which turn a counterclockwise
+        circle clockwise) and for a collapse onto a point.
+        """
+    def is_identity(self, tol: Optional[_ToleranceLike] = None) -> bool:
+        """Whether the transformation leaves the plane unchanged within `tol`
+        (`Tolerance.default()` when omitted): its linear part within
+        `tol.angular` of the identity's, entry by entry, and its translation
+        shorter than `tol.confusion`.
+        """
+    def then(self, other: Transform2D) -> Transform2D:
+        """Compose transformations: `self` is applied first, then `other`."""
+    def apply_point(self, p: _Point2DLike) -> Point2D:
+        """Apply the transformation to a point."""
+    def apply_points(self, points: _Points2D) -> _FloatArray:
+        """Apply the transformation to each point of `points`, a list of
+        points or an `(N, 2)` array-like, as an `(N, 2)` numpy array.
+        Other Python threads run meanwhile.
+        """
+    def apply_vector(self, v: Vector2D) -> Vector2D:
+        """Apply the transformation to a vector (ignores the translation part)."""
+    @staticmethod
+    def from_matrix(matrix: Union[Sequence[Sequence[float]], numpy.typing.NDArray[Any]]) -> Transform2D:
+        """The transformation of a 3×3 homogeneous `matrix`, three rows of
+        three numbers (nested lists, or a numpy array): a point `p` maps to
+        the upper 2×2 block times `p` plus the last column. Raises
+        `ConstructionError` unless the last row is `[0, 0, 1]` and the 2×2
+        block is a uniform scale of a rotation or a mirror, its columns of
+        one length and orthogonal within `1e-12`. `to_matrix()` gives the
+        matrix back unchanged.
+        """
+    def to_matrix(self) -> List[List[float]]:
+        """The 3×3 homogeneous matrix, as three rows of three floats: the
+        linear part in the upper 2×2 block, the translation in the last
+        column, and `[0, 0, 1]` below. `numpy.array(t.to_matrix())` makes
+        it an array.
+        """
+    def inverse(self) -> Transform2D:
+        """The transformation that undoes this one: `t.then(t.inverse())`
+        maps every point back to itself, within rounding. Raises
+        `ConstructionError` for a transformation that collapses the plane
+        onto a point (a scaling by 0).
+        """
+    def __matmul__(self, other: Transform2D, /) -> Transform2D: ...
     def __repr__(self) -> str: ...
 
 @final
@@ -1697,10 +1818,128 @@ class CurveCurveExtrema:
         """Whether the search proved there is no other minimum."""
     @property
     def first(self) -> Curve | TrimmedCurve:
-        """The first curve."""
+        """The operand the method was called on."""
     @property
     def second(self) -> Curve | TrimmedCurve:
-        """The second curve."""
+        """The operand passed to the method."""
+    def is_complete(self) -> bool:
+        """Whether the search proved there is no other minimum."""
+
+@final
+class CurveSurfaceExtremum:
+    """A local minimum of the distance between a curve and a surface."""
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def curve_parameter(self) -> float:
+        """The parameter on the curve."""
+    @property
+    def surface_parameters(self) -> Tuple[float, float]:
+        """The parameters `(u, v)` on the surface."""
+    @property
+    def curve_point(self) -> Point:
+        """The point of the curve at `curve_parameter`."""
+    @property
+    def surface_point(self) -> Point:
+        """The point of the surface at `surface_parameters`."""
+    @property
+    def distance(self) -> float:
+        """The distance between `curve_point` and `surface_point`."""
+
+@final
+class CurveSurfaceExtrema:
+    """The local minima of the distance between a curve and a surface,
+    closest first, with whether the search proved there is no other.
+
+    `first` and `second` are the operands, in the order of the call;
+    whichever order that was, the minima keep their roles, and `curve`
+    and `surface` name the operands by role.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    def __len__(self) -> int: ...
+    def closest(self) -> Optional[CurveSurfaceExtremum]:
+        """The closest minimum, the first of `minima`, or `None` when there
+        is none.
+        """
+    def __iter__(self) -> Iterator[CurveSurfaceExtremum]: ...
+    def __reversed__(self) -> Iterator[CurveSurfaceExtremum]:
+        """Iterates over the minima, farthest first."""
+    @overload
+    def __getitem__(self, index: int, /) -> CurveSurfaceExtremum: ...
+    @overload
+    def __getitem__(self, index: slice, /) -> List[CurveSurfaceExtremum]: ...
+    @property
+    def minima(self) -> List[CurveSurfaceExtremum]:
+        """The minima, closest first."""
+    @property
+    def completeness(self) -> Completeness:
+        """Whether the search proved there is no other minimum."""
+    @property
+    def first(self) -> Curve | TrimmedCurve | Surface | TrimmedSurface:
+        """The operand the method was called on."""
+    @property
+    def second(self) -> Curve | TrimmedCurve | Surface | TrimmedSurface:
+        """The operand passed to the method."""
+    def is_complete(self) -> bool:
+        """Whether the search proved there is no other minimum."""
+    @property
+    def curve(self) -> Curve | TrimmedCurve:
+        """The curve operand, whichever of `first` and `second` it is."""
+    @property
+    def surface(self) -> Surface | TrimmedSurface:
+        """The surface operand, whichever of `first` and `second` it is."""
+
+@final
+class SurfaceSurfaceExtremum:
+    """A local minimum of the distance between two surfaces."""
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def first_parameters(self) -> Tuple[float, float]:
+        """The parameters `(u, v)` on the first surface."""
+    @property
+    def second_parameters(self) -> Tuple[float, float]:
+        """The parameters `(u, v)` on the second surface."""
+    @property
+    def first_point(self) -> Point:
+        """The point of the first surface at `first_parameters`."""
+    @property
+    def second_point(self) -> Point:
+        """The point of the second surface at `second_parameters`."""
+    @property
+    def distance(self) -> float:
+        """The distance between `first_point` and `second_point`."""
+
+@final
+class SurfaceSurfaceExtrema:
+    """The local minima of the distance between two surfaces, closest
+    first, with whether the search proved there is no other.
+
+    `first` and `second` are the surfaces, in the order of the call.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    def __len__(self) -> int: ...
+    def closest(self) -> Optional[SurfaceSurfaceExtremum]:
+        """The closest minimum, the first of `minima`, or `None` when there
+        is none.
+        """
+    def __iter__(self) -> Iterator[SurfaceSurfaceExtremum]: ...
+    def __reversed__(self) -> Iterator[SurfaceSurfaceExtremum]:
+        """Iterates over the minima, farthest first."""
+    @overload
+    def __getitem__(self, index: int, /) -> SurfaceSurfaceExtremum: ...
+    @overload
+    def __getitem__(self, index: slice, /) -> List[SurfaceSurfaceExtremum]: ...
+    @property
+    def minima(self) -> List[SurfaceSurfaceExtremum]:
+        """The minima, closest first."""
+    @property
+    def completeness(self) -> Completeness:
+        """Whether the search proved there is no other minimum."""
+    @property
+    def first(self) -> Surface | TrimmedSurface:
+        """The operand the method was called on."""
+    @property
+    def second(self) -> Surface | TrimmedSurface:
+        """The operand passed to the method."""
     def is_complete(self) -> bool:
         """Whether the search proved there is no other minimum."""
 
@@ -1933,31 +2172,60 @@ class _CurveMethods(
     def extrema(
         self, other: _PointLike, tol: Optional[_ToleranceLike] = None
     ) -> List[CurveProjection]:
-        """The extrema of the distance to `other`, a point or a curve.
+        """The extrema of the distance to `other`, a point, a curve or
+        a surface.
 
         From a point: the local minima of its distance to the
         curve, an end of a bounded curve among them where the
         distance grows from it into the curve, as `CurveProjection`
         objects ordered by ascending distance.
 
-        From a curve or `TrimmedCurve`: a `CurveCurveExtrema` of the
-        local minima of the distance between the two curves, closest
-        first, with whether the search proved there is no other.
-        Parallel lines, concentric circles and other continuous
-        families of equal minima report the distance once, with a
-        representative pair. The result holds this curve as `first`
-        and `other` as `second`. Other Python threads run during the
-        search. Raises `TypeError` for anything else, a 2D curve
-        included.
+        From a curve or `TrimmedCurve`: a `CurveCurveExtrema`; from
+        a surface or `TrimmedSurface`: a `CurveSurfaceExtrema`. Each
+        holds the local minima of the distance between the two,
+        closest first, with whether the search proved there is no
+        other. Parallel lines, concentric circles and other
+        continuous families of equal minima report the distance
+        once, with a representative pair; a curve that meets a
+        surface reports each crossing at distance zero. The result
+        holds this curve as `first` and `other` as `second`. Other
+        Python threads run during the search. Raises `TypeError`
+        for anything else, a 2D curve included.
         """
     @overload
     def extrema(
         self, other: _CurveMethods, tol: Optional[_ToleranceLike] = None
     ) -> CurveCurveExtrema: ...
+    @overload
+    def extrema(
+        self, other: _SurfaceMethods[Any, Any] | TrimmedSurface, tol: Optional[_ToleranceLike] = None
+    ) -> CurveSurfaceExtrema: ...
+    @overload
+    def minimum_distance(
+        self, other: _CurveMethods, tol: Optional[_ToleranceLike] = None
+    ) -> Optional[CurveCurveExtremum]:
+        """The minimum distance to `other`, a curve or a surface: the
+        closest of `extrema(other)`, a `CurveCurveExtremum` or
+        `CurveSurfaceExtremum` with the two points where it is
+        reached, or `None` when there is no minimum. Whether the
+        search proved it the global one is the `completeness` of
+        `extrema(other)`. Raises `TypeError` for anything else.
+        """
+    @overload
+    def minimum_distance(
+        self, other: _SurfaceMethods[Any, Any] | TrimmedSurface, tol: Optional[_ToleranceLike] = None
+    ) -> Optional[CurveSurfaceExtremum]: ...
 
 class _Curve2DMethods(
     _CurveMethodsInEitherDimension[Point2D, Vector2D, BoundingBox2D, CurveProjection2D]
 ):
+    def transformed(self: _Self, transform: Transform2D) -> _Self:
+        """The image of the curve under `transform`, parametrized by
+        the image of its parametrization: a line's or parabola's
+        parameter, a length, scales with the transform. Raises
+        `ConstructionError` when the transform collapses the
+        curve (a zero scale) or overflows.
+        """
     def intersect(
         self, other: _Curve2DMethods, tol: Optional[_ToleranceLike] = None
     ) -> CurveCurveIntersection2D:
@@ -3500,6 +3768,53 @@ class _ParametricSurfaceMethods:
         `Tolerance.default()` when omitted. Other Python threads run
         during the approximation.
         """
+    @overload
+    def extrema(
+        self, other: _PointLike, tol: Optional[_ToleranceLike] = None
+    ) -> List[SurfaceProjection]:
+        """The extrema of the distance to `other`, a point, a curve or
+        a surface.
+
+        From a point, on a B-spline or Bézier surface: the local
+        minima of its distance to the surface, as `SurfaceProjection`
+        objects ordered by ascending distance. Other surfaces raise
+        `TypeError` for a point: `project_point` gives the nearest.
+
+        From a curve or `TrimmedCurve`: a `CurveSurfaceExtrema`; from
+        a surface or `TrimmedSurface`: a `SurfaceSurfaceExtrema`. Each
+        holds the local minima of the distance between the two,
+        closest first, with whether the search proved there is no
+        other. Parallel planes, concentric spheres and other
+        continuous families of equal minima report the distance once,
+        with a representative pair; shapes that meet report a meeting
+        point at distance zero. The result holds this surface as
+        `first` and `other` as `second`. Other Python threads run
+        during the search. Raises `TypeError` for anything else, a 2D
+        curve included.
+        """
+    @overload
+    def extrema(
+        self, other: _CurveMethods, tol: Optional[_ToleranceLike] = None
+    ) -> CurveSurfaceExtrema: ...
+    @overload
+    def extrema(
+        self, other: _SurfaceMethods[Any, Any] | TrimmedSurface, tol: Optional[_ToleranceLike] = None
+    ) -> SurfaceSurfaceExtrema: ...
+    @overload
+    def minimum_distance(
+        self, other: _CurveMethods, tol: Optional[_ToleranceLike] = None
+    ) -> Optional[CurveSurfaceExtremum]:
+        """The minimum distance to `other`, a curve or a surface: the
+        closest of `extrema(other)`, a `CurveSurfaceExtremum` or
+        `SurfaceSurfaceExtremum` with the two points where it is
+        reached, or `None` when there is no minimum. Whether the
+        search proved it the global one is the `completeness` of
+        `extrema(other)`. Raises `TypeError` for anything else.
+        """
+    @overload
+    def minimum_distance(
+        self, other: _SurfaceMethods[Any, Any] | TrimmedSurface, tol: Optional[_ToleranceLike] = None
+    ) -> Optional[SurfaceSurfaceExtremum]: ...
 
 
 class _SurfaceMethods(_ParametricSurfaceMethods, Generic[_UIsoCurveType, _VIsoCurveType]):
@@ -3599,16 +3914,6 @@ class _SidedSurfaceEvaluationMethods:
         `1 <= du + dv <= 2`, at `(u, v)`, each direction from its own
         side, as `first_derivatives_sided`.
         """
-
-class _SurfaceExtremaMethods:
-    def extrema(
-        self, point: _PointLike, tol: Optional[_ToleranceLike] = None
-    ) -> List[SurfaceProjection]:
-        """The local minima of the distance from `point` to the
-        surface, as `SurfaceProjection` objects ordered by ascending
-        distance.
-        """
-
 
 @final
 class Plane(_SurfaceMethods[Line, Line]):
@@ -3909,7 +4214,6 @@ class RevolutionSurface(_SurfaceMethods[Curve, Circle]):
 class BSplineSurface(
     _SurfaceMethods[BSplineCurve, BSplineCurve],
     _SidedSurfaceEvaluationMethods,
-    _SurfaceExtremaMethods,
 ):
     """A tensor-product B-spline (optionally rational, optionally periodic) surface."""
     def __repr__(self) -> str: ...
@@ -4104,7 +4408,6 @@ class BSplineSurface(
 class BezierSurface(
     _SurfaceMethods[BezierCurve, BezierCurve],
     _SidedSurfaceEvaluationMethods,
-    _SurfaceExtremaMethods,
 ):
     """A Bézier surface (optionally rational): a grid of
     `(u_degree + 1) x (v_degree + 1)` control poles over one parameter
@@ -4272,6 +4575,7 @@ __all__ = [
     "Frame",
     "Tolerance",
     "Transform",
+    "Transform2D",
     "BoundingBox",
     "BoundingBox2D",
     "Discretization2D",
@@ -4300,6 +4604,10 @@ __all__ = [
     "SurfaceProjection",
     "CurveCurveExtremum",
     "CurveCurveExtrema",
+    "CurveSurfaceExtremum",
+    "CurveSurfaceExtrema",
+    "SurfaceSurfaceExtremum",
+    "SurfaceSurfaceExtrema",
     "SurfaceCurvatures",
     "CurveApproximation",
     "CurveApproximation2D",

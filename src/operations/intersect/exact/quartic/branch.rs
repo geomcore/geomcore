@@ -565,6 +565,8 @@ impl ReversibleCurve for QuarticBranch {
 }
 
 impl Transformable for QuarticBranch {
+    type Transform = Transform;
+
     /// The same branch placed by `transform` after its placement: the
     /// parameter is kept, and its [`surfaces`](QuarticBranch::surfaces)
     /// move with it.

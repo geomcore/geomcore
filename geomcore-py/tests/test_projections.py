@@ -196,7 +196,7 @@ def test_extrema_from_a_curve_is_the_curve_pair_operation():
     with pytest.warns(DeprecationWarning, match="first.extrema"):
         old = geomcore.curve_curve_extrema(circle, segment)  # type: ignore[deprecated]
     assert old.minima == extrema.minima
-    with pytest.raises(TypeError, match="a Point or a 3D curve, not Line2D"):
+    with pytest.raises(TypeError, match="a Point, a 3D curve or a surface, not a 2D curve"):
         circle.extrema(line)  # type: ignore[call-overload]
     assert [type(e) for e in circle.extrema(Point(3, 0, 0))] == [CurveProjection]
 

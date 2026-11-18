@@ -80,7 +80,7 @@ Running a curve, or a surface in its `u` or `v` direction, the other way over th
 _Avoid_: mirror (a transform of space, not of traversal)
 
 **Transformed shape**:
-The image of a curve or surface under a transform, parametrized by the image of its parametrization: `transformed(t)` evaluated at a parameter is `t` applied to the original point there (length parameters scale with a uniform scale). Every frame axis maps through the transform, so a mirror turns a direct frame indirect and the image's normal is the opposite of the mirrored normal, for elementary shapes and B-splines alike. Reversing the image restores the mirrored side. Every shape fails a transform the same two ways: collapsed by a zero scale, or overflowing.
+The image of a curve or surface under a transform, parametrized by the image of its parametrization: `transformed(t)` evaluated at a parameter is `t` applied to the original point there (length parameters scale with a uniform scale). A 3D shape moves by a `Transform`, a 2D curve by a `Transform2D`. Every frame axis maps through the transform, so a mirror turns a direct frame indirect and the image's normal is the opposite of the mirrored normal, for elementary shapes and B-splines alike; in the plane, a mirror across a line turns a counterclockwise circle or arc clockwise. Reversing the image restores the mirrored side or turning sense. Every shape fails a transform the same two ways: collapsed by a zero scale, or overflowing.
 
 **Bounding box**:
 The axis-aligned box around a curve or surface (`BoundingBox` in space, `BoundingBox2D` in the plane), used to cull pairs before intersecting them. An elementary shape's box is the tightest, touching the shape on every side; a B-spline's comes from its control points, holding the shape but possibly loose. An unbounded shape has none. A box encloses a point and overlaps another box.
@@ -171,7 +171,7 @@ _Avoid_: general result, untyped result
 An outcome of `intersect_exact` only: the typed solver for the pair has no closed form for this configuration. `intersect` never reports it: it runs a numeric intersection instead, or a closed form the typed solver lacks (two circles in crossing planes are solved exactly as conics, on the line the planes share).
 
 **Completeness**:
-Whether a numeric intersection's hits, or the distance minima of numeric curve–curve extrema, are all of them. Complete: the search proved that no other hit exists. Incomplete: it did not settle everywhere, and says why (its budget ran out, pieces never separated along an overlap or at a tangent contact of a curve with a surface, or a branch of two unbounded surfaces runs beyond the box where its trace was cut) and the regions where hits may be missing. Sampled: the hits were found from samples, so nothing is proven. A tangent contact between two curves, where they stay within confusion of each other and then part, is one hit at its closest approach and stays Complete.
+Whether a numeric intersection's hits, or the distance minima of numeric extrema, are all of them. Complete: the search proved that no other hit exists. Incomplete: it did not settle everywhere, and says why (its budget ran out, pieces never separated along an overlap or at a tangent contact of a curve with a surface, or a branch of two unbounded surfaces runs beyond the box where its trace was cut) and the regions where hits may be missing. Sampled: the hits were found from samples, so nothing is proven. A tangent contact between two curves, where they stay within confusion of each other and then part, is one hit at its closest approach and stays Complete.
 _Avoid_: converged, exact (reserved for exact intersections), fallback
 
 **Coincident**:
@@ -195,7 +195,7 @@ The closest point of a curve or surface to a point: its parameter, the point its
 _Avoid_: foot (in names), closest point as a type name
 
 **Extrema**:
-The local minima of the distance between two curves, closest first, each with the parameters on both curves and the distance: `curve_curve_extrema`. A valley of equal minima (parallel lines, concentric arcs) is represented by one of its points. The result carries its **completeness**, as a numeric intersection does: the curve–curve intersection is read from the minima at zero distance. Distances within the confusion tolerance snap to `0.0`.
+The local minima of the distance between two shapes, closest first, each with the parameters on both, both points and the distance: `curve_curve_extrema`, `curve_surface_extrema` and `surface_surface_extrema`. A valley of equal minima (parallel lines, concentric arcs, a circle coaxial with a cylinder) is represented by one of its points, the same one wherever the shapes are placed. Shapes that meet report each crossing, or one meeting point of surfaces that meet along a curve, at distance zero. The result carries its **completeness**, as a numeric intersection does: the curve–curve intersection is read from the minima at zero distance. A pair's **minimum distance** is the closest of its minima, reached at its two points; it is the global one when the result is complete.
 _Avoid_: extremum for the level-function extrema that seed marching (those are level extrema), distance for the whole result
 
 ## Fitting

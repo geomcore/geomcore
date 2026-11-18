@@ -2754,6 +2754,8 @@ impl ReversibleSurface for BSplineSurface {
 }
 
 impl Transformable for BSplineSurface {
+    type Transform = Transform;
+
     /// Every pole maps point-wise; the degrees, knots, multiplicities,
     /// weights and periodicity are kept, and so are the parameters. Exact,
     /// as the evaluation of a B-spline is invariant under affine maps.

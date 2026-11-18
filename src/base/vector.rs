@@ -1,5 +1,5 @@
 use crate::base::direction::UNIT_ROUNDING;
-use crate::{Direction, Direction2D};
+use crate::{Direction, Direction2D, Transform, Transform2D};
 
 /// Two-dimensional vector.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -303,6 +303,21 @@ impl Vector2D {
         } else {
             self.normalized().map(Direction2D::from_unit_vector)
         }
+    }
+
+    /// The image of this free vector under `transform`, the same as
+    /// [`Transform2D::apply_vector`]: turned, mirrored and scaled, never
+    /// translated. A vector may shrink to zero, so this never fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Point2D, Transform2D, Vector2D};
+    /// let double = Transform2D::scaling(Point2D::new(5.0, 5.0), 2.0);
+    /// assert_eq!(Vector2D::new(1.0, -1.0).transformed(double), Vector2D::new(2.0, -2.0));
+    /// ```
+    pub fn transformed(self, transform: Transform2D) -> Vector2D {
+        transform.apply_vector(self)
     }
 }
 
@@ -642,6 +657,21 @@ impl Vector {
     #[inline]
     pub fn component_perpendicular_to(self, direction: Direction) -> Vector {
         self - direction * self.dot(direction)
+    }
+
+    /// The image of this free vector under `transform`, the same as
+    /// [`Transform::apply_vector`]: turned, mirrored and scaled, never
+    /// translated. A vector may shrink to zero, so this never fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Point, Transform, Vector};
+    /// let double = Transform::scaling(Point::new(5.0, 5.0, 5.0), 2.0);
+    /// assert_eq!(Vector::X.transformed(double), Vector::new(2.0, 0.0, 0.0));
+    /// ```
+    pub fn transformed(self, transform: Transform) -> Vector {
+        transform.apply_vector(self)
     }
 }
 

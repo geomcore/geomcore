@@ -1606,8 +1606,8 @@ fn test_parallel_cones_with_equal_half_angles_meet_in_one_plane_conic() {
 /// about the origin, the confusion tolerance scaled alike.
 fn decision_at<A, B>(first: &A, second: &B, scale: f64) -> String
 where
-    A: IntersectExact<B> + crate::Transformable,
-    B: crate::Transformable,
+    A: IntersectExact<B> + crate::Transformable<Transform = crate::Transform>,
+    B: crate::Transformable<Transform = crate::Transform>,
     A::Output: core::fmt::Debug,
 {
     let scaling = crate::Transform::scaling(Point::ORIGIN, scale);
@@ -1634,8 +1634,8 @@ where
 fn test_closed_forms_decide_a_near_tangency_alike_at_any_size() {
     fn check<A, B>(name: &str, first: &A, crossing: &B, apart: &B) -> Vec<String>
     where
-        A: IntersectExact<B> + crate::Transformable,
-        B: crate::Transformable,
+        A: IntersectExact<B> + crate::Transformable<Transform = crate::Transform>,
+        B: crate::Transformable<Transform = crate::Transform>,
         A::Output: core::fmt::Debug,
     {
         let mut failures = Vec::new();

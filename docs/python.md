@@ -47,6 +47,57 @@ assert isinstance(shape, Curve)  # False for a TrimmedCurve
     let point = circle.point_at(std::f64::consts::FRAC_PI_4);
     ```
 
+## Extrema and minimum distance
+
+`extrema(other)` gives the local minima of the distance between two
+shapes, closest first, with both parameters and both points of each:
+a `CurveCurveExtrema`, `CurveSurfaceExtrema` or `SurfaceSurfaceExtrema`
+by pair family, whichever side the call is made on. Its `completeness`
+says whether the search proved there is no other minimum: a pair with a
+closed form (a line or a circle against a plane, a line against a sphere
+or a cylinder, two planes, two spheres, two parallel cylinders) is
+complete; any other pair is searched numerically and reports
+`SAMPLED`. `minimum_distance(other)` is the closest of them, or `None`.
+
+=== "Python"
+
+    ```python
+    from geomcore import Line, Plane, Point, Sphere, Vector
+
+    sphere = Sphere(Point(0, 0, 0), 1.0)
+    floor = Plane(Point(0, 0, -3), Vector(0, 0, 1))
+    clearance = sphere.minimum_distance(floor)
+    assert abs(clearance.distance - 2.0) < 1e-12
+    assert clearance.first_point.distance(Point(0, 0, -1)) < 1e-12   # on the sphere
+    assert clearance.second_point.distance(Point(0, 0, -3)) < 1e-12  # on the floor
+
+    rail = Line(Point(0, 0, 3), Vector(1, 0, 0))
+    extrema = rail.extrema(sphere)                     # a CurveSurfaceExtrema
+    assert extrema.is_complete()
+    (closest,) = extrema
+    assert closest.curve_point.distance(Point(0, 0, 3)) < 1e-12
+    ```
+
+=== "Rust"
+
+    ```rust
+    use geomcore::{Line, Plane, Point, Sphere, Tolerance, Vector};
+    use geomcore::{curve_surface_extrema, surface_surface_extrema};
+
+    let sphere = Sphere::new(Point::ORIGIN, 1.0).unwrap();
+    let floor = Plane::new(Point::new(0.0, 0.0, -3.0), Vector::Z).unwrap();
+    let extrema = surface_surface_extrema(&sphere, &floor, Tolerance::DEFAULT);
+    let clearance = extrema.closest().unwrap();
+    assert!((clearance.distance - 2.0).abs() < 1e-12);
+
+    let rail = Line::new(Point::new(0.0, 0.0, 3.0), Vector::X).unwrap();
+    assert!(curve_surface_extrema(&rail, &sphere, Tolerance::DEFAULT).is_complete());
+    ```
+
+A point is an operand of a curve's `extrema`, and of a B-spline or
+Bézier surface's; other surfaces raise `TypeError` for a point, as
+`project_point` gives its nearest point.
+
 ## Local properties and one-sided evaluation
 
 Curves and surfaces answer the same differential queries as in Rust,
@@ -58,8 +109,8 @@ so `p.coincides(q, 1e-3)` loosens the distance tolerance alone:
   `is_closed()`, `continuity(u)` and `min_continuity()`, `reversed()`
   with `reversed_parameter(u)` mapping a parameter onto the reversed
   curve, and `transformed(transform)`.
-- 2D curves: the same queries but `transformed`; `curvature(u)` is
-  signed (positive where the tangent turns left). `bounding_box()` and
+- 2D curves: the same queries, `transformed` taking a `Transform2D`;
+  `curvature(u)` is signed (positive where the tangent turns left). `bounding_box()` and
   `tight_bounding_box()` return a `BoundingBox2D`, or `None` when the
   curve is unbounded.
 - Surfaces: `normal(u, v)` (on a `Plane` the same at every point,
@@ -178,6 +229,12 @@ numpy.array((pose @ back).to_matrix())
 `from_matrix` raises `ConstructionError` for a matrix that shears or
 scales the directions unequally, since a curve or surface keeps its shape
 only under a uniform scale of a rotation or a mirror.
+
+`Transform2D`, its plane twin, moves the 2D curves, points, vectors, axes
+and frames, and reads and writes 3×3 homogeneous matrices the same way.
+Its `rotation(center, angle)` turns counterclockwise about a point, and
+`mirror_axis(axis)` reflects across a line, which turns a counterclockwise
+`Circle2D` clockwise (`is_counterclockwise()` is then false).
 
 Every value and every curve and surface pickles, and copies with `copy` and
 `copy.deepcopy`, so shapes cross to `multiprocessing` workers and into

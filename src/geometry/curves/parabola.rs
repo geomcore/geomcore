@@ -2,7 +2,7 @@
 //! inversion, a thin wrapper over [`crate::math::elementary::curve`].
 
 use crate::base::frame::{frame_error, placement_error};
-use crate::base::tier::operations::FrameOperations;
+use crate::base::tier::operations::{FrameOperations, TransformOperations};
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2D};
@@ -11,9 +11,7 @@ use crate::geometry::curves::{PointExtrema, PointExtrema2D};
 use crate::math::elementary::curve as elementary;
 use crate::math::numeric::real_roots;
 use crate::operations::projection::CurveProjection;
-use crate::{
-    Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D, operations::projection,
-};
+use crate::{Frame, Frame2D, Point, Point2D, Tolerance, Vector, Vector2D, operations::projection};
 use crate::{TransformError, Transformable};
 use std::fmt;
 
@@ -500,12 +498,14 @@ impl_for_both_tiers! {
     }
 }
 
-impl Transformable for Parabola {
+impl<P: TierPoint> Transformable for GenericParabola<P> {
+    type Transform = P::Transform;
+
     /// The frame maps through the transform and the focal distance scales
     /// by its scale factor, so the parameter, a length, scales too.
-    fn transformed(&self, transform: Transform) -> Result<Parabola, TransformError> {
+    fn transformed(&self, transform: P::Transform) -> Result<GenericParabola<P>, TransformError> {
         let (frame, scale) = transform.apply_frame(self.frame())?;
-        Parabola::from_frame(frame, self.focal_distance() * scale)
+        GenericParabola::from_frame(frame, self.focal_distance() * scale)
             .map_err(image_error(ParabolaConstructionError::NonFinite))
     }
 }

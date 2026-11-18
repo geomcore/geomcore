@@ -210,6 +210,8 @@ impl ReversibleCurve for Curve {
 }
 
 impl Transformable for Curve {
+    type Transform = Transform;
+
     fn transformed(&self, transform: Transform) -> Result<Curve, TransformError> {
         curve_dispatch!(self, c => c.transformed(transform).map(Curve::from))
     }
@@ -343,6 +345,8 @@ impl ReversibleCurve for ElementaryCurve {
 }
 
 impl Transformable for ElementaryCurve {
+    type Transform = Transform;
+
     fn transformed(&self, transform: Transform) -> Result<ElementaryCurve, TransformError> {
         elementary_curve_dispatch!(self, c => c.transformed(transform).map(ElementaryCurve::from))
     }

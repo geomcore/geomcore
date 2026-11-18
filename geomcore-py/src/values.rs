@@ -1,12 +1,13 @@
 //! The root value classes of `geomcore`: `Point`, `Vector`, `Axis` and
-//! `Frame` with their 2D forms, `Tolerance`, `Transform` and `Side`, and the
-//! `repr` helpers every class shares.
+//! `Frame` with their 2D forms, `Tolerance`, `Transform` and `Transform2D`,
+//! and the `repr` helpers every class shares.
 
 use crate::errors::{invalid_argument, python_error};
 use crate::pickling;
 use crate::tolerance;
 use geomcore::{
-    Axis, Axis2D, Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D,
+    Axis, Axis2D, Frame, Frame2D, Point, Point2D, Tolerance, Transform, Transform2D, Vector,
+    Vector2D,
 };
 use pyo3::exceptions::{PyTypeError, PyZeroDivisionError};
 use pyo3::prelude::*;
@@ -341,6 +342,13 @@ impl PyVector {
         }
     }
 
+    /// The image of this free vector under `transform`, the same as
+    /// `transform.apply_vector(vector)`: turned, mirrored and scaled,
+    /// never translated.
+    fn transformed(&self, transform: &PyTransform) -> PyVector {
+        PyVector(self.0.transformed(transform.0))
+    }
+
     fn __add__(&self, other: &PyVector) -> PyVector {
         PyVector(self.0 + other.0)
     }
@@ -518,6 +526,12 @@ impl PyPoint2D {
     /// The point halfway between this point and `other`.
     fn midpoint(&self, other: &PyPoint2D) -> PyPoint2D {
         PyPoint2D(self.0.midpoint(other.0))
+    }
+
+    /// The image of this point under `transform`, the same as
+    /// `transform.apply_point(point)`.
+    fn transformed(&self, transform: &PyTransform2D) -> PyPoint2D {
+        PyPoint2D(self.0.transformed(transform.0))
     }
 
     /// Whether every coordinate is finite.
@@ -705,6 +719,13 @@ impl PyVector2D {
         }
     }
 
+    /// The image of this free vector under `transform`, the same as
+    /// `transform.apply_vector(vector)`: turned, mirrored and scaled,
+    /// never translated.
+    fn transformed(&self, transform: &PyTransform2D) -> PyVector2D {
+        PyVector2D(self.0.transformed(transform.0))
+    }
+
     /// Euclidean length of the vector.
     fn magnitude(&self) -> f64 {
         self.0.magnitude()
@@ -879,6 +900,16 @@ impl PyAxis {
         PyAxis(self.0.reversed())
     }
 
+    /// The image of the axis under `transform`: the origin maps as a
+    /// point and the direction as a free vector, normalized again.
+    /// Raises `ConstructionError` when the transform collapses space or
+    /// the image overflows.
+    fn transformed(&self, transform: &PyTransform) -> PyResult<PyAxis> {
+        Ok(PyAxis(
+            self.0.transformed(transform.0).map_err(python_error)?,
+        ))
+    }
+
     fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
         let axis = slf.borrow().0;
         pickling::paste_back_repr!(
@@ -966,6 +997,16 @@ impl PyAxis2D {
     /// The axis with its direction negated, through the same origin.
     fn reversed(&self) -> PyAxis2D {
         PyAxis2D(self.0.reversed())
+    }
+
+    /// The image of the axis under `transform`: the origin maps as a
+    /// point and the direction as a free vector, normalized again.
+    /// Raises `ConstructionError` when the transform collapses the plane
+    /// or the image overflows.
+    fn transformed(&self, transform: &PyTransform2D) -> PyResult<PyAxis2D> {
+        Ok(PyAxis2D(
+            self.0.transformed(transform.0).map_err(python_error)?,
+        ))
     }
 
     fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
@@ -1083,6 +1124,17 @@ impl PyFrame2D {
     /// `local_coordinates` for a direction, which ignores the origin.
     fn local_components(&self, vector: PyVector2D) -> (f64, f64) {
         self.0.local_components(vector.0)
+    }
+
+    /// The image of the frame under `transform`: a point at local
+    /// coordinates `(u, v)` maps to the point at the same coordinates,
+    /// scaled by `transform.scale_factor()`, in the image. A mirror across
+    /// an axis changes the handedness. Raises `ConstructionError` when the
+    /// transform collapses the plane or the image overflows.
+    fn transformed(&self, transform: &PyTransform2D) -> PyResult<PyFrame2D> {
+        Ok(PyFrame2D(
+            self.0.transformed(transform.0).map_err(python_error)?,
+        ))
     }
 
     fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
@@ -1469,7 +1521,7 @@ impl PyTransform {
     /// Apply the transformation to a point.
     fn apply_point(
         &self,
-        #[pyo3(from_py_with = crate::arrays::point_or_apply_points)] p: PyPoint,
+        #[pyo3(from_py_with = crate::arrays::point_or_apply_points::<PyPoint>)] p: PyPoint,
     ) -> PyPoint {
         PyPoint(self.0.apply_point(p.0))
     }
@@ -1553,6 +1605,184 @@ impl PyTransform {
             })
             .collect();
         format!("Transform.from_matrix([{}])", rows.join(", "))
+    }
+
+    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {
+        let rows = slf.borrow().to_matrix();
+        pickling::reduce(slf.as_any(), Some("from_matrix"), (rows,))
+    }
+}
+
+/// A similarity of the plane: a uniform scale composed with a rigid
+/// motion or a mirror, the plane twin of `Transform`.
+#[pyclass(name = "Transform2D", module = "geomcore", eq)]
+#[derive(Clone, PartialEq)]
+pub(crate) struct PyTransform2D(pub(crate) Transform2D);
+
+#[pymethods]
+impl PyTransform2D {
+    /// The identity transformation.
+    #[staticmethod]
+    fn identity() -> Self {
+        PyTransform2D(Transform2D::IDENTITY)
+    }
+
+    /// Translation by an offset vector.
+    #[staticmethod]
+    fn translation(offset: PyVector2D) -> Self {
+        PyTransform2D(Transform2D::translation(offset.0))
+    }
+
+    /// Rotation by `angle` radians about `center`, counterclockwise for a
+    /// positive angle.
+    #[staticmethod]
+    fn rotation(center: PyPoint2D, angle: f64) -> Self {
+        PyTransform2D(Transform2D::rotation(center.0, angle))
+    }
+
+    /// Uniform scaling about `center`.
+    #[staticmethod]
+    fn scaling(center: PyPoint2D, factor: f64) -> Self {
+        PyTransform2D(Transform2D::scaling(center.0, factor))
+    }
+
+    /// Point reflection through `center`, which in the plane is the half
+    /// turn about it: it keeps the turning sense of curves.
+    #[staticmethod]
+    fn mirror_point(center: PyPoint2D) -> Self {
+        PyTransform2D(Transform2D::mirror_point(center.0))
+    }
+
+    /// Reflection across the line of `axis`, which reverses the turning
+    /// sense of curves.
+    #[staticmethod]
+    fn mirror_axis(axis: PyAxis2D) -> Self {
+        PyTransform2D(Transform2D::mirror_axis(axis.0))
+    }
+
+    /// The rigid motion taking the `source` placement to the `target` one:
+    /// the point at local coordinates `(u, v)` in `source` maps to the
+    /// point at the same coordinates in `target`. It includes a mirror when
+    /// the frames have opposite handedness.
+    #[staticmethod]
+    fn between_frames(source: &PyFrame2D, target: &PyFrame2D) -> Self {
+        PyTransform2D(Transform2D::between_frames(source.0, target.0))
+    }
+
+    /// The factor by which the transformation scales lengths: 1 for a
+    /// rotation, a translation or a mirror, 0 for a collapse onto a point.
+    fn scale_factor(&self) -> f64 {
+        self.0.scale_factor()
+    }
+
+    /// Whether the transformation keeps the turning sense of the plane:
+    /// false for mirrors across an axis (which turn a counterclockwise
+    /// circle clockwise) and for a collapse onto a point.
+    fn preserves_orientation(&self) -> bool {
+        self.0.preserves_orientation()
+    }
+
+    /// Whether the transformation leaves the plane unchanged within `tol`
+    /// (`Tolerance.default()` when omitted): its linear part within
+    /// `tol.angular` of the identity's, entry by entry, and its translation
+    /// shorter than `tol.confusion`.
+    #[pyo3(signature = (tol = None))]
+    fn is_identity(&self, tol: Option<ToleranceArgument>) -> bool {
+        self.0.is_identity(tolerance(tol))
+    }
+
+    /// Compose transformations: `self` is applied first, then `other`.
+    fn then(&self, other: &PyTransform2D) -> PyTransform2D {
+        PyTransform2D(self.0.then(other.0))
+    }
+
+    /// Apply the transformation to a point.
+    fn apply_point(
+        &self,
+        #[pyo3(from_py_with = crate::arrays::point_or_apply_points::<PyPoint2D>)] p: PyPoint2D,
+    ) -> PyPoint2D {
+        PyPoint2D(self.0.apply_point(p.0))
+    }
+
+    /// Apply the transformation to each point of `points`, a list of
+    /// points or an `(N, 2)` array-like, as an `(N, 2)` numpy array.
+    /// Other Python threads run meanwhile.
+    fn apply_points<'py>(
+        &self,
+        py: Python<'py>,
+        points: crate::arrays::Points<Point2D>,
+    ) -> PyResult<Bound<'py, PyAny>> {
+        let transform = self.0;
+        let moved: Vec<Point2D> = py.detach(|| {
+            points
+                .0
+                .iter()
+                .map(|&point| transform.apply_point(point))
+                .collect()
+        });
+        crate::arrays::point_array(py, moved.into_iter())
+    }
+
+    /// Apply the transformation to a vector (ignores the translation part).
+    fn apply_vector(&self, v: PyVector2D) -> PyVector2D {
+        PyVector2D(self.0.apply_vector(v.0))
+    }
+
+    /// The transformation of a 3×3 homogeneous `matrix`, three rows of
+    /// three numbers (nested lists, or a numpy array): a point `p` maps to
+    /// the upper 2×2 block times `p` plus the last column. Raises
+    /// `ConstructionError` unless the last row is `[0, 0, 1]` and the 2×2
+    /// block is a uniform scale of a rotation or a mirror, its columns of
+    /// one length and orthogonal within `1e-12`. `to_matrix()` gives the
+    /// matrix back unchanged.
+    #[staticmethod]
+    fn from_matrix(matrix: Vec<Vec<f64>>) -> PyResult<Self> {
+        let three_by_three = matrix.len() == 3 && matrix.iter().all(|row| row.len() == 3);
+        if !three_by_three {
+            return Err(invalid_argument(
+                "matrix must have three rows of three numbers",
+            ));
+        }
+        let rows = [0, 1, 2].map(|i| [0, 1, 2].map(|j| matrix[i][j]));
+        Ok(PyTransform2D(
+            Transform2D::from_matrix(rows).map_err(python_error)?,
+        ))
+    }
+
+    /// The 3×3 homogeneous matrix, as three rows of three floats: the
+    /// linear part in the upper 2×2 block, the translation in the last
+    /// column, and `[0, 0, 1]` below. `numpy.array(t.to_matrix())` makes
+    /// it an array.
+    fn to_matrix(&self) -> Vec<Vec<f64>> {
+        self.0.to_matrix().iter().map(|row| row.to_vec()).collect()
+    }
+
+    /// The transformation that undoes this one: `t.then(t.inverse())`
+    /// maps every point back to itself, within rounding. Raises
+    /// `ConstructionError` for a transformation that collapses the plane
+    /// onto a point (a scaling by 0).
+    fn inverse(&self) -> PyResult<PyTransform2D> {
+        Ok(PyTransform2D(self.0.inverse().map_err(python_error)?))
+    }
+
+    /// `a @ b` is the transformation of the matrix product `a.to_matrix()
+    /// @ b.to_matrix()`: `b` is applied first, then `a`, so `a @ b` is
+    /// `b.then(a)`.
+    fn __matmul__(&self, other: &PyTransform2D) -> PyTransform2D {
+        PyTransform2D(other.0.then(self.0))
+    }
+
+    fn __repr__(&self) -> String {
+        let rows: Vec<String> = self
+            .0
+            .to_matrix()
+            .iter()
+            .map(|row| {
+                let entries: Vec<String> = row.iter().map(|&entry| float_repr(entry)).collect();
+                format!("[{}]", entries.join(", "))
+            })
+            .collect();
+        format!("Transform2D.from_matrix([{}])", rows.join(", "))
     }
 
     fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyTuple>> {

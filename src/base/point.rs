@@ -1,5 +1,6 @@
 use crate::base::tolerance::Tolerance;
 use crate::base::transform::Transform;
+use crate::base::transform_2d::Transform2D;
 use crate::base::vector::{Vector, Vector2D};
 
 /// Two-dimensional point.
@@ -77,6 +78,22 @@ impl Point2D {
     /// ```
     pub fn midpoint(self, other: Point2D) -> Point2D {
         Point2D::new(0.5 * (self.x + other.x), 0.5 * (self.y + other.y))
+    }
+
+    /// The image of this point under `transform`, the same as
+    /// [`Transform2D::apply_point`] read in the order of the shapes'
+    /// `transformed`. Unlike a shape, a point cannot collapse, so this
+    /// never fails.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::{Point2D, Transform2D, Vector2D};
+    /// let shift = Transform2D::translation(Vector2D::new(1.0, 0.0));
+    /// assert_eq!(Point2D::ORIGIN.transformed(shift), Point2D::new(1.0, 0.0));
+    /// ```
+    pub fn transformed(self, transform: Transform2D) -> Point2D {
+        transform.apply_point(self)
     }
 
     /// Whether every coordinate is finite (neither NaN nor infinite).

@@ -12,10 +12,11 @@
 use crate::arguments::{curve_2d_classes, curve_classes};
 use geomcore::{
     Completeness, CurveCurveExtrema, CurveCurveExtremum, CurveCurveOverlap, CurveCurveRegion,
-    CurveProjection, CurveSurfaceHit, CurveSurfaceIntersection, CurveSurfaceOverlap,
-    CurveSurfaceRegion, Direction, Discretization, Discretization2D, GenericCurveCurveHit,
-    GenericCurveCurveIntersection, IncompleteReason, IntersectionCurve, IntersectionMethod, Point,
-    Point2D, SurfaceCurvatures, SurfaceProjection, SurfaceSurfaceIntersection,
+    CurveProjection, CurveSurfaceExtrema, CurveSurfaceExtremum, CurveSurfaceHit,
+    CurveSurfaceIntersection, CurveSurfaceOverlap, CurveSurfaceRegion, Direction, Discretization,
+    Discretization2D, GenericCurveCurveHit, GenericCurveCurveIntersection, IncompleteReason,
+    IntersectionCurve, IntersectionMethod, Point, Point2D, SurfaceCurvatures, SurfaceProjection,
+    SurfaceSurfaceExtrema, SurfaceSurfaceExtremum, SurfaceSurfaceIntersection,
     SurfaceSurfaceRegion, TierPoint, Vector,
 };
 use pyo3::IntoPyObjectExt;
@@ -538,6 +539,102 @@ impl Plain for CurveCurveExtrema {
 
     fn from_state(py: Python<'_>, (minima, completeness): Self::State) -> PyResult<Self> {
         Ok(CurveCurveExtrema::from_parts(
+            Vec::from_state(py, minima)?,
+            Completeness::from_state(py, completeness)?,
+        ))
+    }
+}
+
+impl Plain for CurveSurfaceExtremum {
+    type State = (f64, (f64, f64), [f64; 3], [f64; 3], f64);
+
+    fn state(&self, py: Python<'_>) -> PyResult<Self::State> {
+        Ok((
+            self.curve_parameter,
+            self.surface_parameters,
+            self.curve_point.state(py)?,
+            self.surface_point.state(py)?,
+            self.distance,
+        ))
+    }
+
+    fn from_state(
+        py: Python<'_>,
+        (curve_parameter, surface_parameters, curve_point, surface_point, distance): Self::State,
+    ) -> PyResult<Self> {
+        Ok(CurveSurfaceExtremum {
+            curve_parameter,
+            surface_parameters,
+            curve_point: Point::from_state(py, curve_point)?,
+            surface_point: Point::from_state(py, surface_point)?,
+            distance,
+        })
+    }
+}
+
+impl Plain for CurveSurfaceExtrema {
+    type State = (
+        Vec<<CurveSurfaceExtremum as Plain>::State>,
+        <Completeness<CurveSurfaceRegion> as Plain>::State,
+    );
+
+    fn state(&self, py: Python<'_>) -> PyResult<Self::State> {
+        Ok((
+            self.minima().to_vec().state(py)?,
+            self.completeness().state(py)?,
+        ))
+    }
+
+    fn from_state(py: Python<'_>, (minima, completeness): Self::State) -> PyResult<Self> {
+        Ok(CurveSurfaceExtrema::from_parts(
+            Vec::from_state(py, minima)?,
+            Completeness::from_state(py, completeness)?,
+        ))
+    }
+}
+
+impl Plain for SurfaceSurfaceExtremum {
+    type State = ((f64, f64), (f64, f64), [f64; 3], [f64; 3], f64);
+
+    fn state(&self, py: Python<'_>) -> PyResult<Self::State> {
+        Ok((
+            self.first_parameters,
+            self.second_parameters,
+            self.first_point.state(py)?,
+            self.second_point.state(py)?,
+            self.distance,
+        ))
+    }
+
+    fn from_state(
+        py: Python<'_>,
+        (first_parameters, second_parameters, first_point, second_point, distance): Self::State,
+    ) -> PyResult<Self> {
+        Ok(SurfaceSurfaceExtremum {
+            first_parameters,
+            second_parameters,
+            first_point: Point::from_state(py, first_point)?,
+            second_point: Point::from_state(py, second_point)?,
+            distance,
+        })
+    }
+}
+
+impl Plain for SurfaceSurfaceExtrema {
+    type State = (
+        Vec<<SurfaceSurfaceExtremum as Plain>::State>,
+        <Completeness<SurfaceSurfaceRegion> as Plain>::State,
+    );
+
+    fn state(&self, py: Python<'_>) -> PyResult<Self::State> {
+        Ok((
+            self.minima().to_vec().state(py)?,
+            self.completeness().state(py)?,
+        ))
+    }
+
+    fn from_state(py: Python<'_>, (minima, completeness): Self::State) -> PyResult<Self> {
+        Ok(SurfaceSurfaceExtrema::from_parts(
             Vec::from_state(py, minima)?,
             Completeness::from_state(py, completeness)?,
         ))

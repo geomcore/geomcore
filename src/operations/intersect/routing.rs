@@ -255,7 +255,7 @@ pub(crate) trait CurveOperand: ParametricCurve {
 
 /// `curve` moved by `offset`; `None` where it overflows.
 #[inline]
-fn translated<C: Transformable>(curve: &C, offset: Vector) -> Option<C> {
+fn translated<C: Transformable<Transform = Transform>>(curve: &C, offset: Vector) -> Option<C> {
     curve.transformed(Transform::translation(offset)).ok()
 }
 

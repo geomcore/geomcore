@@ -578,7 +578,7 @@ length_parameters! {
 
 /// The image of `patch` under `transform`: the basis's image, and each
 /// range scaled by the scale factor where its parameter is a length.
-fn transformed_patch<S: Transformable + LengthParameters>(
+fn transformed_patch<S: Transformable<Transform = Transform> + LengthParameters>(
     patch: &TrimmedSurface<S>,
     transform: Transform,
 ) -> Result<TrimmedSurface<S>, TransformError> {
@@ -609,6 +609,8 @@ macro_rules! transformable_trimmed_surfaces {
     };
     ($($shape:ty),+) => {$(
         impl Transformable for TrimmedSurface<$shape> {
+            type Transform = Transform;
+
             /// The basis maps through the transform, and each range with
             /// it: scaled by the transform's scale factor where the
             /// basis's parameter is a length (a cylinder's height), kept

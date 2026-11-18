@@ -766,6 +766,8 @@ impl ReversibleSurface for BezierSurface {
 }
 
 impl Transformable for BezierSurface {
+    type Transform = Transform;
+
     /// Every pole maps point-wise; the degrees and weights are kept, and
     /// so are the parameters.
     fn transformed(&self, transform: Transform) -> Result<BezierSurface, TransformError> {

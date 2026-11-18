@@ -9,6 +9,51 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Breaking
+
+- `Transformable` is generic over the tier (#421, ADR 0024): it has an
+  associated type, `type Transform`, and `transformed` takes
+  `Self::Transform`, a `Transform` for a 3D shape and a `Transform2D` for
+  a 2D curve. Calls on a shape are unchanged, but a generic function that
+  passes a `Transform` to a `C: Transformable` must now bound it as
+  `C: Transformable<Transform = Transform>`. A type of your own that
+  implements `Transformable` adds `type Transform = Transform;`.
+
+### Added
+
+- `Transform2D`, the plane twin of `Transform`, in Rust and Python (#421):
+  a similarity of the plane built by `translation`, `rotation(center,
+  angle)` (counterclockwise), `scaling`, `mirror_point`, `mirror_axis`
+  (a reflection across the line of an `Axis2D`) and `between_frames`,
+  composed with `then` (`@` in Python), undone with `inverse`, and read
+  from and written to a 3 × 3 homogeneous matrix with `from_matrix` and
+  `to_matrix`. It answers `apply_point`, `apply_vector` (and
+  `apply_points` in Python), `scale_factor`, `preserves_orientation` and
+  `is_identity`.
+- `transformed` on every 2D curve (`Line2D`, `Circle2D`, `Ellipse2D`,
+  `Parabola2D`, `Hyperbola2D`, `BSplineCurve2D`, `BezierCurve2D`,
+  `TrimmedCurve2D` and `Curve2D`) and on `Point2D`, `Vector2D`, `Axis2D`
+  and `Frame2D`, in Rust and Python (#421). A curve, axis or frame fails
+  as in space, with `TransformError::Collapsed` or `NonFinite`
+  (`ConstructionError` in Python); a point or vector never fails. A
+  mirror across a line turns a counterclockwise `Circle2D` or arc
+  clockwise, and reversing the image turns it back. `Vector` and `Axis`
+  gain the `transformed` that `Point` and `Frame` had.
+- Curve–surface and surface–surface extrema, and the minimum distance of
+  a pair (#251). `curve_surface_extrema` and `surface_surface_extrema`
+  give the local minima of the distance, closest first, each with the
+  parameters on both shapes and both points, in a `CurveSurfaceExtrema`
+  or `SurfaceSurfaceExtrema` that says whether the search proved there is
+  no other; `closest()` is the pair's minimum distance. A line against a
+  plane, a sphere or a cylinder, a circle against a plane, two planes, two
+  spheres and two parallel or coaxial cylinders are solved in closed form
+  and complete; every other pair is searched from samples of both shapes
+  and reports `SAMPLED`. The results do not depend on the model's size or
+  placement (ADR 0051). In Python, a curve's `extrema` takes a surface, a
+  surface's `extrema` takes a curve or a surface on every surface class
+  and `TrimmedSurface`, and `minimum_distance(other)` gives the closest
+  minimum or `None`.
+
 ### Fixed
 
 - Two surfaces within confusion of a contact are answered with the

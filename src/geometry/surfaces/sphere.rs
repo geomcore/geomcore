@@ -353,6 +353,8 @@ impl ReversibleSurface for Sphere {
 }
 
 impl Transformable for Sphere {
+    type Transform = Transform;
+
     /// The frame maps through the transform and the radius scales by its
     /// scale factor.
     fn transformed(&self, transform: Transform) -> Result<Sphere, TransformError> {

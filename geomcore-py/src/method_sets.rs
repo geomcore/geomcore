@@ -20,13 +20,12 @@
 //!
 //! | Set | Core | Classes |
 //! |---|---|---|
-//! | `curve`, `curve_2d` | `ParametricCurve(2D)`, `PointExtrema(2D)`, `ReversibleCurve`, `HasBoundingBox(2D)`, `Intersect`, and `Transformable` in 3D | every curve |
+//! | `curve`, `curve_2d` | `ParametricCurve(2D)`, `PointExtrema(2D)`, `ReversibleCurve`, `HasBoundingBox(2D)`, `Intersect`, `Transformable`, and in 3D the extrema with a curve or a surface | every curve |
 //! | `bounded_curve`, `bounded_curve_2d` | `BoundedCurve(2D)`, `Discretize(2D)` | the bounded curves |
 //! | `sided_evaluation`, `sided_evaluation_2d` | the `*_sided` evaluations | B-spline and Bézier curves |
-//! | `parametric_surface` | `ParametricSurface` (with the UV curve mappings), `HasBoundingBox` | every surface and `TrimmedSurface` |
+//! | `parametric_surface` | `ParametricSurface` (with the UV curve mappings), `HasBoundingBox`, the extrema with a point (B-spline and Bézier surfaces only), a curve or a surface | every surface and `TrimmedSurface` |
 //! | `surface` | `ReversibleSurface`, `Transformable`, `Intersect` with any curve or surface, isoparametric curves, `trimmed` | every surface; `TrimmedSurface` writes its own `transformed`, `trimmed` and `intersect`, which map or clip its ranges |
 //! | `sided_surface_evaluation` | the `*_sided` evaluations | B-spline and Bézier surfaces |
-//! | `surface_extrema` | `extrema` | B-spline and Bézier surfaces |
 //!
 //! PyO3 takes one `#[pymethods]` block per class (without its
 //! `multiple-pymethods` feature), so a set cannot be a block of its own:
@@ -48,11 +47,15 @@ pub(crate) use crate::results::{
     PyCurveProjection, PyCurveProjection2D, PySurfaceCurvatures, PySurfaceProjection,
 };
 pub(crate) use crate::values::{
-    PyPoint, PyPoint2D, PySide, PyTransform, PyVector, PyVector2D, ToleranceArgument,
+    PyPoint, PyPoint2D, PySide, PyTransform, PyTransform2D, PyVector, PyVector2D, ToleranceArgument,
 };
 pub(crate) use crate::{ContinuityNumber, check_curve_order, check_surface_order, tolerance};
 pub(crate) use geomcore::Curve;
 pub(crate) use geomcore::prelude::*;
+use geomcore::{
+    BSplineSurface, BezierSurface, Cone, Cylinder, ExtrusionSurface, Plane, Point,
+    RevolutionSurface, Sphere, SurfaceProjection, Tolerance, Torus, TrimmedSurface,
+};
 pub(crate) use pyo3::prelude::*;
 
 /// The `#[pymethods]` block of `$class`: its own methods, then the
@@ -91,22 +94,25 @@ macro_rules! curve {
                     Ok(Self(self.0.transformed(transform.0).map_err(python_error)?))
                 }
 
-                /// The extrema of the distance to `other`, a point or a curve.
+                /// The extrema of the distance to `other`, a point, a curve or
+                /// a surface.
                 ///
                 /// From a point: the local minima of its distance to the
                 /// curve, an end of a bounded curve among them where the
                 /// distance grows from it into the curve, as `CurveProjection`
                 /// objects ordered by ascending distance.
                 ///
-                /// From a curve or `TrimmedCurve`: a `CurveCurveExtrema` of the
-                /// local minima of the distance between the two curves, closest
-                /// first, with whether the search proved there is no other.
-                /// Parallel lines, concentric circles and other continuous
-                /// families of equal minima report the distance once, with a
-                /// representative pair. The result holds this curve as `first`
-                /// and `other` as `second`. Other Python threads run during the
-                /// search. Raises `TypeError` for anything else, a 2D curve
-                /// included.
+                /// From a curve or `TrimmedCurve`: a `CurveCurveExtrema`; from
+                /// a surface or `TrimmedSurface`: a `CurveSurfaceExtrema`. Each
+                /// holds the local minima of the distance between the two,
+                /// closest first, with whether the search proved there is no
+                /// other. Parallel lines, concentric circles and other
+                /// continuous families of equal minima report the distance
+                /// once, with a representative pair; a curve that meets a
+                /// surface reports each crossing at distance zero. The result
+                /// holds this curve as `first` and `other` as `second`. Other
+                /// Python threads run during the search. Raises `TypeError`
+                /// for anything else, a 2D curve included.
                 #[pyo3(signature = (other, tol = None))]
                 fn extrema(
                     slf: &Bound<'_, Self>,
@@ -125,20 +131,26 @@ macro_rules! curve {
                             .collect();
                         return Ok(projections.into_pyobject(py)?.into_any().unbind());
                     }
-                    let Ok(second) = $crate::arguments::extract_curve_arg(other) else {
-                        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
-                            "extrema takes a Point or a 3D curve, not {}",
-                            other.get_type().name()?
-                        )));
-                    };
-                    let first = $crate::arguments::extract_curve_arg(slf.as_any())?;
-                    let result = py.detach(|| geomcore::curve_curve_extrema(&first, &second, tol));
-                    let extrema = $crate::results::PyCurveCurveExtrema {
-                        result,
-                        first: slf.clone().into_any().unbind(),
-                        second: other.clone().unbind(),
-                    };
-                    Ok(Py::new(py, extrema)?.into_any())
+                    $crate::intersect::extrema(slf.as_any(), other, tol)
+                }
+
+                /// The minimum distance to `other`, a curve or a surface: the
+                /// closest of `extrema(other)`, a `CurveCurveExtremum` or
+                /// `CurveSurfaceExtremum` with the two points where it is
+                /// reached, or `None` when there is no minimum. Whether the
+                /// search proved it the global one is the `completeness` of
+                /// `extrema(other)`. Raises `TypeError` for anything else.
+                #[pyo3(signature = (other, tol = None))]
+                fn minimum_distance(
+                    slf: &Bound<'_, Self>,
+                    other: &Bound<'_, PyAny>,
+                    tol: Option<ToleranceArgument>,
+                ) -> PyResult<Py<PyAny>> {
+                    $crate::method_sets::closest_of($crate::intersect::extrema(
+                        slf.as_any(),
+                        other,
+                        tolerance(tol),
+                    )?, slf.py())
                 }
             }
         }
@@ -153,6 +165,16 @@ macro_rules! curve_2d {
             [PyPoint2D, PyVector2D, PyBoundingBox2D, PyCurveProjection2D]
             $class $sets {
                 $($methods)*
+
+                /// The image of the curve under `transform`, parametrized by
+                /// the image of its parametrization: a line's or parabola's
+                /// parameter, a length, scales with the transform. Raises
+                /// `ConstructionError` when the transform collapses the
+                /// curve (a zero scale) or overflows.
+                #[pyo3(signature = (transform,))]
+                fn transformed(&self, transform: &PyTransform2D) -> PyResult<Self> {
+                    Ok(Self(self.0.transformed(transform.0).map_err(python_error)?))
+                }
 
                 /// The local minima of the distance from `point` to the
                 /// curve, an end of a bounded curve among them where the
@@ -1071,6 +1093,70 @@ macro_rules! parametric_surface {
                     approximation.map_err(python_error)?,
                 ))
             }
+
+            /// The extrema of the distance to `other`, a point, a curve or
+            /// a surface.
+            ///
+            /// From a point, on a B-spline or Bézier surface: the local
+            /// minima of its distance to the surface, as `SurfaceProjection`
+            /// objects ordered by ascending distance. Other surfaces raise
+            /// `TypeError` for a point: `project_point` gives the nearest.
+            ///
+            /// From a curve or `TrimmedCurve`: a `CurveSurfaceExtrema`; from
+            /// a surface or `TrimmedSurface`: a `SurfaceSurfaceExtrema`. Each
+            /// holds the local minima of the distance between the two,
+            /// closest first, with whether the search proved there is no
+            /// other. Parallel planes, concentric spheres and other
+            /// continuous families of equal minima report the distance once,
+            /// with a representative pair; shapes that meet report a meeting
+            /// point at distance zero. The result holds this surface as
+            /// `first` and `other` as `second`. Other Python threads run
+            /// during the search. Raises `TypeError` for anything else, a 2D
+            /// curve included.
+            #[pyo3(signature = (other, tol = None))]
+            fn extrema(
+                slf: &Bound<'_, Self>,
+                other: &Bound<'_, PyAny>,
+                tol: Option<ToleranceArgument>,
+            ) -> PyResult<Py<PyAny>> {
+                let py = slf.py();
+                let tol = tolerance(tol);
+                if let Ok(PyPoint(point)) = other.extract::<PyPoint>() {
+                    let Some(projections) =
+                        $crate::method_sets::SurfacePointExtrema::point_extrema(&slf.borrow().0, point, tol)
+                    else {
+                        return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                            "extrema from a point is on B-spline and Bézier surfaces, not {}; \
+                             project_point gives the nearest point",
+                            slf.get_type().name()?
+                        )));
+                    };
+                    let projections: Vec<PySurfaceProjection> = projections
+                        .into_iter()
+                        .map(|projection| PySurfaceProjection::new(projection, slf, point))
+                        .collect();
+                    return Ok(projections.into_pyobject(py)?.into_any().unbind());
+                }
+                $crate::intersect::extrema(slf.as_any(), other, tol)
+            }
+
+            /// The minimum distance to `other`, a curve or a surface: the
+            /// closest of `extrema(other)`, a `CurveSurfaceExtremum` or
+            /// `SurfaceSurfaceExtremum` with the two points where it is
+            /// reached, or `None` when there is no minimum. Whether the
+            /// search proved it the global one is the `completeness` of
+            /// `extrema(other)`. Raises `TypeError` for anything else.
+            #[pyo3(signature = (other, tol = None))]
+            fn minimum_distance(
+                slf: &Bound<'_, Self>,
+                other: &Bound<'_, PyAny>,
+                tol: Option<ToleranceArgument>,
+            ) -> PyResult<Py<PyAny>> {
+                $crate::method_sets::closest_of(
+                    $crate::intersect::extrema(slf.as_any(), other, tolerance(tol))?,
+                    slf.py(),
+                )
+            }
         }}
     };
 }
@@ -1242,28 +1328,36 @@ macro_rules! sided_surface_evaluation {
 }
 pub(crate) use sided_surface_evaluation;
 
-/// `extrema` of a B-spline or Bézier surface.
-macro_rules! surface_extrema {
-    ($class:ident $sets:tt { $($methods:tt)* }) => {
-        $crate::method_sets::shape_methods! { @next $class $sets {
-            $($methods)*
-
-            /// The local minima of the distance from `point` to the
-            /// surface, as `SurfaceProjection` objects ordered by ascending
-            /// distance.
-            #[pyo3(signature = (point, tol = None))]
-            fn extrema(
-                slf: &Bound<'_, Self>,
-                point: PyPoint,
-                tol: Option<ToleranceArgument>,
-            ) -> Vec<PySurfaceProjection> {
-                let projections = slf.borrow().0.extrema(point.0, tolerance(tol));
-                projections
-                    .into_iter()
-                    .map(|projection| PySurfaceProjection::new(projection, slf, point.0))
-                    .collect()
-            }
-        }}
-    };
+/// The closest minimum of an extrema result, or `None`.
+pub(crate) fn closest_of(extrema: Py<PyAny>, py: Python<'_>) -> PyResult<Py<PyAny>> {
+    Ok(extrema.bind(py).call_method0("closest")?.unbind())
 }
-pub(crate) use surface_extrema;
+
+/// The local minima of the distance from a point to a surface, where the
+/// core has them: on B-spline and Bézier surfaces (`None` elsewhere).
+pub(crate) trait SurfacePointExtrema {
+    fn point_extrema(&self, _point: Point, _tol: Tolerance) -> Option<Vec<SurfaceProjection>> {
+        None
+    }
+}
+
+impl SurfacePointExtrema for BSplineSurface {
+    fn point_extrema(&self, point: Point, tol: Tolerance) -> Option<Vec<SurfaceProjection>> {
+        Some(self.extrema(point, tol))
+    }
+}
+
+impl SurfacePointExtrema for BezierSurface {
+    fn point_extrema(&self, point: Point, tol: Tolerance) -> Option<Vec<SurfaceProjection>> {
+        Some(self.extrema(point, tol))
+    }
+}
+
+impl SurfacePointExtrema for Plane {}
+impl SurfacePointExtrema for Cylinder {}
+impl SurfacePointExtrema for Cone {}
+impl SurfacePointExtrema for Sphere {}
+impl SurfacePointExtrema for Torus {}
+impl SurfacePointExtrema for ExtrusionSurface {}
+impl SurfacePointExtrema for RevolutionSurface {}
+impl SurfacePointExtrema for TrimmedSurface {}

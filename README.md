@@ -37,7 +37,9 @@ changes are flagged in the changelog). Implemented:
   result says which method ran and whether every hit was found. The
   typed `intersect_exact` returns each pair's own exact result, for hot
   loops over elementary shapes.
-- **Curve–curve extrema**: the local distance minima between two curves.
+- **Distance extrema**: the local distance minima between two curves, a
+  curve and a surface, or two surfaces, and the minimum distance of the
+  pair.
 - **Curve-on-surface parametrization**: `curve_3d_to_uv`, the exact UV
   curve of a 3D curve on a surface, for lines and circles on the five
   elementary surfaces and any curve on a plane; `curve_3d_to_uv_within`

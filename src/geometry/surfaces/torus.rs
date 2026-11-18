@@ -404,6 +404,8 @@ impl ReversibleSurface for Torus {
 }
 
 impl Transformable for Torus {
+    type Transform = Transform;
+
     /// The frame maps through the transform and both radii scale by its
     /// scale factor.
     fn transformed(&self, transform: Transform) -> Result<Torus, TransformError> {

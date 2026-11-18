@@ -1,5 +1,5 @@
 """The Python protocols of the value classes (#182): iteration, numpy,
-division, `Transform` matrices and inverse, and pickling of every value
+division, `Transform` and `Transform2D` matrices and inverse, and pickling of every value
 and shape class."""
 
 import copy
@@ -44,6 +44,7 @@ from geomcore import (
     Tolerance,
     Torus,
     Transform,
+    Transform2D,
     TrimmedCurve,
     TrimmedCurve2D,
     Vector,
@@ -57,6 +58,7 @@ _CENTER = Point(1.5, -2.0, 0.25)
 _FRAME = Frame(_CENTER, _TILTED, _HINT)
 _MIRROR = Transform.mirror_plane(Frame(Point(0.1, 0.2, 0.3), Vector(1, 2, 3), _HINT))
 _FRAME_2D = Frame2D.from_x(Point2D(0.5, -1.0), Vector2D(0.8, 1.3))
+_MIRROR_2D = Transform2D.mirror_axis(Axis2D(Point2D(0.1, 0.2), Vector2D(1, 2)))
 
 
 def _spline_curve() -> BSplineCurve:
@@ -155,6 +157,8 @@ def _values():
         Tolerance(confusion=1e-5, angular=1e-9, parametric=1e-7),
         Transform.rotation(Axis(_CENTER, _TILTED), 0.9).then(_MIRROR),
         Transform.scaling(Point(0, 0, 0), 0.0),
+        Transform2D.rotation(Point2D(0.5, -1.0), 0.9).then(_MIRROR_2D),
+        Transform2D.scaling(Point2D(0, 0), 0.0),
         BoundingBox(Point(0, 0, 0), Point(1, 2, 3)),
         BoundingBox2D(Point2D(0, 0), Point2D(1, 2)),
     ]
@@ -254,6 +258,46 @@ def test_a_matrix_that_is_not_a_similarity_is_refused():
         Transform.from_matrix(projective)
     with pytest.raises(ValueError):
         Transform.from_matrix([[1.0, 0.0], [0.0, 1.0]])
+
+
+def test_a_transform_2d_round_trips_its_matrix_composes_and_inverts():
+    turn = Transform2D.rotation(Point2D(0.5, -1.0), 0.9)
+    shift = Transform2D.translation(Vector2D(1, 2))
+    assert Transform2D.from_matrix(turn.to_matrix()) == turn
+    assert (turn @ shift) == shift.then(turn)
+    numpy = pytest.importorskip("numpy")
+    product = numpy.array(turn.to_matrix()) @ numpy.array(shift.to_matrix())
+    assert numpy.allclose(product, numpy.array((turn @ shift).to_matrix()), rtol=0, atol=1e-15)
+    assert Transform2D.from_matrix(numpy.array(shift.to_matrix())) == shift
+    assert repr(shift) == "Transform2D.from_matrix([[1.0, 0.0, 1.0], [0.0, 1.0, 2.0], [0.0, 0.0, 1.0]])"
+    pose = turn.then(_MIRROR_2D)
+    back = pose.inverse()
+    for p in [Point2D(0, 0), Point2D(3, -1), Point2D(-7, 0.5)]:
+        assert back.apply_point(pose.apply_point(p)).distance(p) < 1e-13
+    moved = pose.apply_points([Point2D(0, 0), Point2D(3, -1)])
+    assert moved.shape == (2, 2)
+    with pytest.raises(ConstructionError):
+        Transform2D.scaling(Point2D(0, 0), 0.0).inverse()
+    sheared = [[1.0, 0.5, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+    with pytest.raises(ConstructionError):
+        Transform2D.from_matrix(sheared)
+    with pytest.raises(ValueError):
+        Transform2D.from_matrix([[1.0, 0.0], [0.0, 1.0]])
+
+
+def test_the_2d_values_move_with_a_transform_2d():
+    pose = Transform2D.rotation(Point2D(0.5, -1.0), 0.9).then(_MIRROR_2D)
+    point = Point2D(3.0, -1.0)
+    assert point.transformed(pose) == pose.apply_point(point)
+    assert Vector2D(1.0, 2.0).transformed(pose) == pose.apply_vector(Vector2D(1.0, 2.0))
+    axis = Axis2D(point, Vector2D(0.0, 1.0)).transformed(pose)
+    assert axis.origin() == pose.apply_point(point)
+    assert not _FRAME_2D.transformed(pose).is_direct()
+    collapse = Transform2D.scaling(Point2D(0, 0), 0.0)
+    with pytest.raises(ConstructionError):
+        _FRAME_2D.transformed(collapse)
+    with pytest.raises(ConstructionError):
+        Axis2D(point, Vector2D(0.0, 1.0)).transformed(collapse)
 
 
 def test_a_robot_pose_matrix_moves_a_shape():
