@@ -470,6 +470,7 @@ enum TubeCut {
 /// How `other`, of `coefficients`, cuts the tube circles of `torus`;
 /// `None` where two roots of `Δ` nearly meet at a point the curve all but
 /// passes through.
+#[inline(never)]
 fn tube_loops(
     (torus, tubes): (&Torus, &Tubes),
     other: &impl ParametricSurface,
@@ -507,8 +508,8 @@ fn tube_loops(
     } else {
         let graze = Graze {
             torus,
-            tubes,
-            coefficients: &coefficients,
+            tubes: *tubes,
+            coefficients,
             roots: roots(gamma_constant),
         };
         [
@@ -571,8 +572,8 @@ fn tube_loops(
 /// as given.
 struct Graze<'a> {
     torus: &'a Torus,
-    tubes: &'a Tubes,
-    coefficients: &'a Coefficients,
+    tubes: Tubes,
+    coefficients: Coefficients,
     roots: Option<(f64, f64)>,
 }
 
@@ -609,7 +610,7 @@ impl Graze<'_> {
         let size = self.tubes.major + self.tubes.minor + self.coefficients.gamma[0].abs();
         let angle = sin_theta.atan2(cos_theta) + if side > 0.0 { 0.0 } else { PI };
         let (sin, cos) = angle.sin_cos();
-        let contact = on_circle(self.tubes, self.coefficients, (angle, sin, cos), 0.0).point;
+        let contact = on_circle(&self.tubes, &self.coefficients, (angle, sin, cos), 0.0).point;
         reads_as_touching(self.torus, other, contact, overlap, size, tol)
     }
 }

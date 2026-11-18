@@ -61,7 +61,7 @@ pub(super) use octic::{OcticCut, torus_cone, torus_cylinder, torus_torus};
 use tube_circles::{OtherPlane, TubeCircles};
 pub(super) use tube_circles::{torus_plane, torus_sphere};
 
-use super::contact::{offset_within_rounding, reads_as_touching, reads_as_touching_seldom};
+use super::contact::{offset_within_rounding, reads_as_touching, reads_as_touching_out_of_line};
 use super::surface_surface::{
     ConeConeIntersection, ConeCylinderIntersection, CylinderCylinderIntersection,
     SphereConeIntersection, SphereCylinderIntersection,
@@ -660,19 +660,16 @@ pub(super) fn sphere_off_cylinder_axis(
         return SphereCylinderIntersection::Empty;
     }
     // Each contact within confusion is read as one where the curve stays
-    // within confusion of it (see `reads_as_touching`), an exact one
-    // without more.
+    // within confusion of it (see `reads_as_touching`).
     let size = radius + r + e;
-    let reads_as_touching = |contact: Point, overlap: f64| {
-        overlap.abs() <= tol.confusion
-            && (offset_within_rounding(overlap, size)
-                || reads_as_touching_seldom(sphere, cylinder, contact, overlap, size, tol))
+    let touches = |contact: Point, overlap: f64| {
+        reads_as_touching(sphere, cylinder, contact, overlap, size, tol)
     };
-    if reads_as_touching(near, radius - (r - e).abs()) {
+    if touches(near, radius - (r - e).abs()) {
         return SphereCylinderIntersection::TangentPoint(near);
     }
     let excess = radius - (r + e);
-    let crossing = reads_as_touching(far, excess.abs());
+    let crossing = touches(far, excess.abs());
     // Through the generator where it touches, the sphere is as wide as
     // `r + e`.
     let radius = if crossing { r + e } else { radius };
@@ -802,7 +799,7 @@ pub(super) fn sphere_off_cone_axis(
         let overlap = radius - off_line(nearest);
         let contact = || apex + nearest * m_nearest;
         if overlap <= tol.confusion
-            && reads_as_touching_seldom(sphere, cone, contact(), overlap, size, tol)
+            && reads_as_touching_out_of_line(sphere, cone, contact(), overlap, size, tol)
         {
             contacts[touching] = contact();
             touching += 1;
@@ -812,7 +809,7 @@ pub(super) fn sphere_off_cone_axis(
             let crossing = || apex + farthest * m_farthest;
             let excess = radius - off_line(farthest);
             if excess.abs() <= tol.confusion
-                && reads_as_touching_seldom(sphere, cone, crossing(), excess.abs(), size, tol)
+                && reads_as_touching_out_of_line(sphere, cone, crossing(), excess.abs(), size, tol)
             {
                 // The sphere touches the farthest generator: as wide as
                 // its distance from the centre there.
@@ -1222,24 +1219,14 @@ pub(super) fn cones_in_general_position(
         // cone by `|Q| / |∇Q|`, `Q = −Δ/A` and `Δ` that factor times the
         // other: within confusion, the surfaces touch where their curve
         // stays within confusion of the contact (see `factor_touches`).
-        let touches = |k: usize| {
-            let form = factors[k];
-            let amplitude = form.amplitude();
-            let cosine = form.vanishing_cosine(amplitude);
-            let angle = FormZeros::touching_at(form.reference(), cosine);
-            let (sin, cos) = angle.sin_cos();
-            let direction = ruled.generator(ruled.radial(sin, cos)).1;
-            let (leading, half_linear, _, _) = other.coefficients(ruled.apex, direction);
-            let nearest = ruled.apex + direction * (-half_linear / leading);
-            let rest = factors[1 - k].at(cos, sin);
-            let gradient = 2.0 * other.normal(nearest).magnitude();
-            let gap = amplitude * (1.0 - cosine.abs()) * rest.abs() / (leading.abs() * gradient);
-            gap.abs() <= tol.confusion && {
-                let size = w.magnitude();
-                factor_touches(factors, k, angle, gap, (first, second, nearest, size), tol)
-            }
+        let near = |k: usize| {
+            let (_, excess, scale) = cone_factor_gap((&ruled, &other), factors, k);
+            excess <= tol.confusion * scale
         };
-        let touching = [touches(0), touches(1)];
+        let touching = match [near(0), near(1)] {
+            [false, false] => [false, false],
+            near => cones_touch((first, second), factors, near, tol),
+        };
         factored_loops(factors, touching, through_apex)?
     };
     let surfaces = Surfaces::Cones(*first, *second);
@@ -1472,6 +1459,59 @@ impl Loops {
             Loops::Empty => empty,
         }
     }
+}
+
+/// Where factor `k` of two cones' `Δ` is least in size, `aₖ (1 − |cₖ|)`:
+/// the angle of that generator of the first one, and how far the middle
+/// of its roots, `s = −β/A`, is off the second cone, `|Q| / |∇Q|` with
+/// `Q = −Δ/A`, as a quotient `excess / scale`.
+#[inline(always)]
+fn cone_factor_gap(
+    (ruled, other): (&RuledCone, &OtherCone),
+    factors: [LinearForm; 2],
+    k: usize,
+) -> (f64, f64, f64) {
+    let form = factors[k];
+    let amplitude = form.amplitude();
+    let cosine = form.vanishing_cosine(amplitude);
+    let angle = FormZeros::touching_at(form.reference(), cosine);
+    let (sin, cos) = angle.sin_cos();
+    let direction = ruled.generator(ruled.radial(sin, cos)).1;
+    let (leading, half_linear, _, _) = other.coefficients(ruled.apex, direction);
+    let nearest = ruled.apex + direction * (-half_linear / leading);
+    let rest = factors[1 - k].at(cos, sin);
+    let gradient = 2.0 * other.normal(nearest).magnitude();
+    let excess = amplitude * (1.0 - cosine.abs()).abs() * rest.abs();
+    (angle, excess, leading.abs() * gradient)
+}
+
+/// [`factor_touches`] for two cones and each factor `near` within
+/// confusion of vanishing twice: the contact on the first one's generator
+/// where that factor is least in size.
+#[cold]
+#[inline(never)]
+fn cones_touch(
+    (first, second): (&Cone, &Cone),
+    factors: [LinearForm; 2],
+    near: [bool; 2],
+    tol: Tolerance,
+) -> [bool; 2] {
+    let (ruled, other) = (RuledCone::new(first), OtherCone::new(second));
+    let size = (second.apex() - first.apex()).magnitude();
+    [0, 1].map(|k| {
+        near[k] && {
+            let (angle, excess, scale) = cone_factor_gap((&ruled, &other), factors, k);
+            let contact = touching_on_generator(&ruled, &other, angle);
+            factor_touches(
+                factors,
+                k,
+                angle,
+                excess / scale,
+                (first, second, contact, size),
+                tol,
+            )
+        }
+    })
 }
 
 /// [`factor_touches`] for a cone and a cylinder, the contact on the
