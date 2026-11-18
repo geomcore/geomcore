@@ -26,7 +26,14 @@ the Python distribution are versioned in lockstep.
   conics of quadrics around one sphere; and for the tangent points, lines
   and circles of the elementary pairs, a plane and a sphere among them.
   Results within confusion of a contact change: a sphere half a confusion
-  through a plane now meets it in a circle of radius `√(2rε)`.
+  through a plane now meets it in a circle of radius `√(2rε)`, and so
+  does one `1e-10` through it, as rounded data gives: read such contacts
+  at a confusion of `√(2ε / κ)` or more. An offset within the rounding of
+  the lengths it is computed from, and of the distances from where each
+  surface is placed to the contact, reads as none, so an exact contact
+  reads as one however far its surfaces are placed from it, and moving a
+  pair does not change the answer. The curvature is read in closed form,
+  at a sphere's pole as anywhere else.
 
 - The sampled curve–surface search finds the same hits at any size (#434).
   Its Newton steps read the tolerance, a length, as the pivot ratio of
