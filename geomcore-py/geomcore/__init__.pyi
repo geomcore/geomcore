@@ -179,6 +179,10 @@ class Point2D:
         """The coordinates as a tuple `(x, y)`."""
     def midpoint(self, other: _Point2DLike) -> Point2D:
         """The point halfway between this point and `other`."""
+    def transformed(self, transform: Transform2D) -> Point2D:
+        """The image of this point under `transform`, the same as
+        `transform.apply_point(point)`.
+        """
     def is_finite(self) -> bool:
         """Whether every coordinate is finite."""
     def __add__(self, offset: Vector2D, /) -> Point2D: ...
@@ -275,6 +279,11 @@ class Vector:
         """The part of this vector across `direction`: the vector less its
         component along `direction`.
         """
+    def transformed(self, transform: Transform) -> Vector:
+        """The image of this free vector under `transform`, the same as
+        `transform.apply_vector(vector)`: turned, mirrored and scaled,
+        never translated.
+        """
     def __add__(self, other: Vector, /) -> Vector: ...
     def __sub__(self, other: Vector, /) -> Vector: ...
     def __neg__(self) -> Vector: ...
@@ -353,6 +362,11 @@ class Vector2D:
         """The part of this vector across `direction`: the vector less its
         component along `direction`.
         """
+    def transformed(self, transform: Transform2D) -> Vector2D:
+        """The image of this free vector under `transform`, the same as
+        `transform.apply_vector(vector)`: turned, mirrored and scaled,
+        never translated.
+        """
     def magnitude(self) -> float:
         """Euclidean length of the vector."""
     def square_magnitude(self) -> float:
@@ -417,6 +431,12 @@ class Axis2D:
         """
     def reversed(self) -> Axis2D:
         """The axis with its direction negated, through the same origin."""
+    def transformed(self, transform: Transform2D) -> Axis2D:
+        """The image of the axis under `transform`: the origin maps as a
+        point and the direction as a free vector, normalized again.
+        Raises `ConstructionError` when the transform collapses the plane
+        or the image overflows.
+        """
     def __repr__(self) -> str: ...
 
 @final
@@ -464,6 +484,13 @@ class Frame2D:
         """The components `(u, v)` of `vector` along the x and y directions:
         `local_coordinates` for a direction, which ignores the origin.
         """
+    def transformed(self, transform: Transform2D) -> Frame2D:
+        """The image of the frame under `transform`: a point at local
+        coordinates `(u, v)` maps to the point at the same coordinates,
+        scaled by `transform.scale_factor()`, in the image. A mirror across
+        an axis changes the handedness. Raises `ConstructionError` when the
+        transform collapses the plane or the image overflows.
+        """
     def __repr__(self) -> str: ...
 
 @final
@@ -500,6 +527,12 @@ class Axis:
         """
     def reversed(self) -> Axis:
         """The axis with its direction negated, through the same origin."""
+    def transformed(self, transform: Transform) -> Axis:
+        """The image of the axis under `transform`: the origin maps as a
+        point and the direction as a free vector, normalized again.
+        Raises `ConstructionError` when the transform collapses space or
+        the image overflows.
+        """
 
 @final
 class Frame:
@@ -703,6 +736,94 @@ class Transform:
         a point (a scaling by 0).
         """
     def __matmul__(self, other: Transform, /) -> Transform: ...
+    def __repr__(self) -> str: ...
+
+@final
+class Transform2D:
+    """A similarity of the plane: a uniform scale composed with a rigid
+    motion or a mirror, the plane twin of `Transform`.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @staticmethod
+    def identity() -> Transform2D:
+        """The identity transformation."""
+    @staticmethod
+    def translation(offset: Vector2D) -> Transform2D:
+        """Translation by an offset vector."""
+    @staticmethod
+    def rotation(center: _Point2DLike, angle: float) -> Transform2D:
+        """Rotation by `angle` radians about `center`, counterclockwise for a
+        positive angle.
+        """
+    @staticmethod
+    def scaling(center: _Point2DLike, factor: float) -> Transform2D:
+        """Uniform scaling about `center`."""
+    @staticmethod
+    def mirror_point(center: _Point2DLike) -> Transform2D:
+        """Point reflection through `center`, which in the plane is the half
+        turn about it: it keeps the turning sense of curves.
+        """
+    @staticmethod
+    def mirror_axis(axis: Axis2D) -> Transform2D:
+        """Reflection across the line of `axis`, which reverses the turning
+        sense of curves.
+        """
+    @staticmethod
+    def between_frames(source: Frame2D, target: Frame2D) -> Transform2D:
+        """The rigid motion taking the `source` placement to the `target` one:
+        the point at local coordinates `(u, v)` in `source` maps to the
+        point at the same coordinates in `target`. It includes a mirror when
+        the frames have opposite handedness.
+        """
+    def scale_factor(self) -> float:
+        """The factor by which the transformation scales lengths: 1 for a
+        rotation, a translation or a mirror, 0 for a collapse onto a point.
+        """
+    def preserves_orientation(self) -> bool:
+        """Whether the transformation keeps the turning sense of the plane:
+        false for mirrors across an axis (which turn a counterclockwise
+        circle clockwise) and for a collapse onto a point.
+        """
+    def is_identity(self, tol: Optional[_ToleranceLike] = None) -> bool:
+        """Whether the transformation leaves the plane unchanged within `tol`
+        (`Tolerance.default()` when omitted): its linear part within
+        `tol.angular` of the identity's, entry by entry, and its translation
+        shorter than `tol.confusion`.
+        """
+    def then(self, other: Transform2D) -> Transform2D:
+        """Compose transformations: `self` is applied first, then `other`."""
+    def apply_point(self, p: _Point2DLike) -> Point2D:
+        """Apply the transformation to a point."""
+    def apply_points(self, points: _Points2D) -> _FloatArray:
+        """Apply the transformation to each point of `points`, a list of
+        points or an `(N, 2)` array-like, as an `(N, 2)` numpy array.
+        Other Python threads run meanwhile.
+        """
+    def apply_vector(self, v: Vector2D) -> Vector2D:
+        """Apply the transformation to a vector (ignores the translation part)."""
+    @staticmethod
+    def from_matrix(matrix: Union[Sequence[Sequence[float]], numpy.typing.NDArray[Any]]) -> Transform2D:
+        """The transformation of a 3×3 homogeneous `matrix`, three rows of
+        three numbers (nested lists, or a numpy array): a point `p` maps to
+        the upper 2×2 block times `p` plus the last column. Raises
+        `ConstructionError` unless the last row is `[0, 0, 1]` and the 2×2
+        block is a uniform scale of a rotation or a mirror, its columns of
+        one length and orthogonal within `1e-12`. `to_matrix()` gives the
+        matrix back unchanged.
+        """
+    def to_matrix(self) -> List[List[float]]:
+        """The 3×3 homogeneous matrix, as three rows of three floats: the
+        linear part in the upper 2×2 block, the translation in the last
+        column, and `[0, 0, 1]` below. `numpy.array(t.to_matrix())` makes
+        it an array.
+        """
+    def inverse(self) -> Transform2D:
+        """The transformation that undoes this one: `t.then(t.inverse())`
+        maps every point back to itself, within rounding. Raises
+        `ConstructionError` for a transformation that collapses the plane
+        onto a point (a scaling by 0).
+        """
+    def __matmul__(self, other: Transform2D, /) -> Transform2D: ...
     def __repr__(self) -> str: ...
 
 @final
@@ -1958,6 +2079,13 @@ class _CurveMethods(
 class _Curve2DMethods(
     _CurveMethodsInEitherDimension[Point2D, Vector2D, BoundingBox2D, CurveProjection2D]
 ):
+    def transformed(self: _Self, transform: Transform2D) -> _Self:
+        """The image of the curve under `transform`, parametrized by
+        the image of its parametrization: a line's or parabola's
+        parameter, a length, scales with the transform. Raises
+        `ConstructionError` when the transform collapses the
+        curve (a zero scale) or overflows.
+        """
     def intersect(
         self, other: _Curve2DMethods, tol: Optional[_ToleranceLike] = None
     ) -> CurveCurveIntersection2D:
@@ -4272,6 +4400,7 @@ __all__ = [
     "Frame",
     "Tolerance",
     "Transform",
+    "Transform2D",
     "BoundingBox",
     "BoundingBox2D",
     "Discretization2D",

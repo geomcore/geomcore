@@ -375,6 +375,8 @@ impl ReversibleSurface for Cylinder {
 }
 
 impl Transformable for Cylinder {
+    type Transform = Transform;
+
     /// The frame maps through the transform and the radius scales by its
     /// scale factor, so does the axial parameter `v`.
     fn transformed(&self, transform: Transform) -> Result<Cylinder, TransformError> {

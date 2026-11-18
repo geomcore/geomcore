@@ -2,7 +2,7 @@
 //! inversion, thin wrappers over [`crate::math::elementary::curve`].
 
 use crate::base::frame::frame_error;
-use crate::base::tier::operations::{AxisOperations, VectorOperations};
+use crate::base::tier::operations::{AxisOperations, TransformOperations, VectorOperations};
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
 use crate::geometry::curves::ReversibleCurve;
@@ -11,7 +11,7 @@ use crate::geometry::curves::{ElementaryCurve, ParametricCurve, ParametricCurve2
 use crate::geometry::curves::{PointExtrema, PointExtrema2D};
 use crate::math::elementary::curve as elementary;
 use crate::operations::projection::CurveProjection;
-use crate::{Point, Point2D, Tolerance, Transform, operations::projection};
+use crate::{Point, Point2D, Tolerance, operations::projection};
 use crate::{TransformError, Transformable};
 use std::fmt;
 
@@ -276,14 +276,16 @@ impl_for_both_tiers! {
     }
 }
 
-impl Transformable for Line {
+impl<P: TierPoint> Transformable for GenericLine<P> {
+    type Transform = P::Transform;
+
     /// The origin maps point-wise and the direction as a free vector,
     /// normalized again, so the parameter, a length, scales with the
     /// transform.
-    fn transformed(&self, transform: Transform) -> Result<Line, TransformError> {
-        Line::new(
+    fn transformed(&self, transform: P::Transform) -> Result<GenericLine<P>, TransformError> {
+        GenericLine::new(
             transform.apply_point(self.origin()),
-            transform.apply_vector(self.direction()),
+            transform.apply_vector(self.direction().into()),
         )
         .map_err(image_error(LineConstructionError::NonFinite))
     }

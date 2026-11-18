@@ -18,7 +18,7 @@ use crate::geometry::curves::{
 use crate::operations::projection::CurveProjection;
 use crate::{BSplineSplitError, DegreeElevationError};
 use crate::{Continuity, Point, Point2D, Tolerance};
-use crate::{Transform, TransformError, Transformable};
+use crate::{TransformError, Transformable};
 use std::fmt;
 
 /// Error returned when a [`BezierCurve`] or a [`BezierCurve2D`](crate::BezierCurve2D)
@@ -557,10 +557,15 @@ impl<P: TierPoint> ReversibleCurve for GenericBezierCurve<P> {
     }
 }
 
-impl Transformable for BezierCurve {
+impl<P: TierPoint> Transformable for GenericBezierCurve<P> {
+    type Transform = P::Transform;
+
     /// Every pole maps point-wise; the degree and weights are kept, and so
     /// is the parameter.
-    fn transformed(&self, transform: Transform) -> Result<BezierCurve, TransformError> {
+    fn transformed(
+        &self,
+        transform: P::Transform,
+    ) -> Result<GenericBezierCurve<P>, TransformError> {
         self.0
             .transformed(transform)
             .map(GenericBezierCurve::from_span)

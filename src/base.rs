@@ -27,6 +27,8 @@ pub(crate) mod tier;
 mod tolerance;
 /// Rigid and affine transformations.
 pub(crate) mod transform;
+/// The similarities of the plane.
+mod transform_2d;
 /// Vectors in 2D and 3D space.
 pub(crate) mod vector;
 pub use bounding_box::BoundingBox;
@@ -40,4 +42,5 @@ pub use side::Side;
 pub use tier::TierPoint;
 pub use tolerance::{Tolerance, ToleranceConstructionError};
 pub use transform::{Transform, TransformError, TransformMatrixError, Transformable};
+pub use transform_2d::Transform2D;
 pub use vector::{Vector, Vector2D};

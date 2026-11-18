@@ -1,5 +1,5 @@
-//! Rigid and affine transformations of points and vectors, and the
-//! [`Transformable`] shapes they move.
+//! Rigid and affine transformations of points and vectors in space, and
+//! the [`Transformable`] shapes they and their plane twins move.
 
 use crate::{Axis, Frame, FrameConstructionError, Point, Tolerance, Vector};
 use std::fmt;
@@ -592,14 +592,15 @@ fn is_similarity(columns: [Vector; 3]) -> bool {
     one_length && orthogonal
 }
 
-/// Error returned by [`Transform::from_matrix`] for a matrix that is not
-/// a transformation this crate represents.
+/// Error returned by [`Transform::from_matrix`] and
+/// [`Transform2D::from_matrix`](crate::Transform2D::from_matrix) for a
+/// matrix that is not a transformation this crate represents.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransformMatrixError {
     /// An entry is NaN or infinite.
     NonFinite,
-    /// The last row is not `[0, 0, 0, 1]`, so the matrix is projective
-    /// rather than affine.
+    /// The last row is not `[0, 0, 0, 1]` (`[0, 0, 1]` in the plane), so
+    /// the matrix is projective rather than affine.
     NotAffine,
     /// The 3×3 block is not a uniform scale of a rotation or a mirror: it
     /// shears, or scales the directions by different factors.
@@ -610,7 +611,9 @@ impl fmt::Display for TransformMatrixError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             TransformMatrixError::NonFinite => "a matrix entry is NaN or infinite",
-            TransformMatrixError::NotAffine => "the last row of the matrix is not [0, 0, 0, 1]",
+            TransformMatrixError::NotAffine => {
+                "the last row of the matrix is not [0, 0, 0, 1] ([0, 0, 1] in the plane)"
+            }
             TransformMatrixError::NotSimilarity => {
                 "the matrix is not a uniform scale of a rotation or a mirror"
             }
@@ -620,7 +623,8 @@ impl fmt::Display for TransformMatrixError {
 
 impl std::error::Error for TransformMatrixError {}
 
-/// Error returned when a shape cannot be moved by a [`Transform`].
+/// Error returned when a shape cannot be moved by a [`Transform`] or a
+/// [`Transform2D`](crate::Transform2D).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransformError {
     /// The transform has a zero scale factor, so it collapses the shape
@@ -664,8 +668,9 @@ pub(crate) fn image_error<E: PartialEq>(non_finite: E) -> impl FnOnce(E) -> Tran
     }
 }
 
-/// A shape that a [`Transform`] moves: every 3D curve and surface, and
-/// their enums.
+/// A shape that its tier's transformation moves: every 3D curve and
+/// surface by a [`Transform`], every 2D curve by a
+/// [`Transform2D`](crate::Transform2D), and their enums.
 ///
 /// The image is parametrized by the image of the shape's parametrization:
 /// under a rotation, a translation or a mirror,
@@ -674,9 +679,12 @@ pub(crate) fn image_error<E: PartialEq>(non_finite: E) -> impl FnOnce(E) -> Tran
 /// (along a line, a parabola, the generators of a plane, cylinder or cone,
 /// the sweep of an extrusion) scales by `s` too; angles and B-spline
 /// parameters do not. Every frame axis maps through the transform, so a
-/// mirror turns a direct frame indirect and the image's normal is the
-/// opposite of the mirrored normal; reversing the image restores the
-/// mirrored side (see [`ReversibleSurface`](crate::ReversibleSurface)).
+/// mirror turns a direct frame indirect: the image of a surface has its
+/// normal on the opposite side of the mirrored normal, and a mirror across
+/// an axis of the plane turns a counterclockwise circle clockwise.
+/// Reversing the image restores the mirrored side or turning sense (see
+/// [`ReversibleSurface`](crate::ReversibleSurface) and
+/// [`ReversibleCurve`](crate::ReversibleCurve)).
 ///
 /// # Errors
 ///
@@ -688,7 +696,8 @@ pub(crate) fn image_error<E: PartialEq>(non_finite: E) -> impl FnOnce(E) -> Tran
 ///
 /// ```
 /// use geomcore::prelude::*;
-/// use geomcore::{Circle, Curve, Point, Transform, TransformError, Vector};
+/// use geomcore::{Circle, Circle2D, Curve, Point, Point2D, Transform, Transform2D};
+/// use geomcore::{TransformError, Vector};
 ///
 /// let circle = Curve::from(Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap());
 /// let shift = Transform::translation(Vector::new(0.0, 0.0, 5.0));
@@ -697,15 +706,30 @@ pub(crate) fn image_error<E: PartialEq>(non_finite: E) -> impl FnOnce(E) -> Tran
 ///
 /// let collapse = Transform::scaling(Point::ORIGIN, 0.0);
 /// assert_eq!(circle.transformed(collapse), Err(TransformError::Collapsed));
+///
+/// // A function over the shapes of either tier names the transform the
+/// // shape takes.
+/// fn doubled<S: Transformable>(shape: &S, scale: S::Transform) -> S {
+///     shape.transformed(scale).unwrap()
+/// }
+/// let circle_2d = Circle2D::new(Point2D::new(1.0, 0.0), 1.0).unwrap();
+/// let bigger = doubled(&circle_2d, Transform2D::scaling(Point2D::ORIGIN, 2.0));
+/// assert_eq!(bigger.radius(), 2.0);
+/// assert_eq!(bigger.center(), Point2D::new(2.0, 0.0));
 /// ```
 pub trait Transformable: Sized {
+    /// The transformation that moves the shape: [`Transform`] for a shape
+    /// in space, [`Transform2D`](crate::Transform2D) for a curve in the
+    /// plane.
+    type Transform: Copy;
+
     /// Returns the image of the shape under `transform`.
     ///
     /// # Errors
     ///
     /// [`TransformError::Collapsed`] for a zero scale factor and
     /// [`TransformError::NonFinite`] when the image overflows `f64`.
-    fn transformed(&self, transform: Transform) -> Result<Self, TransformError>;
+    fn transformed(&self, transform: Self::Transform) -> Result<Self, TransformError>;
 }
 
 #[cfg(test)]

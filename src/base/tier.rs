@@ -9,6 +9,7 @@
 use crate::base::pole::PolePoint;
 use crate::{Axis, Axis2D, BoundingBox, BoundingBox2D, Frame, Frame2D, FrameConstructionError};
 use crate::{Direction, Direction2D, Point, Point2D, Vector, Vector2D};
+use crate::{Transform, Transform2D, TransformError};
 use std::fmt::Debug;
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 
@@ -54,6 +55,10 @@ pub trait TierPoint:
 
     /// The tier's axis: [`Axis`] or [`Axis2D`].
     type Axis: operations::AxisOperations<Point = Self>;
+
+    /// The tier's similarity, which moves its shapes: [`Transform`] or
+    /// [`Transform2D`].
+    type Transform: operations::TransformOperations<Point = Self>;
 }
 
 impl TierPoint for Point {
@@ -61,6 +66,7 @@ impl TierPoint for Point {
     type Direction = Direction;
     type Frame = Frame;
     type Axis = Axis;
+    type Transform = Transform;
 }
 
 impl TierPoint for Point2D {
@@ -68,6 +74,7 @@ impl TierPoint for Point2D {
     type Direction = Direction2D;
     type Frame = Frame2D;
     type Axis = Axis2D;
+    type Transform = Transform2D;
 }
 
 /// Implements a pair of tier traits for a tier-generic curve type from one
@@ -327,6 +334,80 @@ pub(crate) mod operations {
 
         /// The axis with its direction negated.
         fn reversed(self) -> Self;
+    }
+
+    /// The operations of a tier's similarities, which the shapes of both
+    /// tiers move by from one body.
+    pub trait TransformOperations: Copy + Debug + PartialEq {
+        /// The tier's point.
+        type Point: TierPoint;
+
+        /// The image of a point.
+        fn apply_point(self, point: Self::Point) -> Self::Point;
+
+        /// The image of a free vector, which ignores the translation.
+        fn apply_vector(
+            self,
+            vector: <Self::Point as TierPoint>::Vector,
+        ) -> <Self::Point as TierPoint>::Vector;
+
+        /// The uniform factor by which lengths scale.
+        fn scale_factor(self) -> f64;
+
+        /// The image of a placement frame and the factor by which lengths
+        /// scale, every axis mapped so a mirror turns the frame indirect.
+        fn apply_frame(
+            self,
+            frame: <Self::Point as TierPoint>::Frame,
+        ) -> Result<(<Self::Point as TierPoint>::Frame, f64), TransformError>;
+    }
+
+    impl TransformOperations for Transform {
+        type Point = Point;
+
+        #[inline]
+        fn apply_point(self, point: Point) -> Point {
+            Transform::apply_point(self, point)
+        }
+
+        #[inline]
+        fn apply_vector(self, vector: Vector) -> Vector {
+            Transform::apply_vector(self, vector)
+        }
+
+        #[inline]
+        fn scale_factor(self) -> f64 {
+            Transform::scale_factor(self)
+        }
+
+        #[inline]
+        fn apply_frame(self, frame: Frame) -> Result<(Frame, f64), TransformError> {
+            Transform::apply_frame(self, frame)
+        }
+    }
+
+    impl TransformOperations for Transform2D {
+        type Point = Point2D;
+
+        #[inline]
+        fn apply_point(self, point: Point2D) -> Point2D {
+            Transform2D::apply_point(self, point)
+        }
+
+        #[inline]
+        fn apply_vector(self, vector: Vector2D) -> Vector2D {
+            Transform2D::apply_vector(self, vector)
+        }
+
+        #[inline]
+        fn scale_factor(self) -> f64 {
+            Transform2D::scale_factor(self)
+        }
+
+        #[inline]
+        fn apply_frame(self, frame: Frame2D) -> Result<(Frame2D, f64), TransformError> {
+            Transform2D::apply_frame(self, frame)
+        }
     }
 
     impl PointOperations for Point {

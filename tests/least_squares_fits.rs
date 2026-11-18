@@ -542,7 +542,7 @@ fn check_similarity_invariance<S>(
     fit: impl Fn(&[Point], Tolerance) -> geomcore::Fit<S>,
     same: impl Fn(&S, &S, f64),
 ) where
-    S: Transformable + Copy,
+    S: Transformable<Transform = Transform> + Copy,
 {
     let reference = fit(points, TOL);
     for transform in similarities() {

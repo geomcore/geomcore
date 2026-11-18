@@ -10,7 +10,7 @@
 
 use crate::Side;
 use crate::base::pole::PolePoint;
-use crate::base::tier::operations::{DirectionOperations, VectorOperations};
+use crate::base::tier::operations::{DirectionOperations, TransformOperations, VectorOperations};
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::geometry::curves::ReversibleCurve;
 use crate::geometry::curves::bezier::BezierConstructionError;
@@ -27,7 +27,7 @@ use crate::{
     BSplineConstructionError, BSplineSplitError, DegreeElevationError, KnotInsertionError,
     KnotRemovalError,
 };
-use crate::{Continuity, Point, Point2D, Tolerance, Transform};
+use crate::{Continuity, Point, Point2D, Tolerance};
 use crate::{TransformError, Transformable};
 use std::fmt;
 
@@ -1750,10 +1750,15 @@ impl<P: TierPoint> ReversibleCurve for GenericBSplineCurve<P> {
     }
 }
 
-impl Transformable for BSplineCurve {
+impl<P: TierPoint> Transformable for GenericBSplineCurve<P> {
+    type Transform = P::Transform;
+
     /// Every pole maps point-wise; the degree, knots, multiplicities,
     /// weights and periodicity are kept, and so is the parameter.
-    fn transformed(&self, transform: Transform) -> Result<BSplineCurve, TransformError> {
+    fn transformed(
+        &self,
+        transform: P::Transform,
+    ) -> Result<GenericBSplineCurve<P>, TransformError> {
         if transform.scale_factor() == 0.0 {
             return Err(TransformError::Collapsed);
         }

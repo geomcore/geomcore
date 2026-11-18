@@ -797,6 +797,8 @@ impl ReversibleSurface for ExtrusionSurface {
 }
 
 impl Transformable for ExtrusionSurface {
+    type Transform = Transform;
+
     /// The profile and the direction map through the transform. The sweep
     /// parameter `v` is a length and scales with it; `u` follows the
     /// profile's parameter.

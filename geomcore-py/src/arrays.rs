@@ -347,7 +347,9 @@ pub(crate) fn point_or_project_points_array<'py, P: FromPyObject<'py>>(
 }
 
 /// One point, for an argument whose many go to `apply_points`.
-pub(crate) fn point_or_apply_points(object: &Bound<'_, PyAny>) -> PyResult<crate::values::PyPoint> {
+pub(crate) fn point_or_apply_points<'py, P: FromPyObject<'py>>(
+    object: &Bound<'py, PyAny>,
+) -> PyResult<P> {
     object
         .extract()
         .map_err(|error| one_of_many(error, object, 1, "point", Some("apply_points")))

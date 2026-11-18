@@ -566,6 +566,8 @@ impl ReversibleSurface for Cone {
 }
 
 impl Transformable for Cone {
+    type Transform = Transform;
+
     /// The frame maps through the transform, the half-angle is kept and
     /// the reference radius scales by its scale factor, so does the
     /// generator parameter `v`.

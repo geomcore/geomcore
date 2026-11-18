@@ -32,6 +32,7 @@ from geomcore import (
     Point,
     SurfaceSurfaceIntersection,
     Transform,
+    Transform2D,
     Vector2D,
     Vector,
 )
@@ -233,11 +234,6 @@ def test_every_class_answers_each_method_its_stub_gives_it(name):
     # stubtest checks the signature of every method the stub gives a class,
     # but not that the runtime class has each method set the stub inherits.
     assert _stub_methods(name) <= set(dir(_shape_classes()[name]))
-
-
-def test_3d_curves_are_transformed_and_2d_curves_are_not():
-    for name, cls in _CURVE_CLASSES.items():
-        assert ("transformed" in dir(cls)) == (not name.endswith("2D")), name
 
 
 def test_bounded_curves_have_ends_and_discretize_and_unbounded_ones_do_not():
@@ -679,13 +675,22 @@ def _rigid_motion_with_mirror():
     return Transform.rotation(axis, 0.7).then(mirror)
 
 
+def _rigid_motion_with_mirror_2d():
+    mirror = Transform2D.mirror_axis(geomcore.Axis2D(Point2D(0.1, 0.2), Vector2D(1.0, 1.0)))
+    return Transform2D.rotation(Point2D(0.5, -1.0), 0.7).then(mirror)
+
+
 def test_every_shape_is_transformed_into_its_class_and_commutes_with_evaluation():
     t = _rigid_motion_with_mirror()
-    for curve in _operands_3d()[:9]:
-        moved = curve.transformed(t)
+    t_2d = _rigid_motion_with_mirror_2d()
+    for curve, transform in [(c, t) for c in _operands_3d()[:9]] + [
+        (c, t_2d) for c in _operands_2d()
+    ]:
+        moved = curve.transformed(transform)
         assert type(moved) is type(curve)
         u = _middle(curve.bounds())
-        assert moved.point_at(u).distance(t.apply_point(curve.point_at(u))) < 1e-9
+        image = transform.apply_point(curve.point_at(u))
+        assert moved.point_at(u).distance(image) < 1e-9, type(curve).__name__
     for surface in _surfaces():
         moved = surface.transformed(t)
         assert type(moved) is type(surface)
@@ -699,6 +704,21 @@ def test_every_shape_rejects_a_collapsing_transform():
     for shape in _operands_3d():
         with pytest.raises(geomcore.ConstructionError):
             shape.transformed(collapse)
+    collapse_2d = Transform2D.scaling(Point2D(0.0, 0.0), 0.0)
+    for shape in _operands_2d():
+        with pytest.raises(geomcore.ConstructionError):
+            shape.transformed(collapse_2d)
+
+
+def test_a_mirror_turns_a_2d_circle_clockwise_and_its_arc_with_it():
+    mirror = Transform2D.mirror_axis(geomcore.Axis2D(Point2D(0.0, 1.0), Vector2D(1.0, 0.0)))
+    circle = geomcore.Circle2D(Point2D(0.0, 0.0), 1.0)
+    assert not circle.transformed(mirror).is_counterclockwise()
+    assert circle.transformed(mirror).reversed().is_counterclockwise()
+    arc = _piece(circle, geomcore.TrimmedCurve2D)
+    assert not arc.transformed(mirror).basis().is_counterclockwise()
+    half_turn = Transform2D.mirror_point(Point2D(1.0, 1.0))
+    assert circle.transformed(half_turn).is_counterclockwise()
 
 
 def test_every_curve_reversed_meets_itself_at_the_reversed_parameter():
@@ -797,7 +817,7 @@ def _arc_takes_a_normal():
 
 _FILLED = _Row(REQUIRED)
 _NO_Z = _Row(EXCLUDED, "the plane has no z direction")
-_TRANSFORMED = _Row(PENDING, "#421: Transform2D")
+_TRANSFORMED = _Row(REQUIRED)
 
 TWO_D_PARITY = {
     "Point": {"z": _NO_Z, "transformed": _TRANSFORMED},
@@ -848,6 +868,9 @@ TWO_D_PARITY = {
             _arc_takes_a_normal,
         ),
     },
+    "Transform": {
+        "mirror_plane": _Row(EXCLUDED, "the plane mirrors across a line: `mirror_axis`"),
+    },
     "_CurveMethods": {
         "extrema(curve)": _Row(PENDING, "#422: curve–curve extrema in 2D", _takes_a_2d_curve),
     },
@@ -857,7 +880,6 @@ TWO_D_PARITY = {
 _IN_SPACE_ONLY = _Row(EXCLUDED, "a surface, or a result or fit involving one, lives in space")
 _SHARED = _Row(EXCLUDED, "serves both tiers")
 CLASSES_WITHOUT_A_2D_TWIN = {
-    "Transform": _Row(PENDING, "#421: Transform2D"),
     "CurveCurveExtrema": _Row(PENDING, "#422: curve–curve extrema in 2D"),
     "CurveCurveExtremum": _Row(PENDING, "#422: curve–curve extrema in 2D"),
     "QuarticBranch": _Row(EXCLUDED, "where two quadric surfaces meet in space"),

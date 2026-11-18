@@ -4,7 +4,7 @@
 
 use crate::Direction;
 use crate::base::frame::frame_error;
-use crate::base::tier::operations::FrameOperations;
+use crate::base::tier::operations::{FrameOperations, TransformOperations};
 use crate::base::tier::{TierPoint, impl_for_both_tiers};
 use crate::base::transform::image_error;
 use crate::geometry::curves::ReversibleCurve;
@@ -14,7 +14,7 @@ use crate::geometry::curves::{PointExtrema, PointExtrema2D};
 use crate::math::elementary::curve as elementary;
 use crate::operations::projection;
 use crate::operations::projection::CurveProjection;
-use crate::{Axis, Frame, Frame2D, Point, Point2D, Tolerance, Transform, Vector, Vector2D};
+use crate::{Axis, Frame, Frame2D, Point, Point2D, Tolerance, Vector, Vector2D};
 use crate::{TransformError, Transformable};
 use std::f64::consts::TAU;
 use std::fmt;
@@ -604,12 +604,15 @@ impl_for_both_tiers! {
     }
 }
 
-impl Transformable for Circle {
+impl<P: TierPoint> Transformable for GenericCircle<P> {
+    type Transform = P::Transform;
+
     /// The frame maps through the transform and the radius scales by its
-    /// scale factor.
-    fn transformed(&self, transform: Transform) -> Result<Circle, TransformError> {
+    /// scale factor. A mirror turns the frame indirect, so in the plane it
+    /// turns a counterclockwise circle clockwise.
+    fn transformed(&self, transform: P::Transform) -> Result<GenericCircle<P>, TransformError> {
         let (frame, scale) = transform.apply_frame(self.frame())?;
-        Circle::from_frame(frame, self.radius() * scale)
+        GenericCircle::from_frame(frame, self.radius() * scale)
             .map_err(image_error(CircleConstructionError::NonFinite))
     }
 }

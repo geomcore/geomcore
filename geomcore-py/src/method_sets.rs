@@ -20,7 +20,7 @@
 //!
 //! | Set | Core | Classes |
 //! |---|---|---|
-//! | `curve`, `curve_2d` | `ParametricCurve(2D)`, `PointExtrema(2D)`, `ReversibleCurve`, `HasBoundingBox(2D)`, `Intersect`, and `Transformable` in 3D | every curve |
+//! | `curve`, `curve_2d` | `ParametricCurve(2D)`, `PointExtrema(2D)`, `ReversibleCurve`, `HasBoundingBox(2D)`, `Intersect`, `Transformable` | every curve |
 //! | `bounded_curve`, `bounded_curve_2d` | `BoundedCurve(2D)`, `Discretize(2D)` | the bounded curves |
 //! | `sided_evaluation`, `sided_evaluation_2d` | the `*_sided` evaluations | B-spline and Bézier curves |
 //! | `parametric_surface` | `ParametricSurface` (with the UV curve mappings), `HasBoundingBox` | every surface and `TrimmedSurface` |
@@ -48,7 +48,7 @@ pub(crate) use crate::results::{
     PyCurveProjection, PyCurveProjection2D, PySurfaceCurvatures, PySurfaceProjection,
 };
 pub(crate) use crate::values::{
-    PyPoint, PyPoint2D, PySide, PyTransform, PyVector, PyVector2D, ToleranceArgument,
+    PyPoint, PyPoint2D, PySide, PyTransform, PyTransform2D, PyVector, PyVector2D, ToleranceArgument,
 };
 pub(crate) use crate::{ContinuityNumber, check_curve_order, check_surface_order, tolerance};
 pub(crate) use geomcore::Curve;
@@ -153,6 +153,16 @@ macro_rules! curve_2d {
             [PyPoint2D, PyVector2D, PyBoundingBox2D, PyCurveProjection2D]
             $class $sets {
                 $($methods)*
+
+                /// The image of the curve under `transform`, parametrized by
+                /// the image of its parametrization: a line's or parabola's
+                /// parameter, a length, scales with the transform. Raises
+                /// `ConstructionError` when the transform collapses the
+                /// curve (a zero scale) or overflows.
+                #[pyo3(signature = (transform,))]
+                fn transformed(&self, transform: &PyTransform2D) -> PyResult<Self> {
+                    Ok(Self(self.0.transformed(transform.0).map_err(python_error)?))
+                }
 
                 /// The local minima of the distance from `point` to the
                 /// curve, an end of a bounded curve among them where the
