@@ -128,6 +128,7 @@ mod pickling;
 mod result_states;
 mod results;
 mod surfaces;
+mod tessellation;
 mod values;
 
 use approximation::{PyCurveApproximation, PyCurveApproximation2D, PySurfaceApproximation};
@@ -145,6 +146,7 @@ use results::{
     PySurfaceProjection, PySurfaceSurfaceIntersection, PySurfaceSurfaceRegion,
 };
 use surfaces::{py_curve_3d_to_uv_within, py_uv_curve_to_3d_within};
+use tessellation::PyTessellation;
 use values::{
     PyAxis, PyAxis2D, PyFrame, PyFrame2D, PyPoint, PyPoint2D, PyTolerance, PyTransform, PyVector,
     PyVector2D,
@@ -172,6 +174,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyBoundingBox2D>()?;
     m.add_class::<PyDiscretization2D>()?;
     m.add_class::<PyDiscretization>()?;
+    m.add_class::<PyTessellation>()?;
     enums::register(m)?;
     m.add_class::<PyCompleteness>()?;
     m.add_class::<PyCurveCurveRegion>()?;

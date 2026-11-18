@@ -150,6 +150,10 @@ the coordinates as an array.
 
 A `Discretization` converts to its points: `numpy.array(curve.discretize(0.01))`
 is a float array of shape `(N, 3)` (`(N, 2)` for a `Discretization2D`).
+A `Tessellation` holds numpy arrays already: `surface.tessellate(0.01)`
+gives `vertices` and `normals` of shape `(N, 3)`, `uvs` of shape `(N, 2)`
+and `uint32` `triangles` of shape `(M, 3)`, ready for a mesh library or
+a GPU buffer.
 Intersection and extrema results iterate, index and reverse over what
 they hold, but do not convert: they hold hits, curves and minima, not
 points. Take `numpy.array([hit.point for hit in result])` for the points

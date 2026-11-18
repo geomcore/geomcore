@@ -129,7 +129,14 @@ src/
 │   │   │                    and the coincidence check (coincidence.rs) (ADR 0025)
 │   │   └── results/         the results Intersect returns, their regions (regions.rs),
 │   │                        Completeness, InlineOrHeapList
-│   └── projection.rs    results of point projection (CurveProjection, …)
+│   ├── projection.rs    results of point projection (CurveProjection, …)
+│   └── tessellation/    Tessellate: triangles on a surface within a proven
+│                        deviation (ADR 0056). grid.rs counts and fills the
+│                        parameter grid every surface plans; revolution.rs
+│                        plans the elementary surfaces and the turn of a
+│                        surface of revolution, swept.rs the swept surfaces
+│                        from their profile's discretization, bspline.rs the
+│                        B-spline and Bézier surfaces span by span
 │
 ├── bounding_box/        HasBoundingBox and HasBoundingBox2D, the queries that ask a
 │                        shape for its box, and one file per family; also the
@@ -212,7 +219,10 @@ paths.
    in `geometry/curves/range.rs`: each curve's box, discretization and B-spline
    over a range, in one impl per type that calls the formulas of those
    folders. Trimmed curves and the whole bounded curves read their
-   operations from it (ADR 0005).
+   operations from it (ADR 0005). `Tessellate` is implemented once for
+   every surface type, in `operations/tessellation.rs`: the planning
+   reads the surface's routing hooks (ADR 0026) and works per family in
+   that folder.
 4. **Exact intersection solvers are grouped by pair family.**
    `Line`–`Plane` is in `operations/intersect/exact/curve_surface.rs`, next to its
    result type `LinePlaneIntersection`. The general results that `Intersect`
@@ -324,7 +334,7 @@ files are:
 | `lib.rs` | the module wiring (`#[pymodule]`) and small shared argument checks |
 | `values.rs` | `Point`, `Vector`, `Axis`, `Frame` and their 2D forms, `Tolerance`, `Transform` |
 | `enums.rs` | the enumerations Python sees as `enum` classes: `Side`, `PointParametrization`, `IntersectionMethod`, `CompletenessStatus`, `IncompleteReason` |
-| `bounding_box.rs`, `discretization.rs` | the classes of those operations |
+| `bounding_box.rs`, `discretization.rs`, `tessellation.rs` | the classes of those operations |
 | `approximation.rs` | `CurveApproximation`, `CurveApproximation2D`, `SurfaceApproximation`: what the operations within a deviation return |
 | `fit.rs` | `PlaneFit`, `CircleFit`, `CircleFit2D`, `SphereFit`, `CylinderFit`: what the least-squares fits return |
 | `arrays.rs` | the numpy bridge: the bulk queries that read and return float arrays |
@@ -416,6 +426,7 @@ checks.
 | Intersection | `routed_intersections.rs`, `routed_surface_surface.rs`, `trimmed_surfaces.rs`, `bezier_intersections.rs`, `bezier_through_enums.rs`, `intersection_fingerprints.rs` |
 | Bounding boxes | `bounding_box.rs`, `bounding_box_allocation.rs` |
 | Discretization | `discretization.rs`, `discretization_allocation.rs` |
+| Tessellation | `tessellation.rs` |
 | Every variant | `shape_conformance.rs` |
 | Module rules | `module_dependencies.rs` |
 

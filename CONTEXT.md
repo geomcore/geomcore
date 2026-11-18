@@ -222,6 +222,16 @@ _Avoid_: sag, deflection, chordal error, tolerance (reserved for `Tolerance`)
 The largest angle between a curve's tangent and the chord, over one segment. Proven like the chord deviation; where the curve's speed reaches zero no bound exists, and the segment reports π.
 _Avoid_: angular deflection, turning angle
 
+## Tessellation
+
+**Tessellation**:
+Triangles on a surface over a rectangle of its parameters: a grid of `(u, v)` values, a vertex on the surface at each pair with the surface's normal there, each cell cut into two triangles that turn counterclockwise seen from the normal's side. Every point of the surface over the rectangle lies within the reported deviation of the triangles, and every point of the triangles within it of the surface; the deviation is proven, or reported as estimated where the surface's profile is sampled (ADR 0056). A row of vertices within the confusion tolerance of a point (a pole, an apex) is made that point, and the triangles it would leave without area are not written.
+_Avoid_: mesh for the operation (a mesh is the result), triangulation (reserved for triangulating points or polygons), discretization (reserved for curves)
+
+**Chordal deviation**:
+How far a curve or surface strays from the straight pieces that replace it: the chord deviation of a discretization, the deviation of a tessellation. Of a circle's arc of angle `θ` and radius `r` it is the **sagitta**, `r (1 − cos(θ/2))`, the height of the arc above its chord.
+_Avoid_: sag, deflection, chordal error
+
 ## Polygons
 
 **Polygon**:

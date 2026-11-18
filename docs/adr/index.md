@@ -36,10 +36,11 @@ and the text says so where it happens. For the current API, use the
 - [0037](0037-evaluation-past-the-bounds-clamps-a-spline.md) — Evaluation past the bounds clamps a spline
 - [0053](0053-a-result-pickles-with-its-operands-in-its-own-version.md) — A result pickles with its operands, in its own version
 
-## Discretization and fitting
+## Discretization, tessellation and fitting
 
 - [0003](0003-discretization-deviations-are-proven.md) — Discretization deviations are proven bounds
 - [0004](0004-discretization-fills-caller-owned-buffers.md) — Discretization fills caller-owned buffers
+- [0056](0056-a-tessellation-is-a-parameter-grid-within-a-proven-deviation.md) — A tessellation is a parameter grid within a proven deviation
 - [0036](0036-an-exact-quartic-is-fitted-within-confusion.md) — An exact quartic is fitted within confusion
 - [0055](0055-a-fit-refuses-points-the-confusion-tolerance-cannot-tell-from-a-lower-shape.md) — A fit refuses points the confusion tolerance cannot tell from a lower shape
 

@@ -532,10 +532,37 @@ fn collect<C: RangeOperations + ?Sized>(
     (parameters, points, chord_deviations, angle_deviations)
 }
 
+/// The discretization of `curve` over `[first, last]`, closed when the
+/// range spans a whole period: what [`Discretize`] gives for the curve
+/// trimmed to that range, without building the trimmed curve. `None`,
+/// before anything is allocated, when it has more than `max_points`.
+pub(crate) fn discretize_range<C>(
+    curve: &C,
+    range: (f64, f64),
+    criteria: DiscretizationCriteria,
+    max_points: usize,
+) -> Option<Discretization>
+where
+    C: RangeOperations<Point = Point> + ParametricCurve,
+{
+    let closed = spans_period(range, curve.period());
+    if plan(curve, range, closed, &criteria).0 > max_points {
+        return None;
+    }
+    let (parameters, points, chord_deviations, angle_deviations) =
+        collect(curve, range, closed, &criteria, |u| curve.point_at(u));
+    Some(Discretization {
+        parameters,
+        points,
+        chord_deviations,
+        angle_deviations,
+    })
+}
+
 /// The smallest count `k >= 1` with `fits(k)`, `fits` being monotone,
 /// searched from the estimate `guess` (which may be off by rounding, or
 /// by far): `usize::MAX` if no count fits.
-fn smallest_count(guess: f64, fits: impl Fn(usize) -> bool) -> usize {
+pub(crate) fn smallest_count(guess: f64, fits: impl Fn(usize) -> bool) -> usize {
     // `as` saturates: NaN gives 0, infinity `usize::MAX`.
     let start = (guess.ceil() as usize).max(1);
     // Gallop away from the guess until `low` does not fit (or is 0) and
@@ -686,7 +713,7 @@ macro_rules! discretize_trimmed {
 }
 
 /// Whether `[first, last]` spans a whole `period`.
-fn spans_period((first, last): (f64, f64), period: Option<f64>) -> bool {
+pub(crate) fn spans_period((first, last): (f64, f64), period: Option<f64>) -> bool {
     period.is_some_and(|period| last - first >= period * (1.0 - 1e-12))
 }
 

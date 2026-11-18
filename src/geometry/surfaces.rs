@@ -34,7 +34,7 @@ pub use sphere::{Sphere, SphereConstructionError};
 pub use surface::{ElementarySurface, Surface};
 pub(crate) use surface::{elementary_surface_dispatch, surface_dispatch, surface_variants};
 pub use torus::{Torus, TorusConstructionError};
-pub(crate) use trimmed::Restriction;
+pub(crate) use trimmed::{Restriction, check_range};
 pub use trimmed::{TrimmedSurface, TrimmedSurfaceConstructionError};
 pub use uv_curve::{
     Curve3DToUvApproximationError, Curve3DToUvError, UvCurveTo3DApproximationError,

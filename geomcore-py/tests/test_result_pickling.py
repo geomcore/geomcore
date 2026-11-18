@@ -1,6 +1,6 @@
-"""Every intersection, projection, extrema, curvature, approximation, fit
-and discretization result pickles with the operands it holds, and copies
-(#318)."""
+"""Every intersection, projection, extrema, curvature, approximation, fit,
+discretization and tessellation result pickles with the operands it
+holds, and copies (#318)."""
 
 import concurrent.futures
 import copy
@@ -74,6 +74,7 @@ def _results() -> list:
         Cylinder.fit([p for row in grid for p in row]),
         circle.discretize(1e-2),
         Circle2D(Point2D(0, 0), 1.0).discretize(1e-2),
+        sphere.tessellate(1e-1),
     ]
     parts = []
     for result in results:
@@ -123,7 +124,7 @@ def test_every_result_class_is_covered():
                 "Fit2D",
             )
         )
-        or name in ("Completeness", "IntersectionCurve", "SurfaceCurvatures")
+        or name in ("Completeness", "IntersectionCurve", "SurfaceCurvatures", "Tessellation")
         or name.startswith("Discretization") and "Criteria" not in name and "Error" not in name
     }
     assert result_classes <= names, sorted(result_classes - names)

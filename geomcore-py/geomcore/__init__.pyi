@@ -95,6 +95,9 @@ class SurfaceIsoError(GeomcoreError):
 class DiscretizationCriteriaError(GeomcoreError):
     """Discretization criteria were invalid, for example a non-positive deviation."""
 
+class TessellationError(GeomcoreError):
+    """A surface could not be tessellated: the deviation was not positive, a range was missing or invalid, or the grid needed too many vertices."""
+
 @final
 class Point:
     """A point in 3D space with `x`, `y` and `z` coordinates.
@@ -861,6 +864,50 @@ class Discretization:
     @property
     def angle_deviations(self) -> List[float]:
         """The angle deviation of each segment, in radians."""
+    def __repr__(self) -> str: ...
+
+@final
+class Tessellation:
+    """A tessellated surface: vertices on the surface joined by triangles,
+    every point of the surface within `deviation` of the triangles and
+    every point of the triangles within it of the surface. The arrays are
+    numpy arrays: `vertices` and `normals` of shape `(N, 3)`, `uvs` of
+    shape `(N, 2)` (the `(u, v)` of each vertex) and `triangles` of shape
+    `(M, 3)`, `uint32` indices into the vertices, counterclockwise seen
+    from the side the normals point to.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    def __len__(self) -> int:
+        """The number of triangles."""
+    @property
+    def vertices(self) -> _FloatArray:
+        """The vertices, points on the surface, as an `(N, 3)` numpy array."""
+    @property
+    def normals(self) -> _FloatArray:
+        """The surface's unit normal at each vertex, as an `(N, 3)` numpy
+        array.
+        """
+    @property
+    def uvs(self) -> _FloatArray:
+        """The surface parameters `(u, v)` of each vertex, as an `(N, 2)`
+        numpy array.
+        """
+    @property
+    def triangles(self) -> numpy.typing.NDArray[numpy.uint32]:
+        """The triangles, three vertex indices each, as an `(M, 3)` numpy
+        array of `uint32`.
+        """
+    @property
+    def deviation(self) -> float:
+        """The deviation reached: no point of the surface farther than it from
+        the triangles, and no point of the triangles farther than it from
+        the surface.
+        """
+    @property
+    def is_proven(self) -> bool:
+        """Whether `deviation` is a proven bound. It is but on a swept surface
+        whose profile is a quartic branch, where it is measured on samples.
+        """
     def __repr__(self) -> str: ...
 
 
@@ -3317,6 +3364,27 @@ class _ParametricSurfaceMethods:
         NaN where `normal` returns `None`. Other Python threads run
         meanwhile.
         """
+    def tessellate(
+        self,
+        max_deviation: float,
+        u_range: Optional[Tuple[float, float]] = None,
+        v_range: Optional[Tuple[float, float]] = None,
+        tol: Optional[_ToleranceLike] = None,
+    ) -> Tessellation:
+        """Triangles covering the surface over `u_range` × `v_range`
+        within `max_deviation`, as a `Tessellation` of numpy arrays:
+        every point of the surface lies within the reported
+        `deviation` of the triangles, and every point of the
+        triangles within it of the surface. A range defaults to the
+        surface's bounds in that direction; an unbounded direction
+        (a plane's, a cylinder's height) needs one. A periodic
+        range may cross the seam. `tol` (`Tolerance.default()` when
+        omitted) decides which rows collapse to a point, as at a
+        sphere's pole. Raises `TessellationError` for a deviation
+        that is not positive, a missing or invalid range, or a grid
+        needing more vertices than `uint32` indices reach. Other
+        Python threads run meanwhile.
+        """
     def curvatures(
         self, u: float, v: float, tol: Optional[_ToleranceLike] = None
     ) -> Optional[SurfaceCurvatures]:
@@ -4262,6 +4330,7 @@ __all__ = [
     "UvCurveTo3DApproximationError",
     "SurfaceIsoError",
     "DiscretizationCriteriaError",
+    "TessellationError",
     "Point",
     "Point2D",
     "Vector",
@@ -4276,6 +4345,7 @@ __all__ = [
     "BoundingBox2D",
     "Discretization2D",
     "Discretization",
+    "Tessellation",
     "Side",
     "PointParametrization",
     "IntersectionMethod",

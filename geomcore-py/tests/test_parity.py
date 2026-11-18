@@ -868,7 +868,7 @@ CLASSES_WITHOUT_A_2D_TWIN = {
             "PlaneFit", "SphereFit", "CylinderFit",
             "CurveSurfaceHit", "CurveSurfaceIntersection", "CurveSurfaceOverlap",
             "CurveSurfaceRegion", "SurfaceSurfaceIntersection", "SurfaceSurfaceRegion",
-            "IntersectionCurve",
+            "IntersectionCurve", "Tessellation",
         ],
         _IN_SPACE_ONLY,
     ),

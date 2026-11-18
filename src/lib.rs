@@ -152,8 +152,8 @@ mod geometry;
 /// Internal math under the shapes: the B-spline engine, the closed-form
 /// formulas of the elementary shapes and the numerical toolbox.
 mod math;
-/// The operations on curves and surfaces: discretization, intersection, point
-/// projection and distance extrema.
+/// The operations on curves and surfaces: discretization, tessellation,
+/// intersection, point projection and distance extrema.
 mod operations;
 /// The shape and operation traits, for `use geomcore::prelude::*`.
 pub mod prelude;
@@ -226,3 +226,7 @@ pub use operations::intersect::{
 pub use operations::intersect::{Intersect, IntersectExact};
 pub use operations::intersect::{intersect_curve_curve, intersect_curve_surface};
 pub use operations::projection::{CurveProjection, CurveProjection2D, SurfaceProjection};
+pub use operations::tessellation::{
+    Tessellate, Tessellation, TessellationBuffers, TessellationCriteria, TessellationDeviation,
+    TessellationError, TessellationSize,
+};

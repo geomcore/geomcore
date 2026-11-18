@@ -72,7 +72,7 @@ impl std::error::Error for TrimmedSurfaceConstructionError {}
 /// Validates `(first, last)` against a basis parameter with the given
 /// bounds and period. A periodic parameter accepts any start, so a range
 /// may cross its seam, but no more than one period.
-fn check_range(
+pub(crate) fn check_range(
     (first, last): (f64, f64),
     bounds: (f64, f64),
     period: Option<f64>,

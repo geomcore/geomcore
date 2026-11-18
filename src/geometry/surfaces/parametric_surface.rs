@@ -1020,7 +1020,7 @@ fn normal_from_derivatives<S: ParametricSurface + ?Sized>(
 /// Rung 1 of [`ParametricSurface::normal`]: the unitized cross product of
 /// the first partials, or `None` where a partial is negligible over its
 /// parameter width or both run parallel.
-fn direct_normal(
+pub(crate) fn direct_normal(
     su: Vector,
     sv: Vector,
     u_width: f64,

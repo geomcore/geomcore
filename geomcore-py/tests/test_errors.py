@@ -17,6 +17,7 @@ SUBCLASS_PARENTS = {
     "UvCurveTo3DError": "GeomcoreError",
     "SurfaceIsoError": "GeomcoreError",
     "DiscretizationCriteriaError": "GeomcoreError",
+    "TessellationError": "GeomcoreError",
 }
 
 

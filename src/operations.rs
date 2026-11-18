@@ -13,3 +13,5 @@ pub(crate) mod extrema;
 pub(crate) mod intersect;
 /// Point projection onto curves and surfaces.
 pub(crate) mod projection;
+/// Tessellation of surfaces into triangles within a deviation.
+pub(crate) mod tessellation;

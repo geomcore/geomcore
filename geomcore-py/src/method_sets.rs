@@ -23,7 +23,7 @@
 //! | `curve`, `curve_2d` | `ParametricCurve(2D)`, `PointExtrema(2D)`, `ReversibleCurve`, `HasBoundingBox(2D)`, `Intersect`, and `Transformable` in 3D | every curve |
 //! | `bounded_curve`, `bounded_curve_2d` | `BoundedCurve(2D)`, `Discretize(2D)` | the bounded curves |
 //! | `sided_evaluation`, `sided_evaluation_2d` | the `*_sided` evaluations | B-spline and Bézier curves |
-//! | `parametric_surface` | `ParametricSurface` (with the UV curve mappings), `HasBoundingBox` | every surface and `TrimmedSurface` |
+//! | `parametric_surface` | `ParametricSurface` (with the UV curve mappings), `HasBoundingBox`, `Tessellate` | every surface and `TrimmedSurface` |
 //! | `surface` | `ReversibleSurface`, `Transformable`, `Intersect` with any curve or surface, isoparametric curves, `trimmed` | every surface; `TrimmedSurface` writes its own `transformed`, `trimmed` and `intersect`, which map or clip its ranges |
 //! | `sided_surface_evaluation` | the `*_sided` evaluations | B-spline and Bézier surfaces |
 //! | `surface_extrema` | `extrema` | B-spline and Bézier surfaces |
@@ -47,6 +47,7 @@ pub(crate) use crate::errors::python_error;
 pub(crate) use crate::results::{
     PyCurveProjection, PyCurveProjection2D, PySurfaceCurvatures, PySurfaceProjection,
 };
+pub(crate) use crate::tessellation::PyTessellation;
 pub(crate) use crate::values::{
     PyPoint, PyPoint2D, PySide, PyTransform, PyVector, PyVector2D, ToleranceArgument,
 };
@@ -787,6 +788,38 @@ macro_rules! parametric_surface {
                         .collect()
                 });
                 arrays::point_array(py, normals.into_iter())
+            }
+
+            /// Triangles covering the surface over `u_range` × `v_range`
+            /// within `max_deviation`, as a `Tessellation` of numpy arrays:
+            /// every point of the surface lies within the reported
+            /// `deviation` of the triangles, and every point of the
+            /// triangles within it of the surface. A range defaults to the
+            /// surface's bounds in that direction; an unbounded direction
+            /// (a plane's, a cylinder's height) needs one. A periodic
+            /// range may cross the seam. `tol` (`Tolerance.default()` when
+            /// omitted) decides which rows collapse to a point, as at a
+            /// sphere's pole. Raises `TessellationError` for a deviation
+            /// that is not positive, a missing or invalid range, or a grid
+            /// needing more vertices than `uint32` indices reach. Other
+            /// Python threads run meanwhile.
+            #[pyo3(signature = (max_deviation, u_range = None, v_range = None, tol = None))]
+            fn tessellate(
+                &self,
+                py: Python<'_>,
+                max_deviation: f64,
+                u_range: Option<(f64, f64)>,
+                v_range: Option<(f64, f64)>,
+                tol: Option<ToleranceArgument>,
+            ) -> PyResult<PyTessellation> {
+                $crate::tessellation::tessellate(
+                    py,
+                    &self.0,
+                    max_deviation,
+                    u_range,
+                    v_range,
+                    tolerance(tol),
+                )
             }
 
             /// Principal curvatures with their directions, and the mean and

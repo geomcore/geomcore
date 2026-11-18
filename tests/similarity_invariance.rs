@@ -17,12 +17,14 @@ use std::collections::BTreeSet;
 use std::fmt::Debug;
 use std::path::PathBuf;
 
-use common::samples::{curves, parameters, surface_parameters, surfaces, tilted_frame};
+use common::samples::{
+    curves, parameters, surface_parameters, surface_parameters_are_lengths, surfaces, tilted_frame,
+};
 use geomcore::prelude::*;
 use geomcore::{
     BSplineCurve, BezierCurve, Circle, Completeness, Curve, ExtrusionSurface, Frame,
-    IntersectionMethod, Line, Plane, Point, Surface, Tolerance, Transform, Vector,
-    curve_curve_extrema,
+    IntersectionMethod, Line, Plane, Point, Surface, TessellationCriteria, Tolerance, Transform,
+    Vector, curve_curve_extrema,
 };
 
 /// A similarity, its factor on lengths and its inverse.
@@ -495,4 +497,82 @@ fn projections_are_similarity_invariant() {
         mismatches.len()
     );
     report("projection", mismatches);
+}
+
+/// The ranges a sample surface is tessellated over: its bounds, or an
+/// interval around 0 where they are infinite, scaled with the surface
+/// where the parameter is a length.
+fn tessellation_criteria(surface: &Surface, scale: f64) -> TessellationCriteria {
+    let (u_length, v_length) = surface_parameters_are_lengths(surface);
+    let range = |(first, last): (f64, f64), length: bool| {
+        let (first, last) = if first.is_finite() && last.is_finite() {
+            (first, last)
+        } else {
+            (-1.5, 0.7)
+        };
+        if length {
+            (first * scale, last * scale)
+        } else {
+            (first, last)
+        }
+    };
+    TessellationCriteria::new(1e-3 * scale)
+        .unwrap()
+        .with_u_range(range(surface.u_bounds(), u_length))
+        .with_v_range(range(surface.v_bounds(), v_length))
+}
+
+#[test]
+fn tessellations_are_similarity_invariant() {
+    let mut mismatches = Vec::new();
+    let mut compared = 0;
+    for (index, surface) in surfaces().iter().enumerate() {
+        let reference = surface
+            .tessellate(tessellation_criteria(surface, 1.0), tolerance(1.0))
+            .unwrap();
+        for similarity in similarities() {
+            let key = format!(
+                "tessellation surface {} | {}",
+                label(index, surface),
+                similarity.name
+            );
+            let image = surface.clone().transformed(similarity.transform).unwrap();
+            let criteria = tessellation_criteria(surface, similarity.scale);
+            let tessellated = image.tessellate(criteria, tolerance(similarity.scale));
+            compared += 1;
+            let Ok(image) = tessellated else {
+                mismatches.push((key, format!("{tessellated:?}")));
+                continue;
+            };
+            let deviation = image.deviation / similarity.scale;
+            if image.triangles != reference.triangles || image.proven != reference.proven {
+                mismatches.push((
+                    key,
+                    format!(
+                        "{} triangles became {}",
+                        reference.triangles.len(),
+                        image.triangles.len()
+                    ),
+                ));
+            } else if (deviation - reference.deviation).abs() > 1e-6 * reference.deviation.max(1e-3)
+            {
+                mismatches.push((
+                    key,
+                    format!("deviation {} became {deviation}", reference.deviation),
+                ));
+            } else if !reference
+                .vertices
+                .iter()
+                .zip(&image.vertices)
+                .all(|(a, b)| a.distance(similarity.inverse.apply_point(*b)) <= POINT_SLACK)
+            {
+                mismatches.push((key, "vertices moved".to_string()));
+            }
+        }
+    }
+    println!(
+        "tessellation: {compared} comparisons, {} mismatches",
+        mismatches.len()
+    );
+    report("tessellation", mismatches);
 }

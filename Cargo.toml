@@ -31,6 +31,10 @@ name = "discretization"
 harness = false
 
 [[bench]]
+name = "tessellation"
+harness = false
+
+[[bench]]
 name = "intersect_curve_surface"
 harness = false
 

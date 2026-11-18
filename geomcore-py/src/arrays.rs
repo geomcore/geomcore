@@ -181,6 +181,33 @@ pub(crate) fn array<'py>(
     Ok(array)
 }
 
+/// A new uint32 array of `shape` holding `integers`, in row-major order:
+/// the triangle indices of a tessellation.
+pub(crate) fn u32_array<'py>(
+    py: Python<'py>,
+    integers: &[u32],
+    shape: &[usize],
+) -> PyResult<Bound<'py, PyAny>> {
+    debug_assert_eq!(integers.len(), shape.iter().product::<usize>());
+    let numpy = numpy(py)?;
+    let array = numpy.call_method1(
+        "empty",
+        (PyTuple::new(py, shape)?, numpy.getattr("uint32")?),
+    )?;
+    if !integers.is_empty() {
+        // SAFETY: `array` is a fresh C-contiguous uint32 array of
+        // `integers.len()` elements that nothing else references yet.
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                integers.as_ptr(),
+                address(&array)? as *mut u32,
+                integers.len(),
+            );
+        }
+    }
+    Ok(array)
+}
+
 /// An `(N, dimension)` array of `points`, or of vectors.
 pub(crate) fn point_array<'py, P: Coordinates>(
     py: Python<'py>,

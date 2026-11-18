@@ -9,6 +9,26 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Added
+
+- Surfaces tessellate within a deviation, into buffers the caller owns
+  (#252, ADR 0056): `Tessellate::tessellation_size` counts the vertices
+  and triangles for a `TessellationCriteria` (the deviation and the `u`
+  and `v` ranges, needed where a direction is unbounded),
+  `tessellate_into` fills caller-owned vertices, normals, `(u, v)` pairs
+  and `u32` triangle indices and returns the deviation reached, and
+  `tessellate` allocates. Every surface type and `TrimmedSurface`
+  answers it. The grid's spacing comes from a proven bound: the sagitta
+  of a circle on a cylinder, cone, sphere and torus, the profile's
+  discretization on the swept surfaces, the control points of each span
+  on a B-spline or Bézier surface; a quartic-branch profile reports its
+  deviation as estimated. Poles and apexes leave no triangle without
+  area, and a cone's apex inside the range keeps each nappe's normals.
+  In Python, `surface.tessellate(max_deviation, u_range=None,
+  v_range=None, tol=None)` returns a `Tessellation` whose `vertices`,
+  `normals`, `uvs` and `triangles` are numpy arrays, and raises
+  `TessellationError` for an invalid deviation or range.
+
 ### Fixed
 
 - The sampled curve–surface search finds the same hits at any size (#434).

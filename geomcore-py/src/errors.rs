@@ -111,6 +111,12 @@ create_exception!(
     GeomcoreError,
     "Discretization criteria were invalid, for example a non-positive deviation."
 );
+create_exception!(
+    geomcore,
+    TessellationError,
+    GeomcoreError,
+    "A surface could not be tessellated: the deviation was not positive, a range was missing or invalid, or the grid needed too many vertices."
+);
 
 /// Registers every exception class on the extension module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -156,6 +162,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "DiscretizationCriteriaError",
         py.get_type::<DiscretizationCriteriaError>(),
     )?;
+    m.add("TessellationError", py.get_type::<TessellationError>())?;
     Ok(())
 }
 
@@ -273,6 +280,7 @@ map_error!(UvCurveTo3DError: geomcore::UvCurveTo3DError);
 map_error!(UvCurveTo3DApproximationError: geomcore::UvCurveTo3DApproximationError);
 map_error!(SurfaceIsoError: geomcore::SurfaceIsoError);
 map_error!(DiscretizationCriteriaError: geomcore::DiscretizationCriteriaError);
+map_error!(TessellationError: geomcore::TessellationError);
 
 /// A pole index past the end is an `IndexError`, as for a list; a weight
 /// that is not positive and finite, or a pole that is not finite, cannot

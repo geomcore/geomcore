@@ -16,7 +16,7 @@ use geomcore::{
     CurveSurfaceRegion, Direction, Discretization, Discretization2D, GenericCurveCurveHit,
     GenericCurveCurveIntersection, IncompleteReason, IntersectionCurve, IntersectionMethod, Point,
     Point2D, SurfaceCurvatures, SurfaceProjection, SurfaceSurfaceIntersection,
-    SurfaceSurfaceRegion, TierPoint, Vector,
+    SurfaceSurfaceRegion, Tessellation, TierPoint, Vector,
 };
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::{PyTypeError, PyValueError};
@@ -646,6 +646,47 @@ macro_rules! discretization_state {
 
 discretization_state!(Discretization, Point);
 discretization_state!(Discretization2D, Point2D);
+
+impl Plain for Tessellation {
+    type State = (
+        Vec<[f64; 3]>,
+        Vec<[f64; 3]>,
+        Vec<[f64; 2]>,
+        Vec<[u32; 3]>,
+        f64,
+        bool,
+    );
+
+    fn state(&self, py: Python<'_>) -> PyResult<Self::State> {
+        let normals: Vec<Vector> = self.normals.iter().map(|normal| normal.vector()).collect();
+        Ok((
+            self.vertices.state(py)?,
+            normals.state(py)?,
+            self.uvs.state(py)?,
+            self.triangles.clone(),
+            self.deviation,
+            self.proven,
+        ))
+    }
+
+    fn from_state(
+        py: Python<'_>,
+        (vertices, normals, uvs, triangles, deviation, proven): Self::State,
+    ) -> PyResult<Self> {
+        let normals = normals
+            .into_iter()
+            .map(|normal| direction_from_state(py, normal))
+            .collect::<PyResult<_>>()?;
+        Ok(Tessellation::from_parts(
+            Vec::from_state(py, vertices)?,
+            normals,
+            Vec::from_state(py, uvs)?,
+            triangles,
+            deviation,
+            proven,
+        ))
+    }
+}
 
 impl<A: Plain, B: Plain> Plain for (A, B) {
     type State = (A::State, B::State);
