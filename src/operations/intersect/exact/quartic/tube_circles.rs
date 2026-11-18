@@ -473,7 +473,7 @@ enum TubeCut {
 #[inline(never)]
 fn tube_loops(
     (torus, tubes): (&Torus, &Tubes),
-    other: &impl ParametricSurface,
+    other: &impl ContactSurface,
     coefficients: Coefficients,
     tol: Tolerance,
 ) -> Option<TubeCut> {
@@ -589,7 +589,7 @@ impl Graze<'_> {
     #[inline(never)]
     fn reads_as_touching(
         &self,
-        other: &impl ParametricSurface,
+        other: &impl ContactSurface,
         side: f64,
         gap: f64,
         tol: Tolerance,

@@ -21,7 +21,7 @@ use common::samples::{curves, parameters, surface_parameters, surfaces, tilted_f
 use geomcore::prelude::*;
 use geomcore::{
     BSplineCurve, BezierCurve, Circle, Completeness, Curve, ExtrusionSurface, Frame,
-    IntersectionMethod, Line, Plane, Point, Surface, Tolerance, Transform, Vector,
+    IntersectionMethod, Line, Plane, Point, Surface, Tolerance, Torus, Transform, Vector,
     curve_curve_extrema,
 };
 
@@ -495,4 +495,47 @@ fn projections_are_similarity_invariant() {
         mismatches.len()
     );
     report("projection", mismatches);
+}
+
+/// A plane a few roundings off a saddle level of a torus: where the pair
+/// sits does not change whether their curve is read as touching. The
+/// first offset is within the rounding of the lengths it is computed
+/// from, and reads as a contact both ways; the others are beyond it, and
+/// their curve, `√(2δ / κ)` from the contact, is tens of confusions from
+/// it: no contact either way.
+#[test]
+fn a_plane_near_a_saddle_level_of_a_torus_reads_the_same_moved() {
+    let torus: Surface = Torus::new(Point::ORIGIN, Vector::Z, 10.0, 2.0)
+        .unwrap()
+        .into();
+    let normal = Vector::new(0.5, 0.0, 0.75f64.sqrt());
+    let moved = Similarity {
+        name: "translation (1e3, -2e3, 5e2)".to_string(),
+        transform: Transform::translation(Vector::new(1e3, -2e3, 5e2)),
+        inverse: Transform::translation(Vector::new(-1e3, 2e3, -5e2)),
+        scale: 1.0,
+    };
+    for offset in [1e-13, 1e-12, 3e-12] {
+        let plane: Surface = Plane::new(Point::ORIGIN + normal * (3.0 + offset), normal)
+            .unwrap()
+            .into();
+        let tol = tolerance(1.0);
+        let (reference_text, reference_points) = surface_surface(&torus, &plane, tol);
+        let image_torus = torus.clone().transformed(moved.transform).unwrap();
+        let image_plane = plane.clone().transformed(moved.transform).unwrap();
+        let (image_text, image_points) = surface_surface(&image_torus, &image_plane, tol);
+        assert_eq!(
+            image_text, reference_text,
+            "offset {offset:e}, {}",
+            moved.name
+        );
+        assert!(
+            same_points(&reference_points, &image_points, &moved),
+            "offset {offset:e}: contact points moved"
+        );
+        assert!(
+            offset < 1e-12 || reference_points.is_empty(),
+            "offset {offset:e}: a contact read for a curve beyond confusion of it"
+        );
+    }
 }

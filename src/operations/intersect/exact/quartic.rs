@@ -45,7 +45,6 @@ use crate::geometry::curves::fitting::{
     hermite_knots, hermite_spline, periodic_hermite_spline, segment_length,
 };
 use crate::geometry::curves::{Curve, Curve2D, ParametricCurve};
-use crate::geometry::surfaces::ParametricSurface;
 use crate::operations::intersect::{IntersectionCurve, SurfaceSurfaceIntersection};
 use crate::{
     Cone, Cylinder, InlineList, Line, Plane, Point, Point2D, Sphere, Surface, Tolerance, Torus,
@@ -61,7 +60,9 @@ pub(super) use octic::{OcticCut, torus_cone, torus_cylinder, torus_torus};
 use tube_circles::{OtherPlane, TubeCircles};
 pub(super) use tube_circles::{torus_plane, torus_sphere};
 
-use super::contact::{offset_within_rounding, reads_as_touching, reads_as_touching_out_of_line};
+use super::contact::{
+    ContactSurface, offset_within_rounding, reads_as_touching, reads_as_touching_out_of_line,
+};
 use super::surface_surface::{
     ConeConeIntersection, ConeCylinderIntersection, CylinderCylinderIntersection,
     SphereConeIntersection, SphereCylinderIntersection,
@@ -1547,7 +1548,7 @@ fn factor_touches(
     k: usize,
     angle: f64,
     gap: f64,
-    (first, second, contact, size): (&impl ParametricSurface, &impl ParametricSurface, Point, f64),
+    (first, second, contact, size): (&impl ContactSurface, &impl ContactSurface, Point, f64),
     tol: Tolerance,
 ) -> bool {
     let cosine = factors[k].vanishing_cosine(factors[k].amplitude());

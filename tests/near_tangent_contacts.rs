@@ -13,9 +13,10 @@ use std::f64::consts::{FRAC_PI_6, TAU};
 
 use geomcore::prelude::*;
 use geomcore::{
-    Axis, Cone, ConeCylinderIntersection, Cylinder, CylinderCylinderIntersection, Plane, Point,
-    QuarticCurve, Sphere, SphereConeIntersection, SphereCylinderIntersection, Surface, Tolerance,
-    Torus, TorusPlaneIntersection, Transform, Vector,
+    Axis, Cone, ConeCylinderIntersection, Cylinder, CylinderCylinderIntersection, Plane,
+    PlaneSphereIntersection, Point, QuarticCurve, Sphere, SphereConeIntersection,
+    SphereCylinderIntersection, Surface, Tolerance, Torus, TorusPlaneIntersection, Transform,
+    Vector,
 };
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -428,9 +429,14 @@ fn placements() -> Vec<(String, Transform, f64)> {
         Transform::translation(Vector::ZERO),
         1.0,
     )];
+    // Turned, and moved far, apart: turning the pair after moving it, or
+    // moving it after turning it, rounds where it is placed by about the
+    // rounding of the far coordinates, which is more than the offsets the
+    // sweep reads at an exact contact; the pair is then not the one given.
+    list.push(("turned".to_string(), turn, 1.0));
     list.push((
-        "turned and moved".to_string(),
-        turn.then(Transform::translation(Vector::new(1e3, -2e3, 5e2))),
+        "moved".to_string(),
+        Transform::translation(Vector::new(1e3, -2e3, 5e2)),
         1.0,
     ));
     for exponent in [-10, 10] {
@@ -854,4 +860,252 @@ fn test_a_cone_on_a_torus_axis_a_hair_through_its_tube_meets_it_in_two_rings() {
         assert_eq!(text.matches("circle:").count(), rings, "{case}");
         assert_eq!(text.matches("tangent: true").count(), tangent, "{case}");
     }
+}
+
+// Exact contacts between surfaces placed from points far from the
+// contact, turned about the origin: turning rounds where each surface is
+// placed, and moves it near the contact by up to the rounding of its
+// distance from there. Each contact still reads as one.
+
+/// Two hundred turns about the origin, about axes and by angles spread
+/// without pattern.
+fn generic_turns() -> Vec<Transform> {
+    let mut state: u64 = 0x2545_f491_4f6c_dd1d;
+    let mut next = || {
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (state >> 11) as f64 / (1u64 << 53) as f64
+    };
+    (0..200)
+        .map(|_| {
+            let axis = Vector::new(next() - 0.5, next() - 0.5, next() - 0.5);
+            Transform::rotation(Axis::new(Point::ORIGIN, axis).unwrap(), TAU * next())
+        })
+        .collect()
+}
+
+/// Reads every turn of `first` and `second` as touching at `contact`.
+fn assert_touching_turned<A, B>(
+    first: &A,
+    second: &B,
+    contact: Point,
+    intersect: impl Fn(&A, &B) -> Answer,
+    case: &str,
+) where
+    A: Transformable + ParametricSurface + Clone,
+    B: Transformable + ParametricSurface + Clone,
+{
+    for (index, turn) in generic_turns().into_iter().enumerate() {
+        let first = first.clone().transformed(turn).unwrap();
+        let second = second.clone().transformed(turn).unwrap();
+        let answer = intersect(&first, &second);
+        let case = format!("{case}, turn {index}");
+        check(
+            &answer,
+            Exact::Touching,
+            turn.apply_point(contact),
+            (&first, &second),
+            TOL,
+            &case,
+        );
+    }
+}
+
+#[test]
+fn test_a_sphere_touching_a_plane_placed_far_away_touches_it_turned() {
+    let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    let plane = Plane::new(Point::new(1000.0, 0.0, 2.0), Vector::Z).unwrap();
+    let contact = Point::new(0.0, 0.0, 2.0);
+    assert_touching_turned(
+        &sphere,
+        &plane,
+        contact,
+        |sphere, plane| answer(None, &plane.intersect_exact(sphere, TOL)),
+        "sphere and far plane",
+    );
+}
+
+#[test]
+fn test_crossing_cylinders_placed_far_away_touch_turned() {
+    let first = Cylinder::new(Point::new(0.0, 0.0, 1000.0), Vector::Z, 2.0).unwrap();
+    let second = Cylinder::new(Point::new(1000.0, 3.0, 0.0), Vector::X, 1.0).unwrap();
+    let contact = Point::new(0.0, 2.0, 0.0);
+    assert_touching_turned(
+        &first,
+        &second,
+        contact,
+        |first, second| cylinders(first, second, TOL),
+        "far crossing cylinders",
+    );
+}
+
+#[test]
+fn test_a_sphere_touching_a_cylinder_placed_far_away_touches_it_turned() {
+    let sphere = Sphere::new(Point::new(1.5, 0.0, 0.0), 0.5).unwrap();
+    let cylinder = Cylinder::new(Point::new(0.0, 0.0, 1000.0), Vector::Z, 1.0).unwrap();
+    let contact = Point::new(1.0, 0.0, 0.0);
+    assert_touching_turned(
+        &sphere,
+        &cylinder,
+        contact,
+        |sphere, cylinder| sphere_cylinder(sphere, cylinder, TOL),
+        "sphere and far cylinder",
+    );
+}
+
+#[test]
+fn test_a_torus_touching_a_plane_placed_far_away_touches_it_turned() {
+    let torus = saddle_torus();
+    let plane = Plane::new(Point::new(1000.0, 500.0, 2.0), Vector::Z).unwrap();
+    let contact = Point::new(10.0, 0.0, 2.0);
+    assert_touching_turned(
+        &torus,
+        &plane,
+        contact,
+        |torus, plane| torus_plane(torus, plane, TOL),
+        "torus and far plane",
+    );
+}
+
+/// A contact at a sphere's pole, where its parameters meet, reads its
+/// curvature as anywhere else: a cylinder `5e-11` through a sphere of
+/// radius `1/2` at its north pole, at a confusion of `1e-5`, leaves a
+/// curve `√(2 · 5e-11 / 2) = 7e-6` from the pole, the least relative
+/// curvature `2` along the cylinder's axis: within confusion, a contact.
+#[test]
+fn test_a_cylinder_a_hair_through_a_sphere_at_its_pole_touches_it() {
+    let tol = Tolerance {
+        confusion: 1e-5,
+        ..TOL
+    };
+    let sphere = Sphere::new(Point::ORIGIN, 0.5).unwrap();
+    let cylinder = Cylinder::new(Point::new(0.0, 0.0, 1.5 - 5e-11), Vector::X, 1.0).unwrap();
+    let answer = sphere_cylinder(&sphere, &cylinder, tol);
+    let pole = Point::new(0.0, 0.0, 0.5);
+    check(
+        &answer,
+        Exact::Touching,
+        pole,
+        (&sphere, &cylinder),
+        tol,
+        "pole",
+    );
+    assert_eq!(answer.name, "TangentPoint");
+}
+
+// A cone, apex at the origin along `z` and half-angle `1/2`, and a
+// cylinder whose axis crosses it at `(0, 0, 2)`, around the sphere there
+// of radius `ρ = 2 sin ½`: their curve is two conics, crossing where the
+// line through the circles where both touch the sphere meets it. Turned
+// `θ` from the cone's axis, that line is `2 sin²½ / sin θ` from the centre.
+
+fn cone_around_a_sphere() -> Cone {
+    Cone::new(Point::new(0.0, 0.0, 1.0), Vector::Z, 0.5, 0.5f64.tan()).unwrap()
+}
+
+/// The cylinder of `radius` crossing the cone's axis at the sphere's
+/// centre, turned so the line through the touching circles is `distance`
+/// from it.
+fn cylinder_crossing_at(distance: f64, radius: f64) -> Cylinder {
+    let sine = 2.0 * 0.5f64.sin().powi(2) / distance;
+    let direction = Vector::new(sine, 0.0, (1.0 - sine * sine).sqrt());
+    Cylinder::new(Point::new(0.0, 0.0, 2.0), direction, radius).unwrap()
+}
+
+/// Half a confusion inside the sphere, the line crosses it at two points
+/// `√(2 ρ ε)`, some three thousand confusions, either side of where it
+/// would touch it: the conics cross twice there, not once.
+#[test]
+fn test_conics_whose_crossings_are_a_hair_apart_cross_twice() {
+    let radius = 2.0 * 0.5f64.sin();
+    let cone = cone_around_a_sphere();
+    let cylinder = cylinder_crossing_at(radius - 0.5 * TOL.confusion, radius);
+    let ConeCylinderIntersection::TwoConics(conics) = cone.intersect_exact(&cylinder, TOL) else {
+        panic!("not two conics");
+    };
+    let points = conics.touching_points();
+    assert_eq!(points.len(), 2, "crossings");
+    let half_chord = (2.0 * radius * 0.5 * TOL.confusion).sqrt();
+    let apart = points[0].distance(points[1]);
+    assert!(
+        (apart - 2.0 * half_chord).abs() <= 0.01 * half_chord,
+        "crossings {apart:e} apart, {:e} exact",
+        2.0 * half_chord
+    );
+}
+
+/// A cylinder wider than the cone's sphere by most of a confusion, the
+/// line two confusions beside it: the conics of the sphere between them do
+/// not cross, and come nearest where both surfaces nearly touch it. There
+/// the surfaces part slowly, and a point within a confusion of both is
+/// far more than that from their curve: the quartic answers.
+#[test]
+fn test_conics_of_spheres_a_hair_apart_that_do_not_cross_are_not_read() {
+    let radius = 2.0 * 0.5f64.sin();
+    let cone = cone_around_a_sphere();
+    let cylinder = cylinder_crossing_at(radius + 2.0 * TOL.confusion, radius + 0.9 * TOL.confusion);
+    let answer = cone_cylinder(&cone, &cylinder, TOL);
+    let Some(curve) = &answer.quartic else {
+        panic!("{} for the quartic", answer.name);
+    };
+    println!(
+        "{} components, contact {:?}",
+        curve.component_count(),
+        curve.contact_point()
+    );
+    assert_on_both(curve, &cone, &cylinder, TOL, "spheres a hair apart");
+}
+
+// Contacts in rounded data: an offset of a few digits past the tenth is
+// tens to hundreds of confusions of curve at the default tolerance, and is
+// read as given (ADR 0056). A caller whose data is rounded that far reads
+// such contacts at a confusion of `√(2 ε / κ)` or more.
+
+/// A plane `1e-10` through a sphere of radius `2` cuts it in a circle of
+/// radius `√(2 · 2 · 1e-10) = 2e-5`, two hundred confusions.
+#[test]
+fn test_a_plane_a_rounding_of_data_through_a_sphere_cuts_a_small_circle() {
+    let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    let plane = Plane::new(Point::new(0.0, 0.0, 2.0 - 1e-10), Vector::Z).unwrap();
+    let PlaneSphereIntersection::Circle(circle) = plane.intersect_exact(&sphere, TOL) else {
+        panic!("not a circle");
+    };
+    assert!(
+        (circle.radius() - 2e-5).abs() <= 1e-8,
+        "radius {:e}",
+        circle.radius()
+    );
+    // At a confusion past the circle's radius, the plane touches the sphere.
+    let rounded = Tolerance {
+        confusion: 2.5e-5,
+        ..TOL
+    };
+    assert!(matches!(
+        plane.intersect_exact(&sphere, rounded),
+        PlaneSphereIntersection::TangentPoint(_)
+    ));
+}
+
+/// Cylinders of radii `2` and `1` crossing at a right angle, axes
+/// `3 − 1e-12` apart, meet in one small loop around the point where they
+/// would touch, `√(2 · 1e-12 / 1) = 1.4e-6` from it across the thin one.
+#[test]
+fn test_cylinders_a_rounding_of_data_past_touching_meet_in_a_small_loop() {
+    let thick = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    let thin = Cylinder::new(Point::new(0.0, 3.0 - 1e-12, 0.0), Vector::X, 1.0).unwrap();
+    let answer = cylinders(&thick, &thin, TOL);
+    let exact = Exact::Loops {
+        count: 1,
+        distance: (2.0 * 1e-12f64).sqrt(),
+    };
+    let contact = Point::new(0.0, 2.0, 0.0);
+    check(
+        &answer,
+        exact,
+        contact,
+        (&thick, &thin),
+        TOL,
+        "rounded crossing",
+    );
 }

@@ -14,7 +14,7 @@
 //! depend on the model's size (ADR 0051).
 
 use crate::geometry::surfaces::ParametricSurface;
-use crate::{Point, Tolerance, Vector};
+use crate::{Cone, Cylinder, Direction, Plane, Point, Sphere, Tolerance, Torus, Vector};
 
 /// How many roundings of the lengths it is computed from an offset may
 /// be and still be none: an offset within them cannot be told from zero.
@@ -35,15 +35,16 @@ const OFFSET_ROUNDING: f64 = 16.0 * f64::EPSILON;
 /// stays within confusion of the contact, `2 overlap ≤ κ confusion²`, `κ`
 /// the smaller principal relative curvature at `contact`, or where
 /// `overlap` is within the rounding of `size`, the largest length it was
-/// computed from, and of the coordinates of `contact`: an exact contact
-/// placed anywhere reads as one.
+/// computed from, and of the distances from where the surfaces are placed
+/// to `contact`: an exact contact reads as one however the surfaces are
+/// placed, and the answer does not change where the pair is moved.
 ///
 /// An overlap within the rounding of `size` alone settles inline; the
 /// rest of the rule is read out of line.
 #[inline]
 pub(crate) fn reads_as_touching(
-    first: &impl ParametricSurface,
-    second: &impl ParametricSurface,
+    first: &impl ContactSurface,
+    second: &impl ContactSurface,
     contact: Point,
     overlap: f64,
     size: f64,
@@ -59,8 +60,8 @@ pub(crate) fn reads_as_touching(
 #[cold]
 #[inline(never)]
 pub(crate) fn reads_as_touching_out_of_line(
-    first: &impl ParametricSurface,
-    second: &impl ParametricSurface,
+    first: &impl ContactSurface,
+    second: &impl ContactSurface,
     contact: Point,
     overlap: f64,
     size: f64,
@@ -74,25 +75,27 @@ pub(crate) fn reads_as_touching_out_of_line(
 #[cold]
 #[inline(never)]
 fn reads_as_touching_beyond_rounding(
-    first: &impl ParametricSurface,
-    second: &impl ParametricSurface,
+    first: &impl ContactSurface,
+    second: &impl ContactSurface,
     contact: Point,
     overlap: f64,
     size: f64,
     tol: Tolerance,
 ) -> bool {
-    within_rounding(overlap, contact, size)
-        || least_relative_curvature(first, second, contact, tol)
+    within_rounding(overlap, [first.anchor(), second.anchor()], contact, size)
+        || least_relative_curvature(first, second, contact)
             .is_some_and(|curvature| curve_stays_within_confusion(overlap, curvature, tol))
 }
 
-/// Whether two surfaces that come within `tol.confusion` of touching
-/// along a line or a circle through `contact`, or at a point where they
-/// bend alike every way, are read as touching there: as
+/// Whether `first` and `second`, which come within `tol.confusion` of
+/// touching along a line or a circle through `contact`, or at a point
+/// where they bend alike every way, are read as touching there: as
 /// [`reads_as_touching`], `curvature` their relative curvature across
-/// the contact, known in closed form.
+/// the contact, known in closed form. `contact` may be any point of the
+/// model within `size` of where they touch.
 #[inline]
 pub(crate) fn reads_as_touching_across(
+    (first, second): (&impl ContactSurface, &impl ContactSurface),
     curvature: f64,
     contact: Point,
     overlap: f64,
@@ -101,7 +104,12 @@ pub(crate) fn reads_as_touching_across(
 ) -> bool {
     overlap.abs() <= tol.confusion
         && (offset_within_rounding(overlap, size)
-            || reads_as_touching_across_beyond_rounding(curvature, contact, overlap, size, tol))
+            || reads_as_touching_across_beyond_rounding(
+                (first, second),
+                curvature,
+                (contact, overlap, size),
+                tol,
+            ))
 }
 
 /// The rest of [`reads_as_touching_across`], for an overlap within
@@ -109,13 +117,12 @@ pub(crate) fn reads_as_touching_across(
 #[cold]
 #[inline(never)]
 fn reads_as_touching_across_beyond_rounding(
+    (first, second): (&impl ContactSurface, &impl ContactSurface),
     curvature: f64,
-    contact: Point,
-    overlap: f64,
-    size: f64,
+    (contact, overlap, size): (Point, f64, f64),
     tol: Tolerance,
 ) -> bool {
-    within_rounding(overlap, contact, size)
+    within_rounding(overlap, [first.anchor(), second.anchor()], contact, size)
         || curve_stays_within_confusion(overlap, curvature.abs(), tol)
 }
 
@@ -135,8 +142,8 @@ fn curve_stays_within_confusion(overlap: f64, curvature: f64, tol: Tolerance) ->
 /// points of both surfaces nearest the contact.
 #[inline]
 pub(crate) fn crossings_read_as_touching(
-    first: &impl ParametricSurface,
-    second: &impl ParametricSurface,
+    first: &impl ContactSurface,
+    second: &impl ContactSurface,
     contacts: &[Point],
     gap_bound: f64,
     size: f64,
@@ -151,21 +158,63 @@ pub(crate) fn crossings_read_as_touching(
 #[cold]
 #[inline(never)]
 fn crossing_gaps_read_as_touching(
-    first: &impl ParametricSurface,
-    second: &impl ParametricSurface,
+    first: &impl ContactSurface,
+    second: &impl ContactSurface,
     contacts: &[Point],
     gap_bound: f64,
     size: f64,
     tol: Tolerance,
 ) -> bool {
     contacts.iter().all(|&contact| {
-        if within_rounding(gap_bound, contact, size) {
+        if within_rounding(gap_bound, [first.anchor(), second.anchor()], contact, size) {
             return true;
         }
         let on_first = first.project_point(contact, tol).point;
         let gap = on_first.distance(second.project_point(contact, tol).point);
         reads_as_touching(first, second, contact, gap, size, tol)
     })
+}
+
+/// Whether two conics within `gap_bound` of the curve of `first` and
+/// `second`, which come nearest at `nearest` without crossing, stand for
+/// that curve within confusion. Where two surfaces cross at an angle, a
+/// point within a gap of both is within the gap over the sine of the angle
+/// of their curve: the gap counts where they come nearest, and part
+/// slowest. Read as not where a surface has no normal there.
+#[inline]
+pub(crate) fn parted_conics_read_as_given(
+    (first, second): (&impl ContactSurface, &impl ContactSurface),
+    nearest: Point,
+    gap_bound: f64,
+    size: f64,
+    tol: Tolerance,
+) -> bool {
+    offset_within_rounding(gap_bound, size)
+        || parted_conics_gap_reads_as_given((first, second), nearest, gap_bound, size, tol)
+}
+
+/// The rest of [`parted_conics_read_as_given`], for a gap bound beyond
+/// its rounding.
+#[cold]
+#[inline(never)]
+fn parted_conics_gap_reads_as_given(
+    (first, second): (&impl ContactSurface, &impl ContactSurface),
+    nearest: Point,
+    gap_bound: f64,
+    size: f64,
+    tol: Tolerance,
+) -> bool {
+    if within_rounding(gap_bound, [first.anchor(), second.anchor()], nearest, size) {
+        return true;
+    }
+    let on_first = first.project_point(nearest, tol).point;
+    let on_second = second.project_point(nearest, tol).point;
+    let (Some(first_form), Some(second_form)) =
+        (first.second_form(on_first), second.second_form(on_second))
+    else {
+        return false;
+    };
+    gap_bound <= tol.confusion * first_form.normal.cross(second_form.normal).magnitude()
 }
 
 /// Whether `offset`, computed from lengths up to `size` alone, is within
@@ -176,12 +225,153 @@ pub(crate) fn offset_within_rounding(offset: f64, size: f64) -> bool {
     offset <= OFFSET_ROUNDING * size
 }
 
-/// Whether `offset`, computed from lengths up to `size` and from the
-/// coordinates of `contact`, is within their rounding: no offset.
+/// Whether `offset`, computed from lengths up to `size` between surfaces
+/// placed by `anchors`, is within their rounding near `contact`: no
+/// offset. A surface's lengths are measured from its anchor, and its
+/// anchor and directions round with the coordinates they are given in, so
+/// near the contact the surface moves by up to the rounding of the
+/// distance between them. The world origin plays no part: a contact
+/// moved anywhere reads the same (ADR 0051).
 #[inline]
-fn within_rounding(offset: f64, contact: Point, size: f64) -> bool {
-    let reach = contact.x.abs().max(contact.y.abs()).max(contact.z.abs());
+fn within_rounding(offset: f64, anchors: [Point; 2], contact: Point, size: f64) -> bool {
+    let reach = anchors[0].distance(contact) + anchors[1].distance(contact);
     offset <= OFFSET_ROUNDING * (size + reach)
+}
+
+/// The elementary surfaces a closed form reads a contact between: where
+/// each is placed from, and how it bends.
+pub(crate) trait ContactSurface: ParametricSurface {
+    /// The point the surface is placed by, its lengths measured from it.
+    fn anchor(&self) -> Point;
+
+    /// The outward unit normal at `point` and the second fundamental form
+    /// there, in closed form. `None` where the surface has no tangent
+    /// plane: a cone's apex, a point on a torus's axis.
+    fn second_form(&self, point: Point) -> Option<SecondForm>;
+}
+
+/// The second fundamental form of a surface at a point, along its outward
+/// unit normal: near the point the surface lies `II(u, u) / 2` along the
+/// normal off the tangent plane, `u` the step in it.
+/// `II(x, y) = alike_every_way (x · y) + Σ curvature (x · direction)
+/// (y · direction)`.
+pub(crate) struct SecondForm {
+    normal: Vector,
+    alike_every_way: f64,
+    along: [(f64, Vector); 2],
+}
+
+impl SecondForm {
+    fn flat(normal: Vector) -> Self {
+        Self {
+            normal,
+            alike_every_way: 0.0,
+            along: [(0.0, normal); 2],
+        }
+    }
+
+    fn at(&self, x: Vector, y: Vector) -> f64 {
+        self.along.iter().fold(
+            self.alike_every_way * x.dot(y),
+            |sum, &(curvature, direction)| sum + curvature * x.dot(direction) * y.dot(direction),
+        )
+    }
+}
+
+/// The unit vector, radial from `axis` through `origin`, towards `point`,
+/// and the distance of `point` from the axis. `None` on the axis.
+fn radial(origin: Point, axis: Direction, point: Point) -> Option<(Vector, f64)> {
+    let radial = (point - origin).component_perpendicular_to(axis);
+    let distance = radial.magnitude();
+    Some((radial.normalized()?, distance))
+}
+
+impl ContactSurface for Plane {
+    fn anchor(&self) -> Point {
+        self.frame().origin()
+    }
+
+    fn second_form(&self, _point: Point) -> Option<SecondForm> {
+        Some(SecondForm::flat(self.normal_direction().vector()))
+    }
+}
+
+impl ContactSurface for Sphere {
+    fn anchor(&self) -> Point {
+        self.center()
+    }
+
+    fn second_form(&self, point: Point) -> Option<SecondForm> {
+        Some(SecondForm {
+            alike_every_way: -1.0 / self.radius(),
+            ..SecondForm::flat((point - self.center()).normalized()?)
+        })
+    }
+}
+
+impl ContactSurface for Cylinder {
+    fn anchor(&self) -> Point {
+        self.frame().origin()
+    }
+
+    fn second_form(&self, point: Point) -> Option<SecondForm> {
+        let axis = self.axis().direction();
+        let (normal, _) = radial(self.frame().origin(), axis, point)?;
+        Some(SecondForm {
+            along: [
+                (-1.0 / self.radius(), axis.vector().cross(normal)),
+                (0.0, axis.vector()),
+            ],
+            ..SecondForm::flat(normal)
+        })
+    }
+}
+
+impl ContactSurface for Cone {
+    fn anchor(&self) -> Point {
+        self.frame().origin()
+    }
+
+    fn second_form(&self, point: Point) -> Option<SecondForm> {
+        let axis = self.axis().direction();
+        let apex = self.apex();
+        let (outward, distance) = radial(apex, axis, point)?;
+        let generator = (point - apex).direction()?;
+        let normal = outward.component_perpendicular_to(generator).normalized()?;
+        // The parallel circle bends `1 / distance` towards the axis; the
+        // generator does not bend.
+        let curvature = -outward.dot(normal) / distance;
+        Some(SecondForm {
+            along: [
+                (curvature, axis.vector().cross(outward)),
+                (0.0, generator.vector()),
+            ],
+            ..SecondForm::flat(normal)
+        })
+    }
+}
+
+impl ContactSurface for Torus {
+    fn anchor(&self) -> Point {
+        self.center()
+    }
+
+    fn second_form(&self, point: Point) -> Option<SecondForm> {
+        let axis = self.frame().z_direction();
+        let (outward, distance) = radial(self.center(), axis, point)?;
+        let tube_center = self.center() + outward * self.major_radius();
+        let normal = (point - tube_center).normalized()?;
+        let parallel = axis.vector().cross(outward);
+        // The tube's circle bends `1 / minor`, the parallel circle
+        // `1 / distance` towards the axis.
+        Some(SecondForm {
+            along: [
+                (-1.0 / self.minor_radius(), normal.cross(parallel)),
+                (-outward.dot(normal) / distance, parallel),
+            ],
+            ..SecondForm::flat(normal)
+        })
+    }
 }
 
 /// The smaller principal curvature, in size, of `second` relative to
@@ -189,17 +379,18 @@ fn within_rounding(offset: f64, contact: Point, size: f64) -> bool {
 /// the difference of their second fundamental forms, each read along a
 /// common normal. `None` where a surface has no tangent plane there.
 fn least_relative_curvature(
-    first: &impl ParametricSurface,
-    second: &impl ParametricSurface,
+    first: &impl ContactSurface,
+    second: &impl ContactSurface,
     contact: Point,
-    tol: Tolerance,
 ) -> Option<f64> {
-    let (normal, along, form) = second_form(first, contact, tol)?;
-    let (other_normal, _, other_form) = second_form(second, contact, tol)?;
+    let form = first.second_form(contact)?;
+    let other_form = second.second_form(contact)?;
+    let normal = form.normal;
     // Along `normal`, each surface lies `II(u, u) / 2` off the tangent
     // plane, the second's form turned over where its normal is.
-    let sign = normal.dot(other_normal).signum();
-    let relative = |u: Vector, w: Vector| form(u, w) - sign * other_form(u, w);
+    let sign = normal.dot(other_form.normal).signum();
+    let relative = |u: Vector, w: Vector| form.at(u, w) - sign * other_form.at(u, w);
+    let along = tangent_to(normal);
     let across = normal.cross(along);
     let (a, b, c) = (
         relative(along, along),
@@ -211,24 +402,17 @@ fn least_relative_curvature(
     Some((mean - half_gap).abs().min((mean + half_gap).abs()))
 }
 
-/// The unit normal of `surface` at `point`, a unit tangent there and its
-/// second fundamental form, as a bilinear form on tangent vectors, from
-/// its principal curvatures along that normal.
-fn second_form(
-    surface: &impl ParametricSurface,
-    point: Point,
-    tol: Tolerance,
-) -> Option<(Vector, Vector, impl Fn(Vector, Vector) -> f64)> {
-    let (u, v) = surface.parameters_of(point, tol);
-    let curvatures = surface.curvatures(u, v, tol)?;
-    let (_, [su, sv]) = surface.first_derivatives(u, v);
-    let normal = su.cross(sv).normalized()?;
-    let (minimum, maximum) = (
-        curvatures.min_direction.vector(),
-        curvatures.max_direction.vector(),
-    );
-    let (low, high) = (curvatures.min_curvature, curvatures.max_curvature);
-    Some((normal, minimum, move |x: Vector, y: Vector| {
-        low * x.dot(minimum) * y.dot(minimum) + high * x.dot(maximum) * y.dot(maximum)
-    }))
+/// A unit vector perpendicular to the unit `normal`: its cross product
+/// with the coordinate axis it leans on least.
+fn tangent_to(normal: Vector) -> Vector {
+    let (x, y, z) = (normal.x.abs(), normal.y.abs(), normal.z.abs());
+    let axis = if x <= y && x <= z {
+        Vector::X
+    } else if y <= z {
+        Vector::Y
+    } else {
+        Vector::Z
+    };
+    let tangent = normal.cross(axis);
+    tangent * (1.0 / tangent.magnitude())
 }
