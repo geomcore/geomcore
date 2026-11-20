@@ -88,6 +88,28 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- Two tori sharing a circle that is not a tube circle of both are read in
+  closed form in either order (#348, ADR 0050). A tube circle of the
+  first torus lying on the second, as a latitude circle of it, ran the
+  exact reading for seconds before giving up and then marched: 4 to 8 s
+  for the torus of radii 4 and 1 about `Z` against the one of radii 1.5
+  and 1 about `Y` through `(4, −√0.75, 0)`, while the other order read it
+  in 1 ms. Such a circle is now found in microseconds, and the pair is
+  read along the second torus's tube circles and handed back in the
+  caller's order: 1 ms either way, the shared circle and a loop crossing
+  it. A Villarceau circle of one torus that is a tube circle of the other
+  was read in one order only, and in neither for some placements, which
+  came back sampled or incomplete with a curve count depending on the
+  order: the stretch of tube circles where the circle's branch sweeps
+  round them was split again and again just short of its end. It is now
+  split where its longest piece is shortest, and every placement tried
+  reads the circle and the rest of the curve, exact and complete, alike
+  in both orders. Moved `1e3` from the origin, where the points where the
+  tori touch are touching only within the rounding of their coordinates,
+  the loops through them are read on the branches' lines nearest those
+  points instead of jumping between the two close points of a tube
+  circle, which had sent the fit to its sample limit and the pair to the
+  march.
 - Two surfaces within confusion of a contact are answered with the
   contact only where their curve stays within confusion of it (#438,
   #439, ADR 0057). Near a contact two surfaces part quadratically, so an

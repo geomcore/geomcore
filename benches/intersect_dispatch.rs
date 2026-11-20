@@ -542,8 +542,10 @@ fn bench_torus_quartics(c: &mut Criterion) {
 /// read along its tube circles: a pipe dropped through the tube (two
 /// loops), one along a diameter through the tube on both sides (four
 /// loops), a cone through the tube (two loops), tori linked like a chain
-/// (two loops), side by side (three loops crossing where they touch) and
-/// pipe bends joined end to end (their shared tube circle and a loop).
+/// (two loops), side by side (three loops crossing where they touch),
+/// pipe bends joined end to end (their shared tube circle and a loop), and
+/// tori sharing a circle that is not a tube circle of both (the circle and
+/// a loop crossing it).
 fn bench_torus_octics(c: &mut Criterion) {
     let tol = Tolerance::default();
     let mut group = c.benchmark_group("intersect_routed/torus_octic");
@@ -575,10 +577,24 @@ fn bench_torus_octics(c: &mut Criterion) {
     let linked = Torus::new(Point::new(3.2, 0.0, 0.0), Vector::Y, 4.0, 1.7).unwrap();
     let beside = Torus::new(Point::new(7.0, 0.0, 0.0), Vector::Z, 4.0, 1.0).unwrap();
     let bend = Torus::new(Point::new(4.0, 0.0, 3.0), Vector::X, 3.0, 1.0).unwrap();
+    // A tube circle of the first that is a latitude circle of the second,
+    // read along the second's tube circles; and a Villarceau circle of the
+    // first that is a tube circle of the second, read along the first's.
+    let across = Torus::new(Point::new(4.0, -0.75f64.sqrt(), 0.0), Vector::Y, 1.5, 1.0).unwrap();
+    let sin: f64 = 0.25;
+    let villarceau_plane = Vector::new((1.0 - sin * sin).sqrt(), 0.0, sin);
+    let villarceau_tube =
+        Torus::new(Point::new(0.0, -8.0, 0.0), villarceau_plane, 9.0, 4.0).unwrap();
     for (name, first, second) in [
         ("tori_linked", &thick, &linked),
         ("tori_side_by_side", &torus, &beside),
         ("pipe_bends", &torus, &bend),
+        ("tube_circle_on_a_latitude_circle", &torus, &across),
+        (
+            "villarceau_circle_as_a_tube_circle",
+            &villarceau_tube,
+            &torus,
+        ),
     ] {
         group.bench_function(format!("{name}_exact"), |b| {
             b.iter(|| black_box(black_box(first).intersect_exact(second, tol)))
