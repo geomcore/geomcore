@@ -632,27 +632,28 @@ fn tori_sharing_a_circle() -> (Surface, Vec<Surface>) {
 /// in either order: the same method, completeness, curves and contact
 /// points.
 ///
-/// Moved `1e7` away, only those whose image is the same pair: with no
-/// point where they touch (the first), or with centres that are whole
-/// numbers there (the third and fourth). Elsewhere the tori touch at two
-/// points of the circle, and a centre that is not a whole number rounds
-/// by up to `2e-9` there. That parts the curve `√(2ε / κ)`, about `1e-4`,
-/// from each point where they touched: no longer a contact within
-/// confusion (ADR 0057) but another pair, which no reading can answer as
-/// the reference one.
+/// Moved away, `1e3` or `1e7`, only those whose image is the same pair:
+/// with no point where they touch (the first), or with centres that are
+/// whole numbers there (the third and fourth). Elsewhere the tori touch at
+/// two points of the circle, and a centre that is not a whole number
+/// rounds by up to `1e-13` or `2e-9` there. That parts the curve
+/// `√(2ε / κ)`, from about `1e-6` to `1e-4`, from each point where they
+/// touched: no longer a contact within confusion (ADR 0057) but another
+/// pair, which no reading can answer as the reference one.
 #[test]
 fn tori_sharing_a_circle_are_similarity_invariant_in_both_orders() {
     let family = "tori-sharing-a-circle";
     let (torus, others) = tori_sharing_a_circle();
     let torus = [torus];
+    let moved = |similarity: &Similarity<Transform>| similarity.name.starts_with("translation");
     let near = || {
         let mut similarities = similarities();
-        similarities.retain(|similarity| similarity.name != "translation 1e7");
+        similarities.retain(|similarity| !moved(similarity));
         similarities
     };
     let far = || {
         let mut similarities = similarities();
-        similarities.retain(|similarity| similarity.name == "translation 1e7");
+        similarities.retain(moved);
         similarities
     };
     let same_far: Vec<Surface> = [0, 2, 3].map(|k| others[k].clone()).into();
@@ -694,6 +695,50 @@ fn tori_sharing_a_circle_are_similarity_invariant_in_both_orders() {
             mismatches.push((key, format!("[{forward_text}] points moved")));
         }
     }
+    report(family, mismatches);
+}
+
+/// A torus near touching a cylinder, a second torus or a sphere holding
+/// its tube circle (#441): read alike moved and in both orders. The
+/// offsets are dyadic, so every image is the same pair: touching, apart
+/// within confusion (a contact), and through by `2^-24` and `2^-20`, about
+/// a confusion and ten, whose curve strays `1e-4` and more from the
+/// contact (no contact).
+#[test]
+fn a_torus_near_touching_reads_the_same_moved_in_both_orders() {
+    let family = "torus-near-touching";
+    let torus: Surface = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0)
+        .unwrap()
+        .into();
+    let mut others: Vec<Surface> = Vec::new();
+    for d in [0.0, -(2f64.powi(-24)), 2f64.powi(-24), 2f64.powi(-20)] {
+        others.push(
+            Cylinder::new(Point::new(5.5 - d, 0.0, 0.0), Vector::Z, 0.5)
+                .unwrap()
+                .into(),
+        );
+        others.push(
+            Torus::new(Point::new(10.0 - d, 0.0, 0.0), Vector::Y, 4.0, 1.0)
+                .unwrap()
+                .into(),
+        );
+    }
+    for radius in [1.0, 1.0 - 2f64.powi(-24), 1.0 + 2f64.powi(-16)] {
+        others.push(
+            Sphere::new(Point::new(4.0, 0.0, 0.0), radius)
+                .unwrap()
+                .into(),
+        );
+    }
+    let torus = [torus];
+    let mut mismatches = compare_pairs(family, &torus, &others, false, surface_surface);
+    mismatches.extend(compare_pairs(
+        family,
+        &others,
+        &torus,
+        false,
+        surface_surface,
+    ));
     report(family, mismatches);
 }
 

@@ -7,7 +7,8 @@
 //! is of degree two in each angle. Its zeros where another one vanishes
 //! too, the points where its curve turns back or crosses itself, are found
 //! by subdivision. On each quarter of the torus of angles,
-//! `t = α + 2 atan(s)` with `α` either `0` or `π` and `s` in `[−1, 1]`,
+//! `t = α + 2 atan(s)` with `α` either [`CHART_TURN`] or a half turn
+//! more and `s` in `[−1, 1]`,
 //! the polynomial times `(1 + s²)^K` for each angle is a polynomial of
 //! degree `2K` in `s`. Its Bernstein coefficients bound it on a box, which
 //! is dropped where either polynomial keeps one sign. A box where the
@@ -57,8 +58,15 @@ impl<const N: usize> TrigonometricPolynomial<N> {
     /// The polynomial at `(u, v)`.
     #[inline]
     pub(crate) fn value(&self, u: f64, v: f64) -> f64 {
-        let along = self.along_v(u);
-        dot(&along, &basis::<N>(v))
+        self.value_on(&basis::<N>(u), &basis::<N>(v))
+    }
+
+    /// The polynomial at the angles whose bases are `at_u` and `at_v`:
+    /// several polynomials at one point share them.
+    #[inline]
+    fn value_on(&self, at_u: &[f64; N], at_v: &[f64; N]) -> f64 {
+        let along: [f64; N] = std::array::from_fn(|k| (0..N).map(|j| self.c[j][k] * at_u[j]).sum());
+        dot(&along, at_v)
     }
 
     /// The one-angle polynomial in `v` on the line of `u`.
@@ -112,6 +120,14 @@ pub(crate) struct CommonZeros {
 /// `5e-10` in angle.
 const SMALLEST_BOX: f64 = 1.0 / (1u64 << 32) as f64;
 
+/// The angle each chart is turned by: no rational multiple of a turn, so
+/// that the sides of the boxes, at the chart's middle, ends and
+/// `2 atan` of dyadic fractions from it, miss the multiples of a quarter
+/// turn where a symmetric pair puts its common zeros. On a side, rounding
+/// can keep each polynomial of one sign on one of the boxes it parts, and
+/// the zero is lost from both.
+const CHART_TURN: f64 = std::f64::consts::FRAC_1_PI;
+
 /// The most boxes visited before giving up: a whole curve of common
 /// zeros.
 const MOST_BOXES: usize = 200_000;
@@ -137,14 +153,20 @@ pub(crate) fn common_zeros<const N: usize>(
         g.derivative_u(),
         g.derivative_v(),
     );
-    let charts = [chart_basis::<N>(0.0), chart_basis::<N>(PI)];
+    let charts = [
+        chart_basis::<N>(CHART_TURN),
+        chart_basis::<N>(CHART_TURN + PI),
+    ];
     let mut zeros = CommonZeros::default();
     let mut boxes = 0;
     // `(1 + s²)^K (1 + t²)^K` is at most `4^K` on a chart.
     let largest_factor = 2f64.powi((N - 1) as i32);
     for (u_chart, u_basis) in charts.iter().enumerate() {
         for (v_chart, v_basis) in charts.iter().enumerate() {
-            let origin = [u_chart as f64 * PI, v_chart as f64 * PI];
+            let origin = [
+                CHART_TURN + u_chart as f64 * PI,
+                CHART_TURN + v_chart as f64 * PI,
+            ];
             let mut stack = vec![Patch {
                 f: chart_patch(f, u_basis, v_basis),
                 g: chart_patch(g, u_basis, v_basis),
@@ -226,32 +248,59 @@ fn newton<const N: usize>(
     start: Angles,
 ) -> Option<Angles> {
     let [mut u, mut v] = start;
+    let mut previous = f64::INFINITY;
     for _ in 0..40 {
+        let (at_u, at_v) = (basis::<N>(u), basis::<N>(v));
         let (a, b, c, d) = (
-            f_u.value(u, v),
-            f_v.value(u, v),
-            g_u.value(u, v),
-            g_v.value(u, v),
+            f_u.value_on(&at_u, &at_v),
+            f_v.value_on(&at_u, &at_v),
+            g_u.value_on(&at_u, &at_v),
+            g_v.value_on(&at_u, &at_v),
         );
         let determinant = a * d - b * c;
         if determinant == 0.0 || !determinant.is_finite() {
             return None;
         }
-        let (fv, gv) = (f.value(u, v), g.value(u, v));
+        let (fv, gv) = (f.value_on(&at_u, &at_v), g.value_on(&at_u, &at_v));
         let (du, dv) = (
             (fv * d - gv * b) / determinant,
             (gv * a - fv * c) / determinant,
         );
         (u, v) = (u - du, v - dv);
         let step = du.abs().max(dv.abs());
-        if step <= CONVERGED {
-            return Some([u, v]);
+        // Steps that stop shrinking, within one zero's width, are at the
+        // rounding of the polynomials: where they meet at a small angle,
+        // it moves the zero by more than [`CONVERGED`]. Either way, a
+        // simple zero parts the signs of both a zero's width away, as one
+        // where either only touches zero, a double zero, does not.
+        if step <= CONVERGED || (step >= previous && step <= SAME_ZERO) {
+            return parts_signs(f, g, [u, v], SAME_ZERO).then_some([u, v]);
         }
         if step > 1.0 {
             return None;
         }
+        previous = step;
     }
     None
+}
+
+/// Whether `f` and `g` each take opposite signs `reach` either way of
+/// `at` along `u` or along `v`: a simple zero parts the signs of both,
+/// and a double zero, where one only touches zero, does not.
+fn parts_signs<const N: usize>(
+    f: &TrigonometricPolynomial<N>,
+    g: &TrigonometricPolynomial<N>,
+    [u, v]: Angles,
+    reach: f64,
+) -> bool {
+    let (at_u, at_v) = (basis::<N>(u), basis::<N>(v));
+    let along_u = [basis::<N>(u - reach), basis::<N>(u + reach)];
+    let along_v = [basis::<N>(v - reach), basis::<N>(v + reach)];
+    let parts = |p: &TrigonometricPolynomial<N>| {
+        p.value_on(&along_u[0], &at_v) * p.value_on(&along_u[1], &at_v) < 0.0
+            || p.value_on(&at_u, &along_v[0]) * p.value_on(&at_u, &along_v[1]) < 0.0
+    };
+    parts(f) && parts(g)
 }
 
 /// The two polynomials, and the one zeros are kept near, in Bernstein
@@ -456,7 +505,7 @@ fn chart_basis<const N: usize>(alpha: f64) -> [[f64; N]; N] {
         let power = &powers[2 * k];
         let re: Vec<f64> = power.iter().map(|p| p.0).collect();
         let im: Vec<f64> = power.iter().map(|p| p.1).collect();
-        // cos and sin of `k (α + θ)`, `α` a multiple of `π`.
+        // cos and sin of `k (α + θ)`.
         let (sin_shift, cos_shift) = ((k as f64) * alpha).sin_cos();
         let trig = if j == 0 {
             vec![1.0]

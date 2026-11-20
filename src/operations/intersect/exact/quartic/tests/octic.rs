@@ -99,7 +99,8 @@ fn test_a_cylinder_along_a_diameter_meets_the_torus_in_four_loops() {
 #[test]
 fn test_a_cylinder_touching_the_outer_equator_meets_the_torus_at_a_point() {
     let torus = torus();
-    for gap in [0.0, 0.5e-7, -0.5e-7] {
+    // Touching, or apart within confusion: the point.
+    for gap in [0.0, 0.5e-7] {
         let pipe = Cylinder::new(Point::new(5.5 + gap, 0.0, 0.0), Vector::Z, 0.5).unwrap();
         let result = torus.intersect_exact(&pipe, TOL);
         let TorusCylinderIntersection::TangentPoint(point) = result else {
@@ -107,6 +108,12 @@ fn test_a_cylinder_touching_the_outer_equator_meets_the_torus_at_a_point() {
         };
         assert!(point.distance(Point::new(5.0, 0.0, 0.0)) < 1e-6);
     }
+    // Through by half a confusion: a loop `√(2 · 0.5e-7 / 2.2)`, about
+    // `2e-4`, around the point, beyond confusion of it (ADR 0057).
+    let pipe = Cylinder::new(Point::new(5.5 - 0.5e-7, 0.0, 0.0), Vector::Z, 0.5).unwrap();
+    let curve = cylinder_octic(&torus, &pipe, 1e-12);
+    assert_eq!(curve.component_count(), 1);
+    assert!(curve.contact_points().is_empty());
     let pipe = Cylinder::new(Point::new(5.6, 0.0, 0.0), Vector::Z, 0.5).unwrap();
     assert_eq!(
         torus.intersect_exact(&pipe, TOL),
@@ -230,7 +237,34 @@ fn test_a_cylinder_touching_both_equators_crosses_itself_at_both() {
     // and one below, crossing at both points. The marcher splits them at
     // the crossings.
     let torus = torus();
-    for gap in [0.0, 0.5e-7, -0.5e-7] {
+    let wide = Cylinder::new(Point::new(-1.0, 0.0, 0.0), Vector::Z, 4.0).unwrap();
+    let curve = cylinder_octic(&torus, &wide, 1e-12);
+    assert_eq!(curve.component_count(), 2);
+    let contacts = curve.contact_points();
+    assert_eq!(contacts.len(), 2);
+    for expected in [Point::new(3.0, 0.0, 0.0), Point::new(-5.0, 0.0, 0.0)] {
+        assert!(
+            contacts.iter().any(|p| p.distance(expected) < 1e-6),
+            "{contacts:?}"
+        );
+    }
+    assert_routed_result(&torus.intersect(&wide, TOL), &torus, &wide, 2, 2);
+    assert_routed_result(&wide.intersect(&torus, TOL), &wide, &torus, 2, 2);
+    // Wider or narrower by half a confusion, the loops part at one point
+    // and join at the other, `√(2 · 0.5e-7)` or more from each, beyond
+    // confusion of them (ADR 0057): one loop, crossing nowhere.
+    for gap in [0.5e-7, -0.5e-7] {
+        let wide = Cylinder::new(Point::new(-1.0, 0.0, 0.0), Vector::Z, 4.0 + gap).unwrap();
+        let curve = cylinder_octic(&torus, &wide, 1e-12);
+        assert_eq!(curve.component_count(), 1);
+        assert!(curve.contact_points().is_empty());
+    }
+}
+
+#[test]
+fn test_a_cylinder_touching_both_equators_within_rounding_crosses_itself_at_both() {
+    let torus = torus();
+    for gap in [1e-15, -1e-15] {
         let wide = Cylinder::new(Point::new(-1.0, 0.0, 0.0), Vector::Z, 4.0 + gap).unwrap();
         // On the cylinder widened by the gap to touch exactly.
         let curve = cylinder_octic(&torus, &wide, gap.abs() + 1e-12);
@@ -316,9 +350,13 @@ fn test_two_tori_side_by_side_cross_where_they_touch() {
 #[test]
 fn test_two_tori_touching_at_a_point_meet_there_only() {
     // Outer equators touching at (5, 0, 0), the second standing across the
-    // first, within confusion either way.
+    // first, or apart within confusion.
     let torus = torus();
-    for gap in [0.0, 0.5e-7, -0.5e-7] {
+    // Through by half a confusion: a loop `√(2 · 0.5e-7 / 1.2)`, about
+    // `3e-4`, around the point, beyond confusion of it (ADR 0057).
+    let through = Torus::new(Point::new(10.0 - 0.5e-7, 0.0, 0.0), Vector::Y, 4.0, 1.0).unwrap();
+    assert_eq!(torus_octic(&torus, &through, 1e-12).component_count(), 1);
+    for gap in [0.0, 0.5e-7] {
         let standing = Torus::new(Point::new(10.0 + gap, 0.0, 0.0), Vector::Y, 4.0, 1.0).unwrap();
         let result = torus.intersect_exact(&standing, TOL);
         let TorusTorusIntersection::TangentPoint(point) = result else {

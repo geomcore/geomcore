@@ -61,7 +61,8 @@ use tube_circles::{OtherPlane, TubeCircles};
 pub(super) use tube_circles::{torus_plane, torus_sphere};
 
 use super::contact::{
-    ContactSurface, offset_within_rounding, reads_as_touching, reads_as_touching_out_of_line,
+    ContactSurface, offset_within_rounding, parted_conics_read_as_given, reads_as_touching,
+    reads_as_touching_across, reads_as_touching_out_of_line,
 };
 use super::surface_surface::{
     ConeConeIntersection, ConeCylinderIntersection, CylinderCylinderIntersection,

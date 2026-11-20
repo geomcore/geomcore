@@ -774,6 +774,23 @@ pub(in crate::operations::intersect::exact) fn torus_sphere(
 /// `cos τ = −R / q` lies at `√(q² − R² + r²)` from `S` all round. A
 /// sphere of that radius holds the two at `± τ`, or touches the torus
 /// along the one where they merge, its centre on the core circle.
+///
+/// Within confusion of touching along it, the sphere is read as touching
+/// only where the curve stays within confusion of the circle (see
+/// `reads_as_touching`). Its centre `δ` out from the core circle and `h`
+/// above its plane, its radius `s` wider than the tube, it passes
+/// `s + δ cos v + h sin v` through the torus at `v` around the tube
+/// circle, where they bend apart by `κ = R / (r (R + r cos v))` across
+/// it: the most it passes through anywhere, `s + √(δ² + h²)`, against the
+/// least `κ`, at the outer equator, bounds how far the curve strays.
+/// Beyond that, the two tube circles it holds are read where its centre
+/// is out from the core circle and they stand for the curve within
+/// confusion: the surfaces cross along them at the angle whose sine is
+/// `√(q² − R²) / ρ`, and the gap over that sine counts (see
+/// `parted_conics_read_as_given`). Otherwise the curve of the surfaces as
+/// given is a band of tube circles too thin for `Δ`'s roots, `cos τ`
+/// within the square of its width of one, to tell apart: not read in
+/// closed form.
 fn holding_tube_circles(
     torus: &Torus,
     tubes: &Tubes,
@@ -783,21 +800,48 @@ fn holding_tube_circles(
     let w = tubes.origin - sphere.center();
     let (theta, q) = tubes.angle_of(w);
     let (major, minor) = (tubes.major, tubes.minor);
-    if w.dot(tubes.axis).abs() > tol.confusion || q < major - tol.confusion {
+    let height = w.dot(tubes.axis);
+    if height.abs() > tol.confusion || q < major - tol.confusion {
         return None;
     }
+    let radius = sphere.radius();
     let reach = (q * q - major * major).max(0.0).sqrt().hypot(minor);
-    if (reach - sphere.radius()).abs() > tol.confusion {
+    if (reach - radius).abs() > tol.confusion {
         return None;
     }
-    if q - major <= tol.confusion {
+    let off_circle = (q - major).hypot(height);
+    if (radius - minor).abs() + off_circle <= tol.confusion
+        && reads_as_touching_across(
+            (torus, sphere),
+            major / (minor * (major + minor)),
+            sphere.center(),
+            radius - minor + off_circle,
+            major + minor + radius,
+            tol,
+        )
+    {
         return Some(TorusSphereIntersection::TangentCircle(
             torus.u_iso(theta + PI).ok()?,
         ));
     }
+    if q <= major {
+        return Some(TorusSphereIntersection::NotAnalytic);
+    }
     let half = (-major / q).acos();
-    Some(TorusSphereIntersection::TwoCircles(
+    let (first, second) = (
         torus.u_iso(theta - half).ok()?,
         torus.u_iso(theta + half).ok()?,
-    ))
+    );
+    let gap = (reach - radius).abs() + height.abs();
+    if parted_conics_read_as_given(
+        (torus, sphere),
+        first.point_at(0.0),
+        gap,
+        major + minor + radius,
+        tol,
+    ) {
+        Some(TorusSphereIntersection::TwoCircles(first, second))
+    } else {
+        Some(TorusSphereIntersection::NotAnalytic)
+    }
 }
