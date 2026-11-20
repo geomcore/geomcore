@@ -1170,7 +1170,7 @@ pub(crate) fn flat_minimum(g: [f64; 2], h: [[f64; 2]; 2], speed: [f64; 2], tol: 
         [false, true] => second,
         [false, false] => return false,
     };
-    !(smallest > VALLEY_FLATNESS)
+    smallest.is_nan() || smallest <= VALLEY_FLATNESS
 }
 
 /// Whether `leader`, walked from `start` by `step`, keeps its closest

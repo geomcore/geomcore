@@ -477,7 +477,6 @@ where
         found,
         |p, q| search.same_basin(p, q),
         |e| search.representative(e),
-        tol,
     )
 }
 
@@ -614,25 +613,18 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
     /// (see `one_basin`) and arrives on the other's surface point; either
     /// end may start the walk, as the feet follow one sheet of the surface.
     /// Or, for a valley of the surface over one curve point, no ridge along
-    /// the straight way in the parameters of both shapes. Or, at two
-    /// minima at one distance and flat along the curve, walking the surface along the straight
-    /// way in its parameters, each closest point on the curve found from
-    /// the last, for a valley along a piece of the surface that the shorter
-    /// way round a closed curve leaves (a whole circle against a piece of a
-    /// coaxial cylinder).
+    /// the straight way in the parameters of both shapes.
     fn same_basin(&self, p: &CurveSurfaceExtremum, q: &CurveSurfaceExtremum) -> bool {
-        self.walks_to(p, q)
-            || self.walks_to(q, p)
-            || self.straight_between(p, q)
-            || ((p.distance - q.distance).abs() <= self.tol.confusion
-                && self.flat_along_curve(p)
-                && self.flat_along_curve(q)
-                && self.walks_on_surface_to(p, q))
+        self.walks_to(p, q) || self.walks_to(q, p) || self.straight_between(p, q)
     }
 
     /// Whether the walk on the surface from `p`'s surface point to `q`'s,
     /// along the straight way in its parameters, keeps the closest point
-    /// on the curve in one basin and arrives on `q`'s curve point.
+    /// on the curve in one basin and arrives on `q`'s curve point: for a
+    /// valley along a piece of the surface that the shorter way round a
+    /// closed curve leaves (a whole circle against a piece of a coaxial
+    /// cylinder). Two members of such a valley share their representative,
+    /// so they are merged once both are moved to it.
     fn walks_on_surface_to(&self, p: &CurveSurfaceExtremum, q: &CurveSurfaceExtremum) -> bool {
         let (from, to) = (p.surface_parameter_array(), q.surface_parameter_array());
         let way = [0, 1].map(|i| self.surface_domains[i].step(from[i], to[i]));
@@ -728,15 +720,17 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
     }
 
     /// A valley's representative: the curve at its reference parameter and
-    /// its foot on the surface, when that pair lies in the valley; else the
-    /// curve's closest point to the surface at its reference parameters,
-    /// and its foot, for a valley that starts where a piece of the surface
-    /// starts (a whole circle against a piece of a coaxial cylinder); else
-    /// the minimum the search reaches from the curve's reference: along a
+    /// its foot on the surface, when that pair lies in the valley; else, at
+    /// a minimum flat along the curve, the curve's closest point to the
+    /// surface at its reference parameters, and its foot, for a valley that
+    /// starts where a piece of the surface starts (a whole circle against a
+    /// piece of a coaxial cylinder); else the minimum the search reaches
+    /// from the curve's reference, when it lies in the valley: along a
     /// valley the gradient is rounding alone, so the curve parameter stays
-    /// there. Each is read from the shapes alone, not from where the search
-    /// entered the valley (ADR 0051).
-    fn representative(&self, e: &CurveSurfaceExtremum) -> CurveSurfaceExtremum {
+    /// there; else `None`, the minimum lying on no valley. Each is read from
+    /// the shapes alone, not from where the search entered the valley
+    /// (ADR 0051).
+    fn representative(&self, e: &CurveSurfaceExtremum) -> Option<CurveSurfaceExtremum> {
         let in_valley = |pair: &CurveSurfaceExtremum| {
             pair.distance <= e.distance + self.tol.confusion && self.same_basin(e, pair)
         };
@@ -745,10 +739,11 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
         let start = [projection.u, projection.v];
         let pair = self.local(t, start).0;
         if in_valley(&pair) {
-            return pair;
+            return Some(pair);
         }
+        let reached = || self.refine(t, start).filter(in_valley);
         if !self.flat_along_curve(e) {
-            return self.refine(t, start).unwrap_or(*e);
+            return reached();
         }
         let [u, v] = reference_parameters(self.surface_domains);
         let surface_reference = self.surface.point_at(u, v);
@@ -761,10 +756,15 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
         // Its foot is found from the surface's reference parameters, where
         // the valley starts.
         let from_surface = self.local(near, [u, v]).0;
-        if in_valley(&from_surface) {
-            return from_surface;
+        // The shorter way round a closed curve may leave a piece of the
+        // surface the valley runs along, so the surface leads the walk too,
+        // between two pairs at one distance.
+        let along_surface = (from_surface.distance - e.distance).abs() <= self.tol.confusion
+            && self.walks_on_surface_to(e, &from_surface);
+        if along_surface || in_valley(&from_surface) {
+            return Some(from_surface);
         }
-        self.refine(t, start).unwrap_or(*e)
+        reached()
     }
 }
 

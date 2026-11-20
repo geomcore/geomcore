@@ -564,25 +564,17 @@ pub(crate) fn one_basin(
 
 /// `found` with the minima of one basin (see [`one_basin`], read by
 /// `same_basin`) merged into the lowest, each then replaced by its
-/// basin's `representative` when that lies in the basin no higher than
-/// `tol.confusion` above it: the reported pair of a valley does not depend
-/// on which of its points the search reached.
+/// basin's `representative`, which is `None` unless it lies in the basin
+/// no higher than `tol.confusion` above it: the reported pair of a valley
+/// does not depend on which of its points the search reached.
 pub(crate) fn merge_basins<E: Extremum>(
     found: Vec<E>,
     same_basin: impl Fn(&E, &E) -> bool,
-    representative: impl Fn(&E) -> E,
-    tol: Tolerance,
+    representative: impl Fn(&E) -> Option<E>,
 ) -> Vec<E> {
     let represented = merge_valleys(found, &same_basin, |_| None)
         .into_iter()
-        .map(|e| {
-            let r = representative(&e);
-            if r.distance() <= e.distance() + tol.confusion && same_basin(&e, &r) {
-                r
-            } else {
-                e
-            }
-        })
+        .map(|e| representative(&e).unwrap_or(e))
         .collect();
     // Two minima the merge kept apart may share a representative.
     merge_valleys(represented, &same_basin, |_| None)

@@ -507,7 +507,6 @@ where
         found,
         |p, q| search.same_basin(p, q),
         |e| search.representative(e),
-        tol,
     )
 }
 
@@ -751,11 +750,11 @@ impl<A: ParametricSurface, B: ParametricSurface> Search<'_, A, B> {
     /// its reference, for a valley along that parameter, its foot carried
     /// along from `e`'s; else, at a minimum flat in some direction, the same
     /// three read from the second surface, for a valley that starts where a
-    /// piece of the second starts; else the minimum the
-    /// search reaches from the
-    /// reference. Along a valley the gradient is rounding alone, so where
-    /// the search stops along it would hang on the rounding.
-    fn representative(&self, e: &SurfaceSurfaceExtremum) -> SurfaceSurfaceExtremum {
+    /// piece of the second starts; else the minimum the search reaches from
+    /// the reference, when it lies in the valley; else `None`, the minimum
+    /// lying on no valley. Along a valley the gradient is rounding alone,
+    /// so where the search stops along it would hang on the rounding.
+    fn representative(&self, e: &SurfaceSurfaceExtremum) -> Option<SurfaceSurfaceExtremum> {
         let reference = reference_parameters(self.first_domains);
         let point = self.first.point_at(reference[0], reference[1]);
         let projection = self.second.project_point(point, self.tol);
@@ -800,7 +799,7 @@ impl<A: ParametricSurface, B: ParametricSurface> Search<'_, A, B> {
         };
         first_side()
             .or_else(|| self.is_flat(e).then(second_side).flatten())
-            .unwrap_or_else(|| self.refine(reference, start).unwrap_or(*e))
+            .or_else(|| self.refine(reference, start).filter(in_valley))
     }
 
     /// The pair at the second surface's parameters `to`, its closest point
