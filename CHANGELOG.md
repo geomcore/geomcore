@@ -94,7 +94,6 @@ the Python distribution are versioned in lockstep.
   confusions from the apex read `u = 0` and `point_at` landed 1.3
   confusions away; it is now `1e-9` times the point's distance from the
   apex, as the sphere's pole reach became in #452.
-
 - Tori sharing a tube circle, as pipe bends joined end to end, read their
   other contacts by the contact rule (#454, ADR 0057). A bend turning back
   inside the torus of radii 4 and 1, its major radius `d` from touching
