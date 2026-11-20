@@ -816,12 +816,19 @@ fn torus_against(torus: &Torus, mut surface: OtherSurface, tol: Tolerance) -> Op
     };
     let (equation, touching) = match shared {
         // The tori touch all along the shared circle, so no move is read
-        // from it; the rest of the curve touches where the quotient is
-        // stationary and within the bound it has across from the circle,
-        // where `1 − cos(u − u₀)` is two.
+        // from it; the rest of the curve comes within confusion of
+        // touching where the quotient is stationary and within the bound
+        // it has across from the circle, where `1 − cos(u − u₀)` is two.
+        // Off the circle, those points are read as touching by the rule
+        // every other contact goes through (see `keep_read_as_touching`).
         Some(at) => {
             let equation = without_tube_circle(&equation(&tubes, &surface), at);
-            let touching = stationary_zeros(&equation, within / 2.0)?;
+            let (mut touching, mut elsewhere): (Vec<_>, Vec<_>) =
+                stationary_zeros(&equation, within / 2.0)?
+                    .into_iter()
+                    .partition(|&[u, _]| angular_distance([u, 0.0], [at, 0.0]) <= SAME_EVENT);
+            keep_read_as_touching((torus, &tubes), &surface, &equation, &mut elsewhere, tol);
+            touching.extend(elsewhere);
             (equation, touching)
         }
         None => {
@@ -888,6 +895,19 @@ fn shared_tube_circle(tubes: &Tubes, other: &Tubes, tol: Tolerance) -> Option<f6
     if (tubes.minor - other.minor).abs() > tol.confusion {
         return None;
     }
+    // Read with the first torus centred at the origin: from points placed
+    // far from it, the normals would carry the rounding of their
+    // coordinates, far beyond the angular tolerance (ADR 0051).
+    let (tubes, other) = (
+        &Tubes {
+            origin: Point::ORIGIN,
+            ..*tubes
+        },
+        &Tubes {
+            origin: Point::ORIGIN + (other.origin - tubes.origin),
+            ..*other
+        },
+    );
     let candidates = [
         (tubes.origin - other.origin).cross(tubes.axis),
         other.axis.cross(tubes.axis),
@@ -1039,24 +1059,42 @@ fn contacts(
     tol: Tolerance,
 ) -> Option<Vec<[f64; 2]>> {
     let mut touching = touching_points(tubes, surface, equation, within, tol)?;
-    if !touching.is_empty() {
-        let size = tubes.major + tubes.minor + surface.size();
-        let (local_tubes, local) = centred(tubes, surface);
-        let local_torus = torus
-            .transformed(Transform::translation(local_tubes.origin - tubes.origin))
-            .expect("a translation keeps a torus");
-        touching.retain(|&[u, v]| {
-            let contact = local_tubes.point(Point2D::new(u, v));
-            let gap = local.offset(contact).0.abs();
-            let overlap = if passes_through(equation, [u, v]) {
-                gap
-            } else {
-                -gap
-            };
-            local.reads_as_touching(&local_torus, contact, overlap, size, tol)
-        });
-    }
+    keep_read_as_touching((torus, tubes), surface, equation, &mut touching, tol);
     Some(touching)
+}
+
+/// Keeps the angles of `touching`, stationary points of `F`, `equation`,
+/// where the torus and `surface` are read as touching: within confusion
+/// of it, and their curve within confusion of the point (see
+/// `reads_as_touching`), the gap counting by its size where the curve
+/// runs around or through the point ([`passes_through`]) and standing
+/// apart otherwise. Read with the torus centred at the origin (see
+/// [`centred`]).
+fn keep_read_as_touching(
+    (torus, tubes): (&Torus, &Tubes),
+    surface: &OtherSurface,
+    equation: &Equation,
+    touching: &mut Vec<[f64; 2]>,
+    tol: Tolerance,
+) {
+    if touching.is_empty() {
+        return;
+    }
+    let size = tubes.major + tubes.minor + surface.size();
+    let (local_tubes, local) = centred(tubes, surface);
+    let local_torus = torus
+        .transformed(Transform::translation(local_tubes.origin - tubes.origin))
+        .expect("a translation keeps a torus");
+    touching.retain(|&[u, v]| {
+        let contact = local_tubes.point(Point2D::new(u, v));
+        let gap = local.offset(contact).0.abs();
+        let overlap = if passes_through(equation, [u, v]) {
+            gap
+        } else {
+            -gap
+        };
+        local.reads_as_touching(&local_torus, contact, overlap, size, tol)
+    });
 }
 
 /// The torus's tube circles and `surface` moved together to put the

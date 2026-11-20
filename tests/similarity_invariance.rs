@@ -698,8 +698,9 @@ fn tori_sharing_a_circle_are_similarity_invariant_in_both_orders() {
     report(family, mismatches);
 }
 
-/// A torus near touching a cylinder, a second torus or a sphere holding
-/// its tube circle (#441, #452): read alike moved and in both orders. The
+/// A torus near touching a cylinder, a second torus, a second torus
+/// sharing a tube circle elsewhere (#454) or a sphere holding its tube
+/// circle (#441, #452): read alike moved and in both orders. The
 /// offsets are dyadic, so every image is the same pair: touching, apart
 /// within confusion (a contact), and through by `2^-24` and `2^-20`, about
 /// a confusion and ten, whose curve strays `1e-4` and more from the
@@ -719,6 +720,14 @@ fn a_torus_near_touching_reads_the_same_moved_in_both_orders() {
         );
         others.push(
             Torus::new(Point::new(10.0 - d, 0.0, 0.0), Vector::Y, 4.0, 1.0)
+                .unwrap()
+                .into(),
+        );
+        // A bend sharing the tube circle at `(4, 0, 0)` and turning back
+        // inside, its outer equator `2d` into the inner one at
+        // `(−3, 0, 0)` (#454).
+        others.push(
+            Torus::new(Point::new(1.0 - d, 0.0, 0.0), Vector::Z, 3.0 + d, 1.0)
                 .unwrap()
                 .into(),
         );
