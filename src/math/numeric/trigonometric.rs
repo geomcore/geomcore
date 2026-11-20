@@ -266,9 +266,7 @@ fn newton<const N: usize>(
         // simple zero parts the signs of both a zero's width away, as one
         // where either only touches zero, a double zero, does not.
         if step <= CONVERGED || (step >= previous && step <= SAME_ZERO) {
-            return (changes_sign(f, (f_u, f_v), [u, v], SAME_ZERO)
-                && changes_sign(g, (g_u, g_v), [u, v], SAME_ZERO))
-            .then_some([u, v]);
+            return parts_signs(f, g, [u, v], SAME_ZERO).then_some([u, v]);
         }
         if step > 1.0 {
             return None;
@@ -278,18 +276,26 @@ fn newton<const N: usize>(
     None
 }
 
-/// Whether `p` takes opposite signs `reach` either way of `at` along its
-/// gradient, `(p_u, p_v)`.
-fn changes_sign<const N: usize>(
-    p: &TrigonometricPolynomial<N>,
-    (p_u, p_v): (&TrigonometricPolynomial<N>, &TrigonometricPolynomial<N>),
+/// Whether `f` and `g` each take opposite signs `reach` either way of
+/// `at` along `u` or along `v`: a simple zero parts the signs of both,
+/// and a double zero, where one only touches zero, does not.
+fn parts_signs<const N: usize>(
+    f: &TrigonometricPolynomial<N>,
+    g: &TrigonometricPolynomial<N>,
     [u, v]: Angles,
     reach: f64,
 ) -> bool {
-    let (along_u, along_v) = (p_u.value(u, v), p_v.value(u, v));
-    let scale = reach / along_u.hypot(along_v);
-    let (du, dv) = (along_u * scale, along_v * scale);
-    scale.is_finite() && p.value(u + du, v + dv) * p.value(u - du, v - dv) < 0.0
+    let (at_u, at_v) = (basis::<N>(u), basis::<N>(v));
+    let along_u = [basis::<N>(u - reach), basis::<N>(u + reach)];
+    let along_v = [basis::<N>(v - reach), basis::<N>(v + reach)];
+    let value = |p: &TrigonometricPolynomial<N>, first: &[f64; N], second: &[f64; N]| {
+        (0..N).map(|j| first[j] * dot(&p.c[j], second)).sum::<f64>()
+    };
+    let parts = |p: &TrigonometricPolynomial<N>| {
+        value(p, &along_u[0], &at_v) * value(p, &along_u[1], &at_v) < 0.0
+            || value(p, &at_u, &along_v[0]) * value(p, &at_u, &along_v[1]) < 0.0
+    };
+    parts(f) && parts(g)
 }
 
 /// The two polynomials, and the one zeros are kept near, in Bernstein
