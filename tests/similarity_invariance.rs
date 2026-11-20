@@ -698,14 +698,9 @@ fn tori_sharing_a_circle_are_similarity_invariant_in_both_orders() {
     report(family, mismatches);
 }
 
-<<<<<<< HEAD
 /// A torus near touching a cylinder, a second torus, a second torus
 /// sharing a tube circle elsewhere (#454) or a sphere holding its tube
-/// circle (#441): read alike moved and in both orders. The
-=======
-/// A torus near touching a cylinder, a second torus or a sphere holding
-/// its tube circle (#441, #452): read alike moved and in both orders. The
->>>>>>> origin/main
+/// circle (#441, #452): read alike moved and in both orders. The
 /// offsets are dyadic, so every image is the same pair: touching, apart
 /// within confusion (a contact), and through by `2^-24` and `2^-20`, about
 /// a confusion and ten, whose curve strays `1e-4` and more from the

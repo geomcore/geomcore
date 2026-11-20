@@ -88,7 +88,6 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
-<<<<<<< HEAD
 - Tori sharing a tube circle, as pipe bends joined end to end, read their
   other contacts by the contact rule (#454, ADR 0057). A bend turning back
   inside the torus of radii 4 and 1, its major radius `d` from touching
@@ -101,7 +100,6 @@ the Python distribution are versioned in lockstep.
   from the origin: moved by `1e7`, even the pipe bends that touch exactly
   were `NotAnalytic`, their normals compared to the angular tolerance from
   points that carried the rounding of the far coordinates.
-=======
 - A sphere a few confusions from holding a tube circle of a torus is read
   with its loops (#452, ADR 0057). Centred on the centre circle of the
   torus of radii 4 and 1, of radius `1 + 1.5e-7` or `1 + 3e-7`, it was
@@ -117,7 +115,6 @@ the Python distribution are versioned in lockstep.
   surfaces. A sphere's parameters of a point a hair from its pole no
   longer snap to the pole when the sphere is small: the pole's reach was
   `1e-9` in absolute length, and is now relative to the sphere's size.
->>>>>>> origin/main
 - A torus against a cylinder, a cone or a second torus off its axis, and
   a sphere holding a tube circle of a torus, read a contact only where
   their curve stays within confusion of it (#441, ADR 0057), as the other
