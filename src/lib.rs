@@ -201,9 +201,10 @@ pub use operations::discretization::{
     Discretize, Discretize2D,
 };
 pub use operations::extrema::{
-    CurveCurveExtrema, CurveCurveExtremum, CurveSurfaceExtrema, CurveSurfaceExtremum,
-    SurfaceSurfaceExtrema, SurfaceSurfaceExtremum, curve_curve_extrema, curve_surface_extrema,
-    surface_surface_extrema,
+    CurveCurveExtrema, CurveCurveExtrema2D, CurveCurveExtremum, CurveCurveExtremum2D,
+    CurveExtremaOperand, CurveSurfaceExtrema, CurveSurfaceExtremum, GenericCurveCurveExtrema,
+    GenericCurveCurveExtremum, SurfaceSurfaceExtrema, SurfaceSurfaceExtremum, curve_curve_extrema,
+    curve_surface_extrema, surface_surface_extrema,
 };
 pub use operations::intersect::{
     CircleCircle2DIntersection, CircleCircleIntersection, CircleSurfaceIntersection,

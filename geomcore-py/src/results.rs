@@ -10,12 +10,13 @@
 use crate::arguments::{curve_2d_classes, curve_classes, surface_classes};
 use crate::values::{PyPoint, PyPoint2D, PyVector, coordinates, coordinates_2d, float_repr};
 use geomcore::{
-    Completeness, CurveCurveExtrema, CurveCurveExtremum, CurveCurveHit, CurveCurveHit2D,
-    CurveCurveIntersection, CurveCurveIntersection2D, CurveCurveOverlap, CurveCurveRegion,
-    CurveProjection, CurveProjection2D, CurveSurfaceExtrema, CurveSurfaceExtremum, CurveSurfaceHit,
-    CurveSurfaceIntersection, CurveSurfaceOverlap, CurveSurfaceRegion, IncompleteReason,
-    IntersectionCurve, Point, Point2D, SurfaceCurvatures, SurfaceProjection, SurfaceSurfaceExtrema,
-    SurfaceSurfaceExtremum, SurfaceSurfaceIntersection, SurfaceSurfaceRegion,
+    Completeness, CurveCurveExtrema, CurveCurveExtrema2D, CurveCurveExtremum, CurveCurveExtremum2D,
+    CurveCurveHit, CurveCurveHit2D, CurveCurveIntersection, CurveCurveIntersection2D,
+    CurveCurveOverlap, CurveCurveRegion, CurveProjection, CurveProjection2D, CurveSurfaceExtrema,
+    CurveSurfaceExtremum, CurveSurfaceHit, CurveSurfaceIntersection, CurveSurfaceOverlap,
+    CurveSurfaceRegion, IncompleteReason, IntersectionCurve, Point, Point2D, SurfaceCurvatures,
+    SurfaceProjection, SurfaceSurfaceExtrema, SurfaceSurfaceExtremum, SurfaceSurfaceIntersection,
+    SurfaceSurfaceRegion,
 };
 use pyo3::prelude::*;
 use pyo3::type_object::PyTypeInfo;
@@ -1496,68 +1497,94 @@ impl PySurfaceProjection {
 // Curve–curve extrema
 // ---------------------------------------------------------------------------
 
-/// A local minimum of the distance between two curves.
-#[pyclass(name = "CurveCurveExtremum", module = "geomcore", eq, frozen)]
-#[derive(Clone, PartialEq)]
-pub(crate) struct PyCurveCurveExtremum(pub(crate) CurveCurveExtremum);
+/// The `#[pyclass]` of a local minimum of the distance between two curves
+/// of one tier, from its point class and the repr of its points.
+macro_rules! curve_curve_extremum {
+    (
+        $(#[$doc:meta])*
+        $class:ident, $name:literal, $extremum:ty, $point:ident, $point_repr:ident
+    ) => {
+        $(#[$doc])*
+        #[pyclass(name = $name, module = "geomcore", eq, frozen)]
+        #[derive(Clone, PartialEq)]
+        pub(crate) struct $class(pub(crate) $extremum);
 
-#[pymethods]
-impl PyCurveCurveExtremum {
-    fn __reduce__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
-        crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
-    }
+        #[pymethods]
+        impl $class {
+            fn __reduce__<'py>(
+                slf: &Bound<'py, Self>,
+            ) -> PyResult<Bound<'py, pyo3::types::PyTuple>> {
+                crate::result_states::pickled(slf.as_any(), Vec::new(), &slf.get().0)
+            }
 
-    /// Rebuilds a pickled object (see `__reduce__`).
-    #[staticmethod]
-    fn _from_state(py: Python<'_>, version: &str, state: &Bound<'_, PyAny>) -> PyResult<Self> {
-        Ok(Self(crate::result_states::unpickled(
-            py,
-            version,
-            state.extract()?,
-        )?))
-    }
+            /// Rebuilds a pickled object (see `__reduce__`).
+            #[staticmethod]
+            fn _from_state(
+                py: Python<'_>,
+                version: &str,
+                state: &Bound<'_, PyAny>,
+            ) -> PyResult<Self> {
+                Ok(Self(crate::result_states::unpickled(
+                    py,
+                    version,
+                    state.extract()?,
+                )?))
+            }
 
-    /// The parameter on the first curve.
-    #[getter]
-    fn first_parameter(&self) -> f64 {
-        self.0.first_parameter
-    }
+            /// The parameter on the first curve.
+            #[getter]
+            fn first_parameter(&self) -> f64 {
+                self.0.first_parameter
+            }
 
-    /// The parameter on the second curve.
-    #[getter]
-    fn second_parameter(&self) -> f64 {
-        self.0.second_parameter
-    }
+            /// The parameter on the second curve.
+            #[getter]
+            fn second_parameter(&self) -> f64 {
+                self.0.second_parameter
+            }
 
-    /// The point of the first curve at `first_parameter`.
-    #[getter]
-    fn first_point(&self) -> PyPoint {
-        PyPoint(self.0.first_point)
-    }
+            /// The point of the first curve at `first_parameter`.
+            #[getter]
+            fn first_point(&self) -> $point {
+                $point(self.0.first_point)
+            }
 
-    /// The point of the second curve at `second_parameter`.
-    #[getter]
-    fn second_point(&self) -> PyPoint {
-        PyPoint(self.0.second_point)
-    }
+            /// The point of the second curve at `second_parameter`.
+            #[getter]
+            fn second_point(&self) -> $point {
+                $point(self.0.second_point)
+            }
 
-    /// The distance between `first_point` and `second_point`.
-    #[getter]
-    fn distance(&self) -> f64 {
-        self.0.distance
-    }
+            /// The distance between `first_point` and `second_point`.
+            #[getter]
+            fn distance(&self) -> f64 {
+                self.0.distance
+            }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "CurveCurveExtremum(first_parameter={}, second_parameter={}, first_point={}, \
-             second_point={}, distance={})",
-            float_repr(self.0.first_parameter),
-            float_repr(self.0.second_parameter),
-            point3_repr(self.0.first_point),
-            point3_repr(self.0.second_point),
-            float_repr(self.0.distance),
-        )
-    }
+            fn __repr__(&self) -> String {
+                format!(
+                    "{}(first_parameter={}, second_parameter={}, first_point={}, \
+                     second_point={}, distance={})",
+                    $name,
+                    float_repr(self.0.first_parameter),
+                    float_repr(self.0.second_parameter),
+                    $point_repr(self.0.first_point),
+                    $point_repr(self.0.second_point),
+                    float_repr(self.0.distance),
+                )
+            }
+        }
+    };
+}
+
+curve_curve_extremum! {
+    /// A local minimum of the distance between two curves.
+    PyCurveCurveExtremum, "CurveCurveExtremum", CurveCurveExtremum, PyPoint, point3_repr
+}
+
+curve_curve_extremum! {
+    /// A local minimum of the distance between two 2D curves.
+    PyCurveCurveExtremum2D, "CurveCurveExtremum2D", CurveCurveExtremum2D, PyPoint2D, point2_repr
 }
 
 /// The `#[pyclass]` of an extrema result: the minima of the distance
@@ -1694,6 +1721,15 @@ extrema_result! {
     ///
     /// `first` and `second` are the curves, in the order of the call.
     PyCurveCurveExtrema, "CurveCurveExtrema", CurveCurveExtrema, PyCurveCurveExtremum,
+    curve_curve;
+}
+
+extrema_result! {
+    /// The local minima of the distance between two 2D curves, closest
+    /// first, with whether the search proved there is no other.
+    ///
+    /// `first` and `second` are the curves, in the order of the call.
+    PyCurveCurveExtrema2D, "CurveCurveExtrema2D", CurveCurveExtrema2D, PyCurveCurveExtremum2D,
     curve_curve;
 }
 

@@ -94,9 +94,37 @@ complete; any other pair is searched numerically and reports
     assert!(curve_surface_extrema(&rail, &sphere, Tolerance::DEFAULT).is_complete());
     ```
 
-A point is an operand of a curve's `extrema`, and of a B-spline or
-Bézier surface's; other surfaces raise `TypeError` for a point, as
-`project_point` gives its nearest point.
+Two 2D curves have their extrema in the plane: a `CurveCurveExtrema2D`
+of `CurveCurveExtremum2D` minima, with the same search and completeness
+as two curves in space. A 2D curve against a 3D curve or a surface raises
+`TypeError`.
+
+=== "Python"
+
+    ```python
+    from geomcore import Circle2D, Line2D, Point2D, Vector2D
+
+    wheel = Circle2D(Point2D(1, 3), 1.0)
+    ground = Line2D(Point2D(0, 0), Vector2D(1, 0))
+    gap = wheel.minimum_distance(ground)
+    assert abs(gap.distance - 2.0) < 1e-12
+    assert gap.second_point.distance(Point2D(1, 0)) < 1e-9
+    ```
+
+=== "Rust"
+
+    ```rust
+    use geomcore::{Circle2D, Line2D, Point2D, Tolerance, Vector2D, curve_curve_extrema};
+
+    let wheel = Circle2D::new(Point2D::new(1.0, 3.0), 1.0).unwrap();
+    let ground = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
+    let gap = curve_curve_extrema(&wheel, &ground, Tolerance::DEFAULT);
+    assert!((gap.closest().unwrap().distance - 2.0).abs() < 1e-12);
+    ```
+
+A point is an operand of a curve's `extrema`, in either tier, and of a
+B-spline or Bézier surface's; other surfaces raise `TypeError` for a
+point, as `project_point` gives its nearest point.
 
 ## Local properties and one-sided evaluation
 
@@ -239,6 +267,17 @@ and frames, and reads and writes 3×3 homogeneous matrices the same way.
 Its `rotation(center, angle)` turns counterclockwise about a point, and
 `mirror_axis(axis)` reflects across a line, which turns a counterclockwise
 `Circle2D` clockwise (`is_counterclockwise()` is then false).
+
+Each 2D class answers what its 3D twin does, under the same names, except
+where the plane has nothing to say. A 2D shape has no z coordinate or
+direction, and no normal: a 2D circle or arc picks its turning direction
+with `is_counterclockwise()` and the `counterclockwise=` argument of
+`TrimmedCurve2D.arc`, where `TrimmedCurve.arc` takes a normal. A 2D
+frame is built from its x direction (`Frame2D.from_x`), a 2D angle is
+signed without a reference (`Vector2D.signed_angle`), and `Transform2D`
+mirrors across a line (`mirror_axis`) rather than a plane. Surfaces and
+every result that involves one live in space only. `test_parity.py` keeps
+this list row by row.
 
 Every value and every curve and surface pickles, and copies with `copy` and
 `copy.deepcopy`, so shapes cross to `multiprocessing` workers and into

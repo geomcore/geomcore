@@ -1867,6 +1867,61 @@ class CurveCurveExtrema:
         """Whether the search proved there is no other minimum."""
 
 @final
+class CurveCurveExtremum2D:
+    """A local minimum of the distance between two 2D curves."""
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def first_parameter(self) -> float:
+        """The parameter on the first curve."""
+    @property
+    def second_parameter(self) -> float:
+        """The parameter on the second curve."""
+    @property
+    def first_point(self) -> Point2D:
+        """The point of the first curve at `first_parameter`."""
+    @property
+    def second_point(self) -> Point2D:
+        """The point of the second curve at `second_parameter`."""
+    @property
+    def distance(self) -> float:
+        """The distance between `first_point` and `second_point`."""
+
+@final
+class CurveCurveExtrema2D:
+    """The local minima of the distance between two 2D curves, closest
+    first, with whether the search proved there is no other.
+
+    `first` and `second` are the curves, in the order of the call.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    def __len__(self) -> int: ...
+    def closest(self) -> Optional[CurveCurveExtremum2D]:
+        """The closest minimum, the first of `minima`, or `None` when there
+        is none.
+        """
+    def __iter__(self) -> Iterator[CurveCurveExtremum2D]: ...
+    def __reversed__(self) -> Iterator[CurveCurveExtremum2D]:
+        """Iterates over the minima, farthest first."""
+    @overload
+    def __getitem__(self, index: int, /) -> CurveCurveExtremum2D: ...
+    @overload
+    def __getitem__(self, index: slice, /) -> List[CurveCurveExtremum2D]: ...
+    @property
+    def minima(self) -> List[CurveCurveExtremum2D]:
+        """The minima, closest first."""
+    @property
+    def completeness(self) -> Completeness:
+        """Whether the search proved there is no other minimum."""
+    @property
+    def first(self) -> Curve2D | TrimmedCurve2D:
+        """The operand the method was called on."""
+    @property
+    def second(self) -> Curve2D | TrimmedCurve2D:
+        """The operand passed to the method."""
+    def is_complete(self) -> bool:
+        """Whether the search proved there is no other minimum."""
+
+@final
 class CurveSurfaceExtremum:
     """A local minimum of the distance between a curve and a surface."""
     __hash__: ClassVar[None]  # type: ignore[assignment]
@@ -2004,12 +2059,21 @@ def uv_curve_to_3d_within(
     """Deprecated: use `surface.uv_curve_to_3d_within(uv_curve,
     max_deviation, tol)`.
     """
+@overload
 @deprecated("use first.extrema(second, tol)")
 def curve_curve_extrema(
     first: _CurveMethods,
     second: _CurveMethods,
     tol: Optional[_ToleranceLike] = None,
 ) -> CurveCurveExtrema:
+    """Deprecated: use `first.extrema(second, tol)`."""
+@overload
+@deprecated("use first.extrema(second, tol)")
+def curve_curve_extrema(
+    first: _Curve2DMethods,
+    second: _Curve2DMethods,
+    tol: Optional[_ToleranceLike] = None,
+) -> CurveCurveExtrema2D:
     """Deprecated: use `first.extrema(second, tol)`."""
 
 # ---------------------------------------------------------------- curves
@@ -2307,16 +2371,42 @@ class _Curve2DMethods(
         deviation not reached. `tol` is `Tolerance.default()` when
         omitted.
         """
+    @overload
     def extrema(
-        self, point: _Point2DLike, tol: Optional[_ToleranceLike] = None
+        self, other: _Point2DLike, tol: Optional[_ToleranceLike] = None
     ) -> List[CurveProjection2D]:
-        """The local minima of the distance from `point` to the
+        """The extrema of the distance to `other`, a point or a 2D
+        curve.
+
+        From a point, a `Point2D` or a sequence of its two
+        coordinates: the local minima of its distance to the
         curve, an end of a bounded curve among them where the
         distance grows from it into the curve, as
         `CurveProjection2D` objects ordered by ascending distance.
-        `point` is a `Point2D` or a sequence of its two
-        coordinates. Raises `TypeError` for anything else: the
-        extrema between two 2D curves are not supported.
+
+        From a 2D curve or `TrimmedCurve2D`: a `CurveCurveExtrema2D`
+        of the local minima of the distance between the two curves,
+        closest first, with whether the search proved there is no
+        other. Parallel lines, concentric circles and other
+        continuous families of equal minima report the distance
+        once, with a representative pair. The result holds this
+        curve as `first` and `other` as `second`. Other Python
+        threads run during the search. Raises `TypeError` for
+        anything else, a 3D curve included.
+        """
+    @overload
+    def extrema(
+        self, other: _Curve2DMethods, tol: Optional[_ToleranceLike] = None
+    ) -> CurveCurveExtrema2D: ...
+    def minimum_distance(
+        self, other: _Curve2DMethods, tol: Optional[_ToleranceLike] = None
+    ) -> Optional[CurveCurveExtremum2D]:
+        """The minimum distance to `other`, a 2D curve: the closest of
+        `extrema(other)`, a `CurveCurveExtremum2D` with the two
+        points where it is reached, or `None` when there is no
+        minimum. Whether the search proved it the global one is the
+        `completeness` of `extrema(other)`. Raises `TypeError` for
+        anything else.
         """
 
 class _BoundedCurveMethods(Generic[_PointType, _DiscretizationType]):
@@ -4671,6 +4761,8 @@ __all__ = [
     "SurfaceProjection",
     "CurveCurveExtremum",
     "CurveCurveExtrema",
+    "CurveCurveExtremum2D",
+    "CurveCurveExtrema2D",
     "CurveSurfaceExtremum",
     "CurveSurfaceExtrema",
     "SurfaceSurfaceExtremum",

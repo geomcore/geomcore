@@ -28,37 +28,107 @@ use geomcore::{
     surface_surface_extrema,
 };
 
-/// A similarity, its factor on lengths and its inverse.
-struct Similarity {
+/// A similarity, its factor on lengths and its inverse, in space
+/// ([`Transform`]) or in the plane ([`Transform2D`]).
+struct Similarity<T> {
     name: String,
-    transform: Transform,
-    inverse: Transform,
+    transform: T,
+    inverse: T,
     scale: f64,
 }
 
-fn similarities() -> Vec<Similarity> {
-    let mut list: Vec<Similarity> = [-20, 20]
-        .into_iter()
-        .map(|exponent| {
-            let scale = 2f64.powi(exponent);
-            Similarity {
-                name: format!("scale 2^{exponent}"),
-                transform: Transform::scaling(Point::ORIGIN, scale),
-                inverse: Transform::scaling(Point::ORIGIN, 1.0 / scale),
-                scale,
-            }
-        })
-        .collect();
-    for distance in [1e3, 1e7] {
-        let offset = Vector::new(distance, -2.0 * distance, 1.5 * distance);
-        list.push(Similarity {
-            name: format!("translation {distance:e}"),
-            transform: Transform::translation(offset),
-            inverse: Transform::translation(Vector::new(-offset.x, -offset.y, -offset.z)),
-            scale: 1.0,
-        });
+/// The similarities of one tier, and how a point is brought back and
+/// compared.
+trait TierSimilarity: Copy + Sized {
+    type Point: Copy;
+
+    /// The scales by 2^-20 and 2^20, and the translations by 1e3 and 1e7.
+    fn similarities() -> Vec<Similarity<Self>>;
+
+    fn apply(self, point: Self::Point) -> Self::Point;
+
+    fn distance(first: Self::Point, second: Self::Point) -> f64;
+}
+
+const EXPONENTS: [i32; 2] = [-20, 20];
+const DISTANCES: [f64; 2] = [1e3, 1e7];
+
+impl TierSimilarity for Transform {
+    type Point = Point;
+
+    fn similarities() -> Vec<Similarity<Transform>> {
+        let mut list: Vec<Similarity<Transform>> = EXPONENTS
+            .into_iter()
+            .map(|exponent| {
+                let scale = 2f64.powi(exponent);
+                Similarity {
+                    name: format!("scale 2^{exponent}"),
+                    transform: Transform::scaling(Point::ORIGIN, scale),
+                    inverse: Transform::scaling(Point::ORIGIN, 1.0 / scale),
+                    scale,
+                }
+            })
+            .collect();
+        for distance in DISTANCES {
+            let offset = Vector::new(distance, -2.0 * distance, 1.5 * distance);
+            list.push(Similarity {
+                name: format!("translation {distance:e}"),
+                transform: Transform::translation(offset),
+                inverse: Transform::translation(Vector::new(-offset.x, -offset.y, -offset.z)),
+                scale: 1.0,
+            });
+        }
+        list
     }
-    list
+
+    fn apply(self, point: Point) -> Point {
+        self.apply_point(point)
+    }
+
+    fn distance(first: Point, second: Point) -> f64 {
+        first.distance(second)
+    }
+}
+
+impl TierSimilarity for Transform2D {
+    type Point = Point2D;
+
+    fn similarities() -> Vec<Similarity<Transform2D>> {
+        let mut list: Vec<Similarity<Transform2D>> = EXPONENTS
+            .into_iter()
+            .map(|exponent| {
+                let scale = 2f64.powi(exponent);
+                Similarity {
+                    name: format!("scale 2^{exponent}"),
+                    transform: Transform2D::scaling(Point2D::ORIGIN, scale),
+                    inverse: Transform2D::scaling(Point2D::ORIGIN, 1.0 / scale),
+                    scale,
+                }
+            })
+            .collect();
+        for distance in DISTANCES {
+            let offset = Vector2D::new(distance, -2.0 * distance);
+            list.push(Similarity {
+                name: format!("translation {distance:e}"),
+                transform: Transform2D::translation(offset),
+                inverse: Transform2D::translation(Vector2D::new(-offset.x, -offset.y)),
+                scale: 1.0,
+            });
+        }
+        list
+    }
+
+    fn apply(self, point: Point2D) -> Point2D {
+        self.apply_point(point)
+    }
+
+    fn distance(first: Point2D, second: Point2D) -> f64 {
+        first.distance(second)
+    }
+}
+
+fn similarities() -> Vec<Similarity<Transform>> {
+    Transform::similarities()
 }
 
 fn tolerance(scale: f64) -> Tolerance {
@@ -104,15 +174,19 @@ fn completeness<R>(completeness: &Completeness<R>) -> String {
 }
 
 /// Whether every reference point has an image point beside it.
-fn same_points(reference: &[Point], image: &[Point], similarity: &Similarity) -> bool {
-    let back: Vec<Point> = image
+fn same_points<T: TierSimilarity>(
+    reference: &[T::Point],
+    image: &[T::Point],
+    similarity: &Similarity<T>,
+) -> bool {
+    let back: Vec<T::Point> = image
         .iter()
-        .map(|point| similarity.inverse.apply_point(*point))
+        .map(|point| similarity.inverse.apply(*point))
         .collect();
     reference.len() == back.len()
         && reference.iter().all(|point| {
             back.iter()
-                .any(|other| point.distance(*other) <= POINT_SLACK)
+                .any(|other| T::distance(*point, *other) <= POINT_SLACK)
         })
 }
 
@@ -233,16 +307,17 @@ type Mismatch = (String, String);
 
 /// Runs `operation` on every pair at every similarity and returns the
 /// mismatches.
-fn compare_pairs<A, B>(
+fn compare_pairs<A, B, T>(
     family: &str,
     firsts: &[A],
     seconds: &[B],
     symmetric: bool,
-    operation: impl Fn(&A, &B, Tolerance) -> (String, Vec<Point>),
+    operation: impl Fn(&A, &B, Tolerance) -> (String, Vec<T::Point>),
 ) -> Vec<Mismatch>
 where
-    A: Transformable<Transform = Transform> + Clone + Debug,
-    B: Transformable<Transform = Transform> + Clone + Debug,
+    A: Transformable<Transform = T> + Clone + Debug,
+    B: Transformable<Transform = T> + Clone + Debug,
+    T: TierSimilarity,
 {
     let mut mismatches = Vec::new();
     let mut compared = 0;
@@ -253,7 +328,7 @@ where
             }
             let (reference_text, reference_points) = operation(a, b, tolerance(1.0));
             let pair = format!("{family} {} x {}", label(i, a), label(j, b));
-            for similarity in similarities() {
+            for similarity in T::similarities() {
                 let (Ok(image_a), Ok(image_b)) = (
                     a.clone().transformed(similarity.transform),
                     b.clone().transformed(similarity.transform),
@@ -481,6 +556,41 @@ fn curve_curve_extrema_are_similarity_invariant() {
         "extrema",
         compare_pairs("extrema", &curves(), &curves(), true, extrema),
     );
+}
+
+/// The extrema of two 2D curves: their count and completeness. Their
+/// points are left out, as the 3D family leaves them out: a tangent
+/// contact's point moves under a translation by more than the slack
+/// (ADR 0051), and so does the representative of a valley.
+fn extrema_2d<C>(a: &C, b: &C, tol: Tolerance) -> (String, Vec<Point2D>)
+where
+    C: geomcore::CurveExtremaOperand<Point = Point2D>,
+{
+    let result = curve_curve_extrema(a, b, tol);
+    let text = format!(
+        "extrema={} {}",
+        result.len(),
+        completeness(result.completeness())
+    );
+    (text, Vec::new())
+}
+
+/// Every pair of the 2D samples and every pair of their trimmed pieces. A
+/// whole curve against a piece of itself is left out: its valley of zero
+/// distance is split or merged depending on the placement (#444).
+#[test]
+fn curve_curve_extrema_2d_are_similarity_invariant() {
+    let curves = curves_2d();
+    let pieces: Vec<TrimmedCurve2D> = curves.iter().map(trimmed_2d).collect();
+    let mut mismatches = compare_pairs("extrema-2d", &curves, &curves, true, extrema_2d);
+    mismatches.extend(compare_pairs(
+        "extrema-2d trimmed",
+        &pieces,
+        &pieces,
+        true,
+        extrema_2d,
+    ));
+    report("extrema-2d", mismatches);
 }
 
 #[test]
