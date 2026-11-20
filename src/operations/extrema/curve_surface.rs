@@ -7,7 +7,9 @@ use std::ops::Deref;
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve};
 use crate::geometry::surfaces::{ElementarySurface, ParametricSurface};
 use crate::math::numeric::newton_min_1d;
-use crate::operations::extrema::curve_curve::{closest_from, curve_size, is_box_minimum};
+use crate::operations::extrema::curve_curve::{
+    VALLEY_FLATNESS, closest_from, curve_size, is_box_minimum,
+};
 use crate::operations::extrema::surface_search::{
     Carried, Foot, Samples, above_rounding, closed_gap, foot, holds_off_focus, inside,
     merge_basins, one_basin, outer_window, pair_scale, probe_length, reference_parameters,
@@ -686,6 +688,17 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
         no_ridge && feet.foot_at(1.0).point.distance(q.surface_point) <= self.tol.confusion
     }
 
+    /// Whether the distance is flat along the curve at `e` to second
+    /// order: its reduced second derivative, per unit length along the
+    /// curve, is at most `VALLEY_FLATNESS`, as on a valley along the
+    /// curve. Only such a minimum is worth the candidate read from the
+    /// surface's reference.
+    fn flat_along_curve(&self, e: &CurveSurfaceExtremum) -> bool {
+        let (_, (_, _, reduced), speed, _) =
+            self.local(e.curve_parameter, e.surface_parameter_array());
+        !(reduced > VALLEY_FLATNESS * speed * speed)
+    }
+
     /// A valley's representative: the curve at its reference parameter and
     /// its foot on the surface, when that pair lies in the valley; else the
     /// curve's closest point to the surface at its reference parameters,
@@ -705,6 +718,9 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
         let pair = self.local(t, start).0;
         if in_valley(&pair) {
             return pair;
+        }
+        if !self.flat_along_curve(e) {
+            return self.refine(t, start).unwrap_or(*e);
         }
         let [u, v] = reference_parameters(self.surface_domains);
         let surface_reference = self.surface.point_at(u, v);

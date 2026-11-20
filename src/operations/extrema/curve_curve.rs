@@ -1119,7 +1119,7 @@ where
 /// at a point of a valley, read per unit length along each curve, is zero
 /// to rounding; at an isolated minimum where the curves cross at the angle
 /// `a` it is about `sin(a)^2`. Above this, a minimum is on no valley.
-const VALLEY_FLATNESS: f64 = 1e-4;
+pub(crate) const VALLEY_FLATNESS: f64 = 1e-4;
 
 /// Whether the distance is flat to second order in some direction at
 /// the minimum `e`: the smallest eigenvalue of the Hessian of half the

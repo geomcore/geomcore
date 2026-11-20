@@ -5,7 +5,7 @@ use std::ops::Deref;
 
 use crate::geometry::surfaces::{ElementarySurface, ParametricSurface};
 use crate::math::numeric::newton_min_2d;
-use crate::operations::extrema::curve_curve::is_box_minimum;
+use crate::operations::extrema::curve_curve::{VALLEY_FLATNESS, is_box_minimum};
 use crate::operations::extrema::curve_surface::whole_elementary_surface;
 use crate::operations::extrema::surface_search::{
     Carried, Foot, Objective, Samples, above_rounding, closed_gap, collapsed_minimum, foot,
@@ -737,8 +737,9 @@ impl<A: ParametricSurface, B: ParametricSurface> Search<'_, A, B> {
     /// parameters and its foot on the second, when that pair lies in the
     /// valley; else `e` with one parameter of the first surface moved to
     /// its reference, for a valley along that parameter, its foot carried
-    /// along from `e`'s; else the same three read from the second surface,
-    /// for a valley that starts where a piece of the second starts; else the minimum the
+    /// along from `e`'s; else, at a minimum flat in some direction, the same
+    /// three read from the second surface, for a valley that starts where a
+    /// piece of the second starts; else the minimum the
     /// search reaches from the
     /// reference. Along a valley the gradient is rounding alone, so where
     /// the search stops along it would hang on the rounding.
@@ -786,7 +787,7 @@ impl<A: ParametricSurface, B: ParametricSurface> Search<'_, A, B> {
                 })
         };
         first_side()
-            .or_else(second_side)
+            .or_else(|| self.is_flat(e).then(second_side).flatten())
             .unwrap_or_else(|| self.refine(reference, start).unwrap_or(*e))
     }
 
@@ -815,6 +816,25 @@ impl<A: ParametricSurface, B: ParametricSurface> Search<'_, A, B> {
         );
         let on_first = feet.foot_at(1.0).parameters;
         self.local(on_first, to).0
+    }
+
+    /// Whether the distance is flat in some direction of the first
+    /// surface at `e` to second order: the smallest eigenvalue of its
+    /// reduced Hessian, with each parameter read per unit length, is at
+    /// most `VALLEY_FLATNESS`, as on a valley. Only such a minimum is worth
+    /// the candidates read from the second surface.
+    fn is_flat(&self, e: &SurfaceSurfaceExtremum) -> bool {
+        let (_, (_, _, hessian), [speed_u, speed_v], _) =
+            self.local(e.first_parameter_array(), e.second_parameter_array());
+        if !(speed_u > 0.0 && speed_v > 0.0) {
+            return true;
+        }
+        let first = hessian[0][0] / (speed_u * speed_u);
+        let mixed = 0.5 * (hessian[0][1] + hessian[1][0]) / (speed_u * speed_v);
+        let second = hessian[1][1] / (speed_v * speed_v);
+        let smallest = 0.5 * (first + second)
+            - (0.25 * (first - second) * (first - second) + mixed * mixed).sqrt();
+        !(smallest > VALLEY_FLATNESS)
     }
 
     /// The second surface at its reference parameters and its closest
