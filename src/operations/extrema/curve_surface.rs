@@ -450,7 +450,7 @@ where
     // Seen from the curve, each sample measured to its foot on the surface
     // from the nearest surface sample: a distance exact at every sample, so
     // that minima a few samples apart are told apart.
-    let from_curve = curve_samples.discrete_minima(|point| {
+    let from_curve = curve_samples.discrete_minima(&surface_samples, |point| {
         let (nearest, _) = surface_samples.nearest(point);
         let foot = foot(
             surface,
@@ -460,7 +460,7 @@ where
         );
         (foot.point.distance(point), foot.parameters)
     });
-    let from_surface = surface_samples.discrete_minima(|point| {
+    let from_surface = surface_samples.discrete_minima(&curve_samples, |point| {
         let (nearest, distance) = curve_samples.nearest(point);
         (distance, nearest)
     });

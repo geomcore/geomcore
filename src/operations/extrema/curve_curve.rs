@@ -711,10 +711,16 @@ where
     let gap = perp(curve.point_at(dom.reference()) - line.origin).magnitude();
     let scale = configuration_scale(gap, 0.0, curve_size(curve, dom));
     let seeds = dom.seeds(curve, scale, SEED_GRID_1D);
-    let values: Vec<f64> = seeds.iter().map(|&t| local(t).0.0).collect();
+    let points: Vec<Point> = seeds.iter().map(|&t| curve.point_at(t)).collect();
+    let values: Vec<f64> = points
+        .iter()
+        .map(|&p| perp(p - line.origin).magnitude())
+        .collect();
+    let rounding = distance_rounding(coordinate_size(points.iter().chain([&line.origin])));
     let bounds = dom.bounds();
     let mut found = Vec::new();
-    for (k, _) in grid_minima(&values, [seeds.len(), 1], [dom.is_periodic(), false]) {
+    let shape = [seeds.len(), 1];
+    for (k, _) in grid_minima(&values, shape, [dom.is_periodic(), false], rounding) {
         let t = dom.wrap(newton_min_1d(|t| local(t).0, seeds[k], bounds, 1e-14, 100));
         let ((_, g, h), speed) = local(t);
         let optimal = is_box_minimum(
@@ -771,11 +777,16 @@ where
         .flat_map(|p| pb.iter().map(move |q| p.distance(*q)))
         .collect();
     let shape = [ss.len(), ts.len()];
-    let mut seeds: Vec<[f64; 2]> =
-        grid_minima(&values, shape, [da.is_periodic(), db.is_periodic()])
-            .into_iter()
-            .map(|(i, j)| [ss[i], ts[j]])
-            .collect();
+    let rounding = distance_rounding(coordinate_size(pa.iter().chain(&pb)));
+    let mut seeds: Vec<[f64; 2]> = grid_minima(
+        &values,
+        shape,
+        [da.is_periodic(), db.is_periodic()],
+        rounding,
+    )
+    .into_iter()
+    .map(|(i, j)| [ss[i], ts[j]])
+    .collect();
     // The grid sees one minimum where two lie closer together than its
     // spacing (two crossings of a thin lens, a crossing next to a near
     // touch), and the minimiser reaches only one of them.
@@ -788,8 +799,10 @@ where
     // A minimum on an edge of the box can have a basin narrower than the
     // grid: seed each finite edge at the discrete minima of dense samples.
     let edge = |p: Point, curve: &dyn Fn(f64) -> Point, us: &[f64], dom: ParameterDomain| {
-        let values: Vec<f64> = us.iter().map(|&u| p.distance(curve(u))).collect();
-        grid_minima(&values, [us.len(), 1], [dom.is_periodic(), false])
+        let points: Vec<Point> = us.iter().map(|&u| curve(u)).collect();
+        let values: Vec<f64> = points.iter().map(|q| p.distance(*q)).collect();
+        let rounding = distance_rounding(coordinate_size(points.iter().chain([&p])));
+        grid_minima(&values, [us.len(), 1], [dom.is_periodic(), false], rounding)
             .into_iter()
             .map(|(k, _)| us[k])
             .collect::<Vec<f64>>()
@@ -1293,13 +1306,45 @@ pub(crate) fn curve_size<C: ParametricCurve>(curve: &C, dom: ParameterDomain) ->
     }
 }
 
-/// Nodes of a row-major `shape[0] x shape[1]` grid of samples no higher
-/// than any of their 8 neighbours (wrapping across a periodic
-/// direction), lowest first, at most [`MAX_SEEDS`].
+/// The largest coordinate, in absolute value, of `points`: the size about
+/// the origin their rounding is measured against.
+pub(crate) fn coordinate_size<'a>(points: impl IntoIterator<Item = &'a Point>) -> f64 {
+    points
+        .into_iter()
+        .map(|p| p.x.abs().max(p.y.abs()).max(p.z.abs()))
+        .fold(0.0, f64::max)
+}
+
+/// How many times `EPSILON` times the coordinates a distance between two
+/// sampled points is rounded within: each point carries the rounding of
+/// its evaluation, and the difference adds both.
+const DISTANCE_ROUNDING: f64 = 4.0;
+
+/// The rounding of a distance between points whose coordinates are at
+/// most `size` (see [`coordinate_size`]): about the operands, not their
+/// own distance (ADR 0051, rule 2).
+pub(crate) fn distance_rounding(size: f64) -> f64 {
+    DISTANCE_ROUNDING * f64::EPSILON * size
+}
+
+/// Nodes of a row-major `shape[0] x shape[1]` grid of samples where the
+/// values (distances, rounded within `rounding`) have a discrete local
+/// minimum, one per plateau, lowest first, at most [`MAX_SEEDS`].
+///
+/// A node is a minimum when none of its 8 neighbours (wrapping across a
+/// periodic direction) is lower by more than `rounding`. Minima that
+/// neighbour each other within `rounding` are one plateau, and only its
+/// lowest node is kept (the first in the grid on a tie). A valley of equal
+/// distance along a grid direction ties every node along it with the next,
+/// and rounding, so the placement of the shapes, decides which of them
+/// come out lower: taken one by one they would fill the [`MAX_SEEDS`]
+/// ahead of a farther minimum, and how many depended on the placement
+/// (#448). The refinement from any node of the plateau reaches the valley.
 pub(crate) fn grid_minima(
     values: &[f64],
     shape: [usize; 2],
     wrap: [bool; 2],
+    rounding: f64,
 ) -> Vec<(usize, usize)> {
     let [n, m] = shape;
     let neighbour = |i: usize, di: isize, len: usize, wrap: bool| {
@@ -1312,29 +1357,47 @@ pub(crate) fn grid_minima(
             None
         }
     };
+    let neighbours = |k: usize| {
+        let (i, j) = (k / m, k % m);
+        (-1..=1).flat_map(move |di| {
+            (-1..=1).filter_map(move |dj| {
+                Some(neighbour(i, di, n, wrap[0])? * m + neighbour(j, dj, m, wrap[1])?)
+            })
+        })
+    };
+    let minimum: Vec<bool> = (0..n * m)
+        .map(|k| {
+            let v = values[k];
+            v.is_finite() && neighbours(k).all(|x| values[x] >= v - rounding || values[x].is_nan())
+        })
+        .collect();
+    let lower = |p: usize, q: usize| values[p] < values[q] || (values[p] == values[q] && p < q);
+    let mut seen = vec![false; n * m];
+    let mut plateau = Vec::new();
     let mut out = Vec::new();
-    for i in 0..n {
-        for j in 0..m {
-            let v = values[i * m + j];
-            let lowest = v.is_finite()
-                && (-1..=1).all(|di| {
-                    (-1..=1).all(|dj| {
-                        match (neighbour(i, di, n, wrap[0]), neighbour(j, dj, m, wrap[1])) {
-                            (Some(x), Some(y)) => {
-                                values[x * m + y] >= v || values[x * m + y].is_nan()
-                            }
-                            _ => true,
-                        }
-                    })
-                });
-            if lowest {
-                out.push((i, j));
+    for k in 0..n * m {
+        if !minimum[k] || seen[k] {
+            continue;
+        }
+        seen[k] = true;
+        plateau.push(k);
+        let mut lowest = k;
+        while let Some(p) = plateau.pop() {
+            if lower(p, lowest) {
+                lowest = p;
+            }
+            for x in neighbours(p) {
+                if minimum[x] && !seen[x] && (values[x] - values[p]).abs() <= rounding {
+                    seen[x] = true;
+                    plateau.push(x);
+                }
             }
         }
+        out.push(lowest);
     }
-    out.sort_by(|p, q| values[p.0 * m + p.1].total_cmp(&values[q.0 * m + q.1]));
+    out.sort_by(|&p, &q| values[p].total_cmp(&values[q]).then(p.cmp(&q)));
     out.truncate(MAX_SEEDS);
-    out
+    out.into_iter().map(|k| (k / m, k % m)).collect()
 }
 
 /// Box optimality of a minimiser's result `x` for half the squared
@@ -1342,6 +1405,11 @@ pub(crate) fn grid_minima(
 /// `|g_i| / speed_i` within `tol.confusion`) or held at a bound by an
 /// outward gradient, and the Hessian over the stationary parameters is
 /// positive semidefinite (rejecting saddles a seed happened to start on).
+/// The Hessian is read per unit length along each parameter, as
+/// [`flat_minimum`] reads it: an angle's curvature grows with the square
+/// of the size and a length's does not, so a slack against the raw entries
+/// let a saddle pass on small shapes that it failed on large ones
+/// (ADR 0051, rule 4).
 pub(crate) fn is_box_minimum(
     x: [f64; 2],
     g: [f64; 2],
@@ -1361,6 +1429,10 @@ pub(crate) fn is_box_minimum(
             return false;
         }
     }
+    // A parameter that does not move the point keeps its own units.
+    let per_length = speed.map(|v| if v > 0.0 { 1.0 / v } else { 1.0 });
+    let h: [[f64; 2]; 2] =
+        std::array::from_fn(|i| std::array::from_fn(|j| h[i][j] * per_length[i] * per_length[j]));
     let slack = 1e-6 * (h[0][0].abs() + h[1][1].abs() + h[0][1].abs() + h[1][0].abs());
     match stationary {
         [true, true] => {
