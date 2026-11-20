@@ -231,7 +231,10 @@ impl<'a> IntoIterator for &'a CurveSurfaceExtrema {
 /// curve lying on the surface) is reported once, with a representative:
 /// the curve at its reference parameter (`0` on a line or circle, the
 /// start of a bounded domain) and its closest point on the surface, when
-/// that pair belongs to the family, else a member found by the search.
+/// that pair belongs to the family, else the curve's closest point to the
+/// surface at its reference parameters (where a family along a piece of
+/// the surface starts) and that point's closest point on the surface,
+/// else a member found by the search.
 ///
 /// # Examples
 ///

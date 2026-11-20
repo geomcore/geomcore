@@ -501,11 +501,14 @@ where
 /// leave the seeded range.
 ///
 /// Configurations with a continuous family of equal minima (parallel
-/// lines, concentric circles, overlapping curves) report the distance
-/// once, with a representative pair: the first curve at its reference
-/// parameter (`0` on a line or circle, the start of a bounded domain)
-/// with its closest point on the second, when that pair belongs to the
-/// family, else a member found by the search.
+/// lines, concentric circles, overlapping curves, a curve against a piece
+/// of itself) report the distance once, with a representative pair read
+/// from the curves, the same wherever they are placed: the first curve at
+/// its reference parameter (`0` on a line or circle, the start of a
+/// bounded domain) with its closest point on the second, when that pair
+/// belongs to the family, else the second curve at its reference
+/// parameter with its closest point on the first (the start of a piece
+/// the family runs along), else a member found by the search.
 ///
 /// A B-spline or Bézier curve, or trimmed curve over one, against
 /// another or against a segment (a line trimmed to a range), unless both
@@ -1053,9 +1056,8 @@ where
             found.push(curve_pair_extremum(a, b, s, t));
         }
     }
-    let same_valley = |p: &CurveCurveExtremum, q: &CurveCurveExtremum| {
-        one_valley(a, da, b, db, p, q, tol)
-    };
+    let same_valley =
+        |p: &CurveCurveExtremum, q: &CurveCurveExtremum| one_valley(a, da, b, db, p, q, tol);
     let representative = |e: &CurveCurveExtremum| valley_representative(a, da, b, db, e, tol);
     merge_valleys(found, same_valley, representative)
 }
@@ -1094,24 +1096,14 @@ where
     if !p.parameters_apart(q, tol) {
         return true;
     }
-    let along_first = (
-        p.first_parameter,
-        da.step(p.first_parameter, q.first_parameter),
-        p.second_parameter,
-        q.second_point,
-    );
-    let along_second = (
-        p.second_parameter,
-        db.step(p.second_parameter, q.second_parameter),
-        p.first_parameter,
-        q.first_point,
-    );
-    let ds = along_first.1;
-    let dt = along_second.1;
+    let ds = da.step(p.first_parameter, q.first_parameter);
+    let dt = db.step(p.second_parameter, q.second_parameter);
     let straight = |f: f64| {
         a.point_at(p.first_parameter + f * ds)
             .distance(b.point_at(p.second_parameter + f * dt))
     };
+    let along_first = (p.first_parameter, ds, p.second_parameter, q.second_point);
+    let along_second = (p.second_parameter, dt, p.first_parameter, q.first_point);
     flat_between(p.distance, q.distance, straight, tol)
         || walks_along_valley(a, b, db, along_first, p.distance, tol)
         || walks_along_valley(b, a, da, along_second, p.distance, tol)
@@ -1157,7 +1149,11 @@ pub(crate) fn closest_from<C: ParametricCurve>(
     let objective = |u: f64| {
         let (on_curve, first, second) = curve.second_derivatives(u);
         let r = point - on_curve;
-        (0.5 * r.dot(r), -r.dot(first), first.dot(first) - r.dot(second))
+        (
+            0.5 * r.dot(r),
+            -r.dot(first),
+            first.dot(first) - r.dot(second),
+        )
     };
     let u = domain.wrap(newton_min_1d(objective, start, domain.bounds(), 1e-14, 100));
     (u, curve.point_at(u))

@@ -285,9 +285,16 @@ fn test_a_circle_against_a_piece_of_a_coaxial_cylinder_is_one_valley() {
             );
             let extrema = curve_surface_extrema(&circle, &piece, TOL);
             assert_consistent(&circle, &piece, &extrema);
-            assert_eq!(extrema.len(), 1, "radius {radius} at {distance}: {extrema:?}");
+            assert_eq!(
+                extrema.len(),
+                1,
+                "radius {radius} at {distance}: {extrema:?}"
+            );
             let valley = extrema[0];
-            assert!((valley.distance - (2.0 - radius)).abs() < 1e-7, "{valley:?}");
+            assert!(
+                (valley.distance - (2.0 - radius)).abs() < 1e-7,
+                "{valley:?}"
+            );
             assert!((valley.curve_parameter - 1.2566).abs() < 1e-7, "{valley:?}");
         }
     }

@@ -234,8 +234,10 @@ impl<'a> IntoIterator for &'a SurfaceSurfaceExtrema {
 /// A continuous family of equal minima (two parallel planes, concentric
 /// spheres, parallel cylinders) is reported once, with a representative:
 /// the first surface at its reference parameters and its closest point on
-/// the second, when that pair belongs to the family, else a member found
-/// by the closed form or the search.
+/// the second, when that pair belongs to the family, else the second
+/// surface at its reference parameters and its closest point on the first
+/// (where a family along a piece of the second starts), else a member
+/// found by the closed form or the search.
 ///
 /// # Examples
 ///
@@ -772,7 +774,7 @@ impl<A: ParametricSurface, B: ParametricSurface> Search<'_, A, B> {
         let second_side = || {
             let second = reference_parameters(self.second_domains);
             let [u, v] = e.second_parameter_array();
-            Some(self.from_second_reference())
+            Some(self.second_reference_pair())
                 .filter(in_valley)
                 .or_else(|| {
                     [
@@ -785,14 +787,18 @@ impl<A: ParametricSurface, B: ParametricSurface> Search<'_, A, B> {
         };
         first_side()
             .or_else(second_side)
-        .unwrap_or_else(|| self.refine(reference, start).unwrap_or(*e))
+            .unwrap_or_else(|| self.refine(reference, start).unwrap_or(*e))
     }
 
     /// The pair at the second surface's parameters `to`, its closest point
     /// on the first carried from `e`'s along the straight way there: the
     /// counterpart of [`carried`](Self::carried) for a valley along a
     /// parameter of the second surface.
-    fn carried_on_second(&self, e: &SurfaceSurfaceExtremum, to: [f64; 2]) -> SurfaceSurfaceExtremum {
+    fn carried_on_second(
+        &self,
+        e: &SurfaceSurfaceExtremum,
+        to: [f64; 2],
+    ) -> SurfaceSurfaceExtremum {
         let from = e.second_parameter_array();
         let way = [0, 1].map(|i| self.second_domains[i].step(from[i], to[i]));
         let chord = e.second_point.distance(self.second.point_at(to[0], to[1]));
@@ -815,7 +821,7 @@ impl<A: ParametricSurface, B: ParametricSurface> Search<'_, A, B> {
     /// point on the first: a valley that starts where a piece of the
     /// second surface starts (a whole cylinder against a piece of itself)
     /// passes there and not through the first surface's reference.
-    fn from_second_reference(&self) -> SurfaceSurfaceExtremum {
+    fn second_reference_pair(&self) -> SurfaceSurfaceExtremum {
         let [u, v] = reference_parameters(self.second_domains);
         let point = self.second.point_at(u, v);
         let projection = self.first.project_point(point, self.tol);

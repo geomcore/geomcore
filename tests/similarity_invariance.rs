@@ -18,15 +18,14 @@ use std::fmt::Debug;
 use std::path::PathBuf;
 
 use common::samples::{
-    curves, curves_2d, parameters, surface_parameters, surfaces, tilted_frame, trimmed,
-    trimmed_2d,
+    curves, curves_2d, parameters, surface_parameters, surfaces, tilted_frame, trimmed, trimmed_2d,
 };
 use geomcore::prelude::*;
 use geomcore::{
     BSplineCurve, BezierCurve, Circle, Completeness, Curve, Cylinder, ExtrusionSurface, Frame,
     IntersectionMethod, Line, Plane, Point, Point2D, Sphere, Surface, Tolerance, Transform,
-    Transform2D, TrimmedCurve, TrimmedCurve2D, TrimmedSurface, Vector, Vector2D, curve_curve_extrema, curve_surface_extrema,
-    surface_surface_extrema,
+    Transform2D, TrimmedCurve, TrimmedCurve2D, TrimmedSurface, Vector, Vector2D,
+    curve_curve_extrema, curve_surface_extrema, surface_surface_extrema,
 };
 
 /// A similarity, its factor on lengths and its inverse, in space

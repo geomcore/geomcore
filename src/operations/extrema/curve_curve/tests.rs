@@ -411,7 +411,15 @@ fn test_minima_on_one_valley_are_merged_along_the_valley() {
     let (da, db) = (ParameterDomain::of(&circle), ParameterDomain::of(&piece));
     let at = |u: f64| curve_pair_extremum(&circle, &piece, u, u);
     let (near_start, near_end) = (at(1.5), at(5.0));
-    assert!(one_valley(&circle, da, &piece, db, &near_start, &near_end, tol));
+    assert!(one_valley(
+        &circle,
+        da,
+        &piece,
+        db,
+        &near_start,
+        &near_end,
+        tol
+    ));
     // The straight way, the shorter way round the circle, rises off the arc.
     let ds = da.step(1.5, 5.0);
     let dt = db.step(1.5, 5.0);
