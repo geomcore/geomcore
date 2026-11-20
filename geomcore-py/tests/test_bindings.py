@@ -698,6 +698,26 @@ def test_a_curve_where_the_surfaces_touch_is_tangent():
     assert piece.curve.radius() == pytest.approx(5.0)
 
 
+def test_tori_sharing_a_circle_meet_alike_in_either_order():
+    # The first's tube circle at (4, 0, 0) is a latitude circle of the
+    # second (#348): the circle and a loop crossing it, exact either way.
+    from geomcore import IntersectionMethod, Torus
+
+    first = Torus(Point.origin(), Vector.unit_z(), 4.0, 1.0)
+    second = Torus(Point(4.0, -math.sqrt(0.75), 0.0), Vector.unit_y(), 1.5, 1.0)
+    lengths = []
+    for a, b in [(first, second), (second, first)]:
+        result = a.intersect(b)
+        assert result.method == IntersectionMethod.EXACT and result.is_complete()
+        assert len(result.curves) == 2 and not result.contact_points
+        for piece in result.curves:
+            assert piece.first_uv_curve is not None
+            assert piece.second_uv_curve is not None
+        lengths.append(sorted(piece.curve.length() for piece in result.curves))
+    assert lengths[0] == pytest.approx(lengths[1], rel=1e-6)
+    assert lengths[0][0] == pytest.approx(math.tau, rel=1e-6)
+
+
 def test_closed_curves_and_the_sphere_have_measures():
     circle = Circle(Point.origin(), Vector.unit_z(), 2.0)
     assert circle.length() == pytest.approx(math.tau * 2.0)

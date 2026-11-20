@@ -2,8 +2,8 @@
 
 use super::*;
 use crate::{
-    Frame, IntersectionMethod, OcticCurve, Torus, TorusConeIntersection, TorusCylinderIntersection,
-    TorusTorusIntersection,
+    Axis, Frame, IntersectionMethod, OcticCurve, Torus, TorusConeIntersection,
+    TorusCylinderIntersection, TorusTorusIntersection, Transform, Transformable,
 };
 
 /// The torus of radii 4 and 1 about `Z` through the origin.
@@ -413,22 +413,150 @@ fn test_tori_anywhere_cut_the_loops_the_marcher_traces() {
     assert!(cut >= 18);
 }
 
+/// The routed curves of `first` and `second` in both orders: exact,
+/// complete, fitted within confusion of both tori with their curves in
+/// both tori's parameters, as many in either order, and one of them on
+/// the circle of `centre`, `normal` and `radius` they share. The count of
+/// curves and of contact points is returned.
+fn assert_shared_circle_read_both_ways(
+    first: &Torus,
+    second: &Torus,
+    (centre, normal, radius): (Point, Vector, f64),
+) -> (usize, usize) {
+    let mut counts = Vec::new();
+    for (one, other) in [(first, second), (second, first)] {
+        let exact = one.intersect_exact(other, TOL);
+        let TorusTorusIntersection::Octic(curve) = exact else {
+            panic!("expected the octic, got {exact:?}");
+        };
+        assert_on_both(&curve, one, other, 1e-9);
+        let result = one.intersect(other, TOL);
+        let (count, contacts) = (result.curves().len(), result.contact_points().len());
+        assert_routed_result(&result, one, other, count, contacts);
+        for piece in result.curves() {
+            assert!(piece.first_uv_curve.is_some() && piece.second_uv_curve.is_some());
+        }
+        let off_the_circle = |p: Point| {
+            let w = p - centre;
+            let height = w.dot(normal);
+            ((w - normal * height).magnitude() - radius).hypot(height)
+        };
+        let on_the_circle = result.curves().iter().filter(|piece| {
+            let (t0, t1) = piece.curve.bounds();
+            (0..=200).all(|k| {
+                let p = piece.curve.point_at(t0 + (t1 - t0) * k as f64 / 200.0);
+                off_the_circle(p) <= TOL.confusion
+            })
+        });
+        assert_eq!(on_the_circle.count(), 1, "{one:?} against {other:?}");
+        counts.push((count, contacts));
+    }
+    assert_eq!(counts[0], counts[1], "{first:?} against {second:?}");
+    counts[0]
+}
+
+/// The similarities the tori sharing a circle are moved by: none, three
+/// turns about axes off the origin, and a translation.
+fn placements() -> Vec<Transform> {
+    let mut placements = vec![Transform::IDENTITY];
+    for k in 0..3 {
+        let axis = Axis::new(
+            Point::new(0.3, -0.2, 0.1),
+            Vector::new(0.3, 1.0, 0.2 * k as f64),
+        )
+        .unwrap();
+        placements.push(Transform::rotation(axis, 0.7 + k as f64));
+    }
+    placements.push(Transform::translation(Vector::new(120.0, -35.0, 8.0)));
+    placements
+}
+
+/// A Villarceau circle of [`torus`]: its centre, its unit normal and two
+/// unit directions across its plane. The plane through the centre touching
+/// the torus at two points cuts it in two such circles, each of the major
+/// radius about a point at the minor radius from the centre.
+fn villarceau_circle() -> (Point, Vector, [Vector; 2]) {
+    let sin: f64 = 0.25;
+    let across = Vector::new((1.0 - sin * sin).sqrt(), 0.0, sin);
+    (
+        Point::new(0.0, 1.0, 0.0),
+        Vector::Y.cross(across),
+        [Vector::Y, across],
+    )
+}
+
 #[test]
-fn test_tori_sharing_a_circle_otherwise_are_not_read_in_closed_form() {
+fn test_a_tube_circle_on_a_latitude_circle_of_the_other_torus_is_read_in_either_order() {
     // The first's tube circle at (4, 0, 0) is a latitude circle of the
-    // second, which crosses the first along it: the curve splits off that
-    // circle, and no factor of the equation in the tube circles' angle
-    // takes it out.
+    // second, which crosses the first along it. Read along the first's
+    // tube circles, `F` vanishes on the line of that circle; along the
+    // second's, the circle is a line of roots like any other branch.
     let torus = torus();
     let across = Torus::new(Point::new(4.0, -0.75f64.sqrt(), 0.0), Vector::Y, 1.5, 1.0).unwrap();
-    assert_eq!(
-        torus.intersect_exact(&across, TOL),
-        TorusTorusIntersection::NotAnalytic
-    );
-    // A horn torus off the other's axis.
+    for placement in placements() {
+        let first = torus.transformed(placement).unwrap();
+        let second = across.transformed(placement).unwrap();
+        let circle = (
+            placement.apply_point(Point::new(4.0, 0.0, 0.0)),
+            placement.apply_vector(Vector::Y),
+            1.0,
+        );
+        assert_eq!(
+            assert_shared_circle_read_both_ways(&first, &second, circle),
+            (2, 0)
+        );
+    }
+}
+
+#[test]
+fn test_a_villarceau_circle_held_by_a_second_torus_is_read_in_either_order() {
+    // A tube circle of the second torus is a Villarceau circle of the
+    // first: read along the second's tube circles, `F` vanishes on a line,
+    // and along the first's the circle is a branch with one point on each
+    // tube circle. The tori touch at two points of it, where the rest of
+    // the curve crosses it.
+    let torus = torus();
+    let (centre, normal, [y, across]) = villarceau_circle();
+    for major in [5.0, 6.0, 9.0, 12.0] {
+        for turn in [0.0, 0.5, 1.2, FRAC_PI_2, 2.0, 3.0] {
+            let (sin, cos) = f64::sin_cos(turn);
+            let radial = y * cos + across * sin;
+            let axis = y * -sin + across * cos;
+            let tube = Torus::new(centre - radial * major, axis, major, 4.0).unwrap();
+            let (count, contacts) =
+                assert_shared_circle_read_both_ways(&torus, &tube, (centre, normal, 4.0));
+            assert!(count >= 2 && contacts >= 2, "{tube:?}");
+        }
+    }
+    // A latitude circle of the second torus is the Villarceau circle.
+    for (major, minor, height) in [(3.0, 2.0, 1.0), (3.5, 1.0, 0.5), (2.0, 1.5, -1.0)] {
+        let angle: f64 = f64::asin(height / minor);
+        let scale = 4.0 / (major + minor * angle.cos());
+        let tilted = Torus::new(
+            centre - normal * (height * scale),
+            normal,
+            major * scale,
+            minor * scale,
+        )
+        .unwrap();
+        for placement in placements() {
+            let first = torus.transformed(placement).unwrap();
+            let second = tilted.transformed(placement).unwrap();
+            let circle = (
+                placement.apply_point(centre),
+                placement.apply_vector(normal),
+                4.0,
+            );
+            assert_shared_circle_read_both_ways(&first, &second, circle);
+        }
+    }
+}
+
+#[test]
+fn test_a_horn_torus_off_the_others_axis_is_not_read_in_closed_form() {
     let horn = Torus::new(Point::new(4.0, 0.0, 0.0), Vector::Y, 1.0, 1.0).unwrap();
     assert_eq!(
-        torus.intersect_exact(&horn, TOL),
+        torus().intersect_exact(&horn, TOL),
         TorusTorusIntersection::NotAnalytic
     );
 }

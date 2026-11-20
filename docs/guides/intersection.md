@@ -170,8 +170,10 @@ crossing where tori side by side touch, a point where they touch and
 part. Pipe bends joined end to end share a tube circle and touch all
 along it: it comes back as a tangent curve (`OcticCurve::shared_circle`),
 with the loops of the rest of the curve. A circle of one torus lying on
-the other otherwise, a latitude or Villarceau circle, runs the numeric
-search.
+the other otherwise, a latitude or Villarceau circle, comes back as one
+of the loops, the rest of the curve crossing it, in either order: where
+a tube circle of the first torus lies on the second, the pair is read
+along the second's tube circles instead.
 Lines/circles/conics against each
 other and against the elementary surfaces, except an ellipse, a
 parabola or a hyperbola against a torus: substituted into the torus they
