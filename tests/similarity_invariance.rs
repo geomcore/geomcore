@@ -18,13 +18,14 @@ use std::fmt::Debug;
 use std::path::PathBuf;
 
 use common::samples::{
-    curves, curves_2d, parameters, surface_parameters, surfaces, tilted_frame, trimmed_2d,
+    curves, curves_2d, parameters, surface_parameters, surfaces, tilted_frame, trimmed,
+    trimmed_2d,
 };
 use geomcore::prelude::*;
 use geomcore::{
     BSplineCurve, BezierCurve, Circle, Completeness, Curve, ExtrusionSurface, Frame,
     IntersectionMethod, Line, Plane, Point, Point2D, Surface, Tolerance, Transform, Transform2D,
-    TrimmedCurve2D, Vector, Vector2D, curve_curve_extrema, curve_surface_extrema,
+    TrimmedCurve, TrimmedCurve2D, Vector, Vector2D, curve_curve_extrema, curve_surface_extrema,
     surface_surface_extrema,
 };
 
@@ -254,6 +255,31 @@ fn surface_surface(a: &Surface, b: &Surface, tol: Tolerance) -> (String, Vec<Poi
 fn extrema(a: &Curve, b: &Curve, tol: Tolerance) -> (String, Vec<Point>) {
     let result = curve_curve_extrema(a, b, tol);
     (format!("extrema={}", result.len()), Vec::new())
+}
+
+/// The count and completeness of the extrema of a whole curve against a
+/// piece of a curve, and, when the piece is of that curve, the two points
+/// of the valley of zero distance along the piece: the valley's
+/// representative must not depend on where the search entered it (#444).
+/// Other points are left out, as in [`extrema`]: a tangent contact's point
+/// moves under a translation by more than the slack (ADR 0051).
+fn whole_against_piece<A, B>(a: &A, b: &B, tol: Tolerance) -> (String, Vec<A::Point>)
+where
+    A: geomcore::CurveExtremaOperand + Debug,
+    B: geomcore::CurveExtremaOperand<Point = A::Point> + Debug,
+{
+    let result = curve_curve_extrema(a, b, tol);
+    let text = format!(
+        "extrema={} {}",
+        result.len(),
+        completeness(result.completeness())
+    );
+    let own_piece = format!("{b:?}").contains(&format!("{a:?}"));
+    let points = match result.closest() {
+        Some(valley) if own_piece => vec![valley.first_point, valley.second_point],
+        _ => Vec::new(),
+    };
+    (text, points)
 }
 
 /// The count and completeness of the curve–surface minima, with the
@@ -550,12 +576,28 @@ fn surface_surface_intersections_are_similarity_invariant() {
     );
 }
 
+/// Every pair of the samples, every pair of their trimmed pieces, and
+/// every sample against every piece, its own among them (#444).
 #[test]
 fn curve_curve_extrema_are_similarity_invariant() {
-    report(
-        "extrema",
-        compare_pairs("extrema", &curves(), &curves(), true, extrema),
-    );
+    let curves = curves();
+    let pieces: Vec<TrimmedCurve<Curve>> = curves.iter().map(trimmed).collect();
+    let mut mismatches = compare_pairs("extrema", &curves, &curves, true, extrema);
+    mismatches.extend(compare_pairs(
+        "extrema trimmed",
+        &pieces,
+        &pieces,
+        true,
+        whole_against_piece,
+    ));
+    mismatches.extend(compare_pairs(
+        "extrema whole x piece",
+        &curves,
+        &pieces,
+        false,
+        whole_against_piece,
+    ));
+    report("extrema", mismatches);
 }
 
 /// The extrema of two 2D curves: their count and completeness. Their
@@ -575,9 +617,8 @@ where
     (text, Vec::new())
 }
 
-/// Every pair of the 2D samples and every pair of their trimmed pieces. A
-/// whole curve against a piece of itself is left out: its valley of zero
-/// distance is split or merged depending on the placement (#444).
+/// Every pair of the 2D samples, every pair of their trimmed pieces, and
+/// every sample against every piece, its own among them (#444).
 #[test]
 fn curve_curve_extrema_2d_are_similarity_invariant() {
     let curves = curves_2d();
@@ -589,6 +630,13 @@ fn curve_curve_extrema_2d_are_similarity_invariant() {
         &pieces,
         true,
         extrema_2d,
+    ));
+    mismatches.extend(compare_pairs(
+        "extrema-2d whole x piece",
+        &curves,
+        &pieces,
+        false,
+        whole_against_piece,
     ));
     report("extrema-2d", mismatches);
 }
