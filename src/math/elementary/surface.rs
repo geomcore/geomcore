@@ -200,11 +200,14 @@ pub(crate) fn cone_parameters(
     p: Point,
 ) -> (f64, f64) {
     let (x, y, z) = frame.local_coordinates(p);
+    // The cone's radius at the point's height, `tan(half_angle)` times its
+    // distance from the apex along the axis: the axis's reach is `1e-9` of
+    // that distance, compared squared to stay free of a square root.
     let tangent = half_angle.tan();
-    let from_apex = ((z * tangent + reference_radius) / tangent).abs();
-    let u = if x.hypot(y) <= 1e-9 * from_apex {
+    let radius_here = z * tangent + reference_radius;
+    let u = if (x * x + y * y) * (tangent * tangent) <= 1e-18 * (radius_here * radius_here) {
         0.0
-    } else if -reference_radius > z * half_angle.tan() {
+    } else if radius_here < 0.0 {
         wrap_to_turn((-y).atan2(-x))
     } else {
         wrap_to_turn(y.atan2(x))
