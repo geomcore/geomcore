@@ -400,11 +400,11 @@ fn test_the_distance_between_the_axes_decides_the_outcome() {
 
 #[test]
 fn test_a_thin_cylinder_touching_a_thick_one_from_inside_crosses_itself_there() {
-    // Either one thicker, on either side, the axes `r1 − r2` apart and a
-    // fraction of confusion either way.
+    // Either one thicker, on either side, the axes `r1 − r2` apart, or
+    // within the rounding of it either way.
     for (r1, r2) in [(1.0, 0.5), (0.5, 1.0), (1.3, 0.4)] {
         for (angle, side) in [(0.9, 1.0), (FRAC_PI_2, -1.0), (2.3, 1.0), (0.4, -1.0)] {
-            for offset in [0.0, 0.5, -0.5] {
+            for offset in [0.0, 1e-9, -1e-9] {
                 let d = side * f64::abs(r1 - r2) + offset * TOL.confusion;
                 let (first, second) = pair(r1, r2, angle, d);
                 let CylinderCylinderIntersection::Quartic(curve) =
@@ -445,6 +445,27 @@ fn test_a_thin_cylinder_touching_a_thick_one_from_inside_crosses_itself_there() 
                     assert_fitted_on_closed_form(&curve, &first, &second, 0.3 * TOL.confusion);
                 }
             }
+        }
+    }
+}
+
+#[test]
+fn test_a_thin_cylinder_half_a_confusion_from_touching_a_thick_one_keeps_its_loops() {
+    // Half a confusion nearer the thick axis, the thin one clears it: two
+    // loops; farther, one. Either way their curve is some `1e-3` from
+    // where they would cross (#439).
+    for (r1, r2) in [(1.0, 0.5), (0.5, 1.0)] {
+        for (offset, count) in [(-0.5, 2), (0.5, 1)] {
+            let d = f64::abs(r1 - r2) + offset * TOL.confusion;
+            let (first, second) = pair(r1, r2, 0.9, d);
+            let curve = quartic(&first, &second);
+            assert_eq!(curve.component_count(), count);
+            assert_eq!(curve.contact_point(), None);
+            assert_exact(&curve, &first, &second, 1e-12);
+            let result = first.intersect(&second, TOL);
+            assert!(result.is_complete());
+            assert_eq!(result.curves().len(), count);
+            assert_fitted(&first, &second, result.curves());
         }
     }
 }

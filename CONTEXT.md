@@ -63,6 +63,10 @@ _Avoid_: same-parameter error, SameParameter
 The surface at a signed distance along another surface's normal. It is an operation, not a stored shape: an elementary surface's offset is elementary, and other surfaces have none yet (ADR 0016).
 _Avoid_: shell, thickening
 
+**Offset curve**:
+The 2D curve at a signed distance along another 2D curve's left normal, `c(t) + d n(t)`, a positive distance on the side a positive curvature turns toward. A line's is a line and a circle's a circle, exactly; any other curve's is one B-spline within a deviation, at the same parameter, from `offset` (ADR 0056). Where `|d|` passes the radius of curvature on its side, the offset has a **cusp**, where it stops and turns back, and a loop between two cusps; the result reports the cusps' parameters and keeps the loops.
+_Avoid_: parallel curve, equidistant, tool-path compensation (one use of it)
+
 **Tier**:
 Space or the plane: where a curve lives. Each curve type is one generic type over its tier's point, `TierPoint` (`Point` in space, `Point2D` in the plane), named `GenericCircle`, `GenericBSplineCurve` and so on, and used through its two aliases: `Circle` in space, `Circle2D` in the plane (ADR 0014). Only the plane's name carries a suffix (ADR 0013).
 _Avoid_: dimension for the type parameter, `Circle3D`, 3D tier as a name
@@ -178,7 +182,7 @@ _Avoid_: converged, exact (reserved for exact intersections), fallback
 The outcome when two shapes overlap entirely, so their intersection is a whole shape rather than curves or points.
 
 **Contact point**:
-An isolated point where two surfaces meet, either tangentially or at a singular point such as a cone apex. It has a position but no surface parameters, which a singular point does not define.
+An isolated point where two surfaces meet, either tangentially or at a singular point such as a cone apex. It has a position but no surface parameters, which a singular point does not define. Two surfaces within confusion of touching are read as touching there only where the curve of the surfaces as given stays within confusion of the point, `|ε| ≤ κ confusion² / 2` for an offset `ε` and a relative curvature `κ`; otherwise the result is that curve (ADR 0057).
 
 **Hit**:
 A point where a curve meets another curve or a surface, with its multiplicity (1 for a crossing, 2 or more for a tangency) and its parameters on both operands (each curve's parameter, the surface's `(u, v)`). The point is always present. A parameter is stored only when the solver computed it on its way to the point, and is otherwise absent (`None`): recover it with the operand's `parameter_of(hit.point, tol)` or `parameters_of(hit.point, tol)`.

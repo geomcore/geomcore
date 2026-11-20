@@ -23,7 +23,7 @@ use common::samples::{
 use geomcore::prelude::*;
 use geomcore::{
     BSplineCurve, BezierCurve, Circle, Completeness, Curve, Cylinder, ExtrusionSurface, Frame,
-    IntersectionMethod, Line, Plane, Point, Point2D, Sphere, Surface, Tolerance, Transform,
+    IntersectionMethod, Line, Plane, Point, Point2D, Sphere, Surface, Tolerance, Torus, Transform,
     Transform2D, TrimmedCurve, TrimmedCurve2D, TrimmedSurface, Vector, Vector2D,
     curve_curve_extrema, curve_surface_extrema, surface_surface_extrema,
 };
@@ -865,4 +865,187 @@ fn projections_are_similarity_invariant() {
         mismatches.len()
     );
     report("projection", mismatches);
+}
+
+/// A plane a few roundings off a saddle level of a torus: where the pair
+/// sits does not change whether their curve is read as touching. The
+/// first offset is within the rounding of the lengths it is computed
+/// from, and reads as a contact both ways; the others are beyond it, and
+/// their curve, `√(2δ / κ)` from the contact, is tens of confusions from
+/// it: no contact either way.
+#[test]
+fn a_plane_near_a_saddle_level_of_a_torus_reads_the_same_moved() {
+    let torus: Surface = Torus::new(Point::ORIGIN, Vector::Z, 10.0, 2.0)
+        .unwrap()
+        .into();
+    let normal = Vector::new(0.5, 0.0, 0.75f64.sqrt());
+    let moved = Similarity {
+        name: "translation (1e3, -2e3, 5e2)".to_string(),
+        transform: Transform::translation(Vector::new(1e3, -2e3, 5e2)),
+        inverse: Transform::translation(Vector::new(-1e3, 2e3, -5e2)),
+        scale: 1.0,
+    };
+    for offset in [1e-13, 1e-12, 3e-12] {
+        let plane: Surface = Plane::new(Point::ORIGIN + normal * (3.0 + offset), normal)
+            .unwrap()
+            .into();
+        let tol = tolerance(1.0);
+        let (reference_text, reference_points) = surface_surface(&torus, &plane, tol);
+        let image_torus = torus.clone().transformed(moved.transform).unwrap();
+        let image_plane = plane.clone().transformed(moved.transform).unwrap();
+        let (image_text, image_points) = surface_surface(&image_torus, &image_plane, tol);
+        assert_eq!(
+            image_text, reference_text,
+            "offset {offset:e}, {}",
+            moved.name
+        );
+        assert!(
+            same_points(&reference_points, &image_points, &moved),
+            "offset {offset:e}: contact points moved"
+        );
+        assert!(
+            offset < 1e-12 || reference_points.is_empty(),
+            "offset {offset:e}: a contact read for a curve beyond confusion of it"
+        );
+    }
+}
+
+/// The 2D forms of the similarities: the same scales, and translations by
+/// the same distances in the plane.
+fn similarities_2d() -> Vec<(String, Transform2D, Transform2D, f64)> {
+    let mut list: Vec<(String, Transform2D, Transform2D, f64)> = [-20, 20]
+        .into_iter()
+        .map(|exponent| {
+            let scale = 2f64.powi(exponent);
+            (
+                format!("scale 2^{exponent}"),
+                Transform2D::scaling(Point2D::ORIGIN, scale),
+                Transform2D::scaling(Point2D::ORIGIN, 1.0 / scale),
+                scale,
+            )
+        })
+        .collect();
+    for distance in [1e3, 1e7] {
+        let offset = Vector2D::new(distance, -2.0 * distance);
+        list.push((
+            format!("translation {distance:e}"),
+            Transform2D::translation(offset),
+            Transform2D::translation(Vector2D::new(-offset.x, -offset.y)),
+            1.0,
+        ));
+    }
+    list
+}
+
+/// The offset of `curve` at `distance` within `max_deviation`, as text
+/// (refused and why, or exact, the degree and pole count of a B-spline and
+/// the cusp count) and points: the cusps on the curve, and the offset's
+/// points nearest each of `probes`.
+fn offset_2d<C>(
+    curve: &C,
+    distance: f64,
+    max_deviation: f64,
+    probes: &[Point2D],
+    tol: Tolerance,
+) -> (String, Vec<Point2D>)
+where
+    C: Offset2D,
+    C::Offset: PointExtrema2D,
+{
+    let offset = match curve.offset(distance, max_deviation, tol) {
+        Ok(offset) => offset,
+        Err(error) => {
+            let text = format!("{error:?}");
+            return (
+                text.split([' ', '{']).next().unwrap().to_string(),
+                Vec::new(),
+            );
+        }
+    };
+    let shape = match offset.curve().as_bspline() {
+        Some(spline) => format!("degree {} poles {}", spline.degree(), spline.poles().len()),
+        None => "exact".to_string(),
+    };
+    let text = format!("{shape} cusps {}", offset.cusp_parameters().len());
+    let mut points: Vec<Point2D> = offset
+        .cusp_parameters()
+        .iter()
+        .map(|&cusp| curve.point_at(cusp))
+        .collect();
+    points.extend(
+        probes
+            .iter()
+            .map(|&probe| offset.curve().project_point(probe, tol).point),
+    );
+    (text, points)
+}
+
+/// Compares the offsets of every curve of `samples` with those of its
+/// images, at two distances, one past the smallest radius of curvature of
+/// the sample ellipse.
+fn compare_offsets<C>(family: &str, samples: &[C], mismatches: &mut Vec<Mismatch>) -> usize
+where
+    C: Offset2D + Transformable<Transform = Transform2D> + Clone + Debug,
+    C::Offset: PointExtrema2D,
+{
+    let mut compared = 0;
+    for (index, curve) in samples.iter().enumerate() {
+        let probes: Vec<Point2D> = parameters(curve.bounds())
+            .iter()
+            .map(|&u| curve.point_at(u))
+            .collect();
+        for distance in [-0.3, 0.9] {
+            let max_deviation = 1e-4;
+            let (reference_text, reference_points) =
+                offset_2d(curve, distance, max_deviation, &probes, tolerance(1.0));
+            for (name, transform, inverse, scale) in similarities_2d() {
+                let image = curve.clone().transformed(transform).unwrap();
+                let image_probes: Vec<Point2D> = probes
+                    .iter()
+                    .map(|&probe| transform.apply_point(probe))
+                    .collect();
+                let (image_text, image_points) = offset_2d(
+                    &image,
+                    distance * scale,
+                    max_deviation * scale,
+                    &image_probes,
+                    tolerance(scale),
+                );
+                compared += 1;
+                let key = format!(
+                    "offset {family} {} at {distance} | {name}",
+                    label(index, curve)
+                );
+                let back: Vec<Point2D> = image_points
+                    .iter()
+                    .map(|&point| inverse.apply_point(point))
+                    .collect();
+                if image_text != reference_text {
+                    mismatches.push((key, format!("[{reference_text}] became [{image_text}]")));
+                } else if back.len() != reference_points.len()
+                    || reference_points
+                        .iter()
+                        .zip(&back)
+                        .any(|(a, b)| a.distance(*b) > POINT_SLACK)
+                {
+                    mismatches.push((key, format!("[{reference_text}] points moved")));
+                }
+            }
+        }
+    }
+    compared
+}
+
+#[test]
+fn offsets_of_2d_curves_are_similarity_invariant() {
+    let wholes = curves_2d();
+    let pieces: Vec<TrimmedCurve2D> = wholes.iter().map(trimmed_2d).collect();
+    let mut mismatches = Vec::new();
+    let compared = compare_offsets("whole", &wholes, &mut mismatches)
+        + compare_offsets("trimmed", &pieces, &mut mismatches);
+    println!(
+        "offset: {compared} comparisons, {} mismatches",
+        mismatches.len()
+    );
+    report("offset", mismatches);
 }

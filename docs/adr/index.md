@@ -42,6 +42,7 @@ and the text says so where it happens. For the current API, use the
 - [0004](0004-discretization-fills-caller-owned-buffers.md) — Discretization fills caller-owned buffers
 - [0036](0036-an-exact-quartic-is-fitted-within-confusion.md) — An exact quartic is fitted within confusion
 - [0055](0055-a-fit-refuses-points-the-confusion-tolerance-cannot-tell-from-a-lower-shape.md) — A fit refuses points the confusion tolerance cannot tell from a lower shape
+- [0056](0056-a-2d-curve-offsets-exactly-or-within-a-deviation.md) — A 2D curve offsets exactly or within a deviation, reporting its cusps
 
 ## Intersections
 
@@ -66,6 +67,7 @@ and the text says so where it happens. For the current API, use the
 - [0049](0049-tube-circles-meet-a-cylinder-or-a-cone-in-up-to-four-points.md) — Tube circles meet a cylinder or a cone in up to four points
 - [0050](0050-a-second-torus-is-read-along-the-same-tube-circles.md) — A second torus is read along the same tube circles
 - [0052](0052-a-boundary-curve-lying-on-the-other-surface-is-one-whole-curve.md) — A boundary curve lying on the other surface is one whole curve
+- [0057](0057-a-contact-is-read-where-its-curve-stays-within-confusion.md) — A contact is read where its curve stays within confusion
 
 ## Curves on surfaces
 

@@ -21,6 +21,18 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- The offset of a 2D curve, `offset(distance, max_deviation, tol)` on
+  every 2D curve in Rust (the `Offset2D` trait, in the prelude) and Python
+  (#250, ADR 0056). Every point moves along the curve's left normal, so a
+  positive distance goes to the side a positive curvature turns toward. A
+  line offsets exactly to a line and a circle to a circle, and a segment
+  or an arc to a piece of one over the same range; every other curve to
+  one B-spline within `max_deviation` of the true offset at the same
+  parameter. The result, `CurveOffset2D`, gives the curve, its deviation,
+  whether it is proven or exact, and the parameters where the offset has
+  a cusp; loops are kept. `CurveOffset2DError` refuses a whole parabola or
+  hyperbola, a circle whose radius would not stay positive, and a curve
+  that stops or turns a corner.
 - `Transform2D`, the plane twin of `Transform`, in Rust and Python (#421):
   a similarity of the plane built by `translation`, `rotation(center,
   angle)` (counterclockwise), `scaling`, `mirror_point`, `mirror_axis`
@@ -89,6 +101,29 @@ the Python distribution are versioned in lockstep.
   valley passes there, else the second shape at its own, where a valley
   along a piece starts. A minimum the search reached alone on its valley
   is moved to the representative too.
+- Two surfaces within confusion of a contact are answered with the
+  contact only where their curve stays within confusion of it (#438,
+  #439, ADR 0057). Near a contact two surfaces part quadratically, so an
+  offset `ε` puts their curve `√(2ε / κ)` from the contact point, `κ`
+  their relative curvature: a plane `5e-8` off a saddle level of a torus
+  was answered with a crossing `1.3e-3` from its loops, a thin cylinder
+  `1e-7` from touching a thick one inside with a crossing `1e-3` from
+  them. The offset that reads as a contact is now `κ confusion² / 2`, or
+  its rounding, where the surfaces cross; apart within confusion, they
+  still touch. This holds for the quartics of two cylinders, a sphere and
+  a cylinder or a cone, a cone and a cylinder, two cones, and a torus and
+  a plane or a sphere; for the two ellipses of equal cylinders and the
+  conics of quadrics around one sphere; and for the tangent points, lines
+  and circles of the elementary pairs, a plane and a sphere among them.
+  Results within confusion of a contact change: a sphere half a confusion
+  through a plane now meets it in a circle of radius `√(2rε)`, and so
+  does one `1e-10` through it, as rounded data gives: read such contacts
+  at a confusion of `√(2ε / κ)` or more. An offset within the rounding of
+  the lengths it is computed from, and of the distances from where each
+  surface is placed to the contact, reads as none, so an exact contact
+  reads as one however far its surfaces are placed from it, and moving a
+  pair does not change the answer. The curvature is read in closed form,
+  at a sphere's pole as anywhere else.
 - The sampled curve–surface search finds the same hits at any size (#434).
   Its Newton steps read the tolerance, a length, as the pivot ratio of
   their linear solve, so at a large scale a crossing at a few degrees

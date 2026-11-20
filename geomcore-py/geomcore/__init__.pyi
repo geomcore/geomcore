@@ -89,6 +89,9 @@ class UvCurveTo3DError(GeomcoreError):
 class UvCurveTo3DApproximationError(GeomcoreError):
     """A UV curve, a curve in a surface's parameter space, has no 3D curve within the asked deviation."""
 
+class CurveOffset2DError(GeomcoreError):
+    """A 2D curve has no offset at the asked distance within the asked deviation."""
+
 class SurfaceIsoError(GeomcoreError):
     """An iso-parametric curve of a surface could not be extracted."""
 
@@ -1083,6 +1086,44 @@ class CurveApproximation2D:
     def is_proven(self) -> bool:
         """Whether `deviation` is a proven bound, up to rounding, rather than
         sampled.
+        """
+
+@final
+class CurveOffset2D:
+    """The offset of a 2D curve, from `offset`: the offset curve, how far it is
+    from the true offset `c(t) + d n(t)` at the same parameter, whether that
+    distance is proven, and the parameters where the true offset has a cusp.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def curve(self) -> Union[Line2D, Circle2D, BSplineCurve2D, TrimmedCurve2D]:
+        """The offset curve, in the parameter of the source curve: a `Line2D`
+        for a line, a `Circle2D` for a circle, a `BSplineCurve2D` for the
+        other curves, and a `TrimmedCurve2D` over the same range for a
+        trimmed curve.
+        """
+    @property
+    def deviation(self) -> float:
+        """The largest distance between the offset curve's point at `t` and the
+        true offset's: zero for an exact offset, a bound when `is_proven()`,
+        the largest sampled distance otherwise. It is within the asked
+        deviation, up to rounding.
+        """
+    def is_proven(self) -> bool:
+        """Whether `deviation` is a proven bound, up to rounding, rather than
+        sampled.
+        """
+    def is_exact(self) -> bool:
+        """Whether the offset curve is the true offset itself, up to rounding:
+        a line's or a circle's.
+        """
+    @property
+    def cusp_parameters(self) -> List[float]:
+        """The parameters on the source curve, in increasing order, where the
+        true offset has a cusp: where the distance crosses the radius of
+        curvature on its side, so that the offset stops and turns back.
+        Between two cusps the offset runs against the curve and forms a
+        loop, which is kept, not trimmed.
         """
 
 @final
@@ -2304,6 +2345,31 @@ class _Curve2DMethods(
         nothing was missed. Raises `TypeError` for a 2D curve against
         a 3D curve or a surface, and for an object that is not a
         geomcore curve or surface. Other Python threads run meanwhile.
+        """
+    def offset(
+        self,
+        distance: float,
+        max_deviation: float,
+        tol: Optional[_ToleranceLike] = None,
+    ) -> CurveOffset2D:
+        """The offset of the curve at the signed `distance`: every
+        point moved along the curve's left normal, the tangent
+        turned a quarter counterclockwise, so a positive distance
+        goes to the side a positive curvature turns toward. A line
+        offsets exactly to a `Line2D` and a circle to a
+        `Circle2D`; every other curve to one `BSplineCurve2D`
+        within `max_deviation` of the true offset at the same
+        parameter, its deviation sampled. A `TrimmedCurve2D`
+        offsets to a `TrimmedCurve2D` over the same range. Where
+        the distance passes the radius of curvature, the offset
+        has cusps and loops, which are kept; the result reports
+        the cusps' parameters. Raises `CurveOffset2DError` for a
+        distance that is not finite, a `max_deviation` that is not
+        positive and finite, a whole parabola or hyperbola (offset
+        a trimmed piece), a circle whose offset radius would not
+        be positive, a curve that stops or turns a corner, or a
+        deviation not reached. `tol` is `Tolerance.default()` when
+        omitted.
         """
     @overload
     def extrema(
@@ -4653,6 +4719,7 @@ __all__ = [
     "Curve3DToUvApproximationError",
     "UvCurveTo3DError",
     "UvCurveTo3DApproximationError",
+    "CurveOffset2DError",
     "SurfaceIsoError",
     "DiscretizationCriteriaError",
     "Point",
@@ -4703,6 +4770,7 @@ __all__ = [
     "SurfaceCurvatures",
     "CurveApproximation",
     "CurveApproximation2D",
+    "CurveOffset2D",
     "SurfaceApproximation",
     "PlaneFit",
     "CircleFit",

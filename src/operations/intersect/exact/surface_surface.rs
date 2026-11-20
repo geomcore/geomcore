@@ -1,6 +1,10 @@
 //! Exact intersections of two elementary surfaces: one result type per
 //! pair, solved in closed form.
 
+use super::contact::{
+    ContactSurface, crossings_read_as_touching, offset_within_rounding,
+    parted_conics_read_as_given, reads_as_touching_across,
+};
 use super::curve_curve::{
     CircleCircle2DIntersection, LineCircle2DIntersection, unit_line_meets_circle,
 };
@@ -154,8 +158,10 @@ pub enum SphereConeIntersection {
 /// Result of intersecting two cylinders.
 ///
 /// Every configuration is closed-form but a hair from the two ellipses:
-/// radii between one and two `tol.confusion` apart whose axes meet within
-/// `tol.confusion`, too near equal for the node to have a side. Those report
+/// where the thin cylinder reads as touching the thick one from inside on
+/// both sides, its curve within confusion of both contacts, and the
+/// radii and the axes do not read as the two ellipses, too near equal for
+/// the node to have a side. Those report
 /// [`CylinderCylinderIntersection::NotAnalytic`], reserved for the
 /// numeric surface-surface path.
 // The quartic is stored inline so an exact result never allocates: boxed,
@@ -688,7 +694,8 @@ impl IntersectExact<Sphere> for Plane {
     /// `|h|` beyond `radius + tol.confusion` misses
     /// ([`PlaneSphereIntersection::Empty`]); within `tol.confusion` of the
     /// radius it grazes in the foot point
-    /// ([`PlaneSphereIntersection::TangentPoint`]); otherwise the section
+    /// ([`PlaneSphereIntersection::TangentPoint`]), but where it cuts a
+    /// circle wider than `tol.confusion`; otherwise the section
     /// is a [`Circle`] centered at the foot point with radius
     /// `sqrt(radius^2 - h^2)` in the plane normal direction.
     ///
@@ -713,14 +720,18 @@ impl IntersectExact<Sphere> for Plane {
         let h = n.dot(sphere.center() - self.frame().origin());
         let h_abs = h.abs();
         let r = sphere.radius();
+        let center = sphere.center() - n * h;
+        // Read as touching where the circle of the surfaces as given is
+        // within confusion of the point (see `reads_as_touching`).
         if h_abs > r + tol.confusion {
             PlaneSphereIntersection::Empty
-        } else if h_abs >= r - tol.confusion {
-            PlaneSphereIntersection::TangentPoint(sphere.center() - n * h)
+        } else if h_abs >= r - tol.confusion
+            && reads_as_touching_across((self, sphere), 1.0 / r, center, r - h_abs, r + h_abs, tol)
+        {
+            PlaneSphereIntersection::TangentPoint(center)
         } else {
-            let center = sphere.center() - n * h;
-            // r - h_abs > tol.confusion > 0, so the radius is positive and
-            // the normal is unit: construction cannot fail.
+            // `r − h_abs` is beyond its rounding, so the radius is
+            // positive and the normal is unit: construction cannot fail.
             let circle = Circle::new(center, n, (r * r - h * h).sqrt())
                 .expect("section radius is positive by construction");
             PlaneSphereIntersection::Circle(circle)
@@ -782,7 +793,16 @@ impl IntersectExact<Cylinder> for Plane {
             } else {
                 let foot = c - n * h;
                 let expect = "generator direction is unit by construction";
-                if h_abs >= r - tol.confusion {
+                if h_abs >= r - tol.confusion
+                    && reads_as_touching_across(
+                        (self, cylinder),
+                        1.0 / r,
+                        foot,
+                        r - h_abs,
+                        r + h_abs,
+                        tol,
+                    )
+                {
                     PlaneCylinderIntersection::TangentLine(Line::new(foot, a).expect(expect))
                 } else {
                     let w = cross * (1.0 / sin);
@@ -1003,11 +1023,21 @@ impl IntersectExact<Cylinder> for Cylinder {
         }
         let expect = "generator direction is unit by construction";
         let mhat = m * (1.0 / d);
-        if (d - out).abs() <= tol.confusion || (d - inn).abs() <= tol.confusion {
-            let p = self.axis().origin() + mhat * ((r1 * r1 - r2 * r2 + d * d) / (2.0 * d));
+        let s = (r1 * r1 - r2 * r2 + d * d) / (2.0 * d);
+        let p = self.axis().origin() + mhat * s;
+        // Read as touching where the two lines of the cylinders as given
+        // are within confusion of the line (see `reads_as_touching`): the
+        // curvature across it is `1/r1 + 1/r2` outside and `1/r1 − 1/r2`
+        // inside.
+        let size = out + d;
+        let (bend1, bend2) = (1.0 / r1, 1.0 / r2);
+        let outside = (d - out).abs() <= tol.confusion
+            && reads_as_touching_across((self, other), bend1 + bend2, p, out - d, size, tol);
+        let inside = (d - inn).abs() <= tol.confusion
+            && reads_as_touching_across((self, other), bend1 - bend2, p, d - inn, size, tol);
+        if outside || inside {
             CylinderCylinderIntersection::TangentLine(Line::new(p, a1).expect(expect))
         } else {
-            let s = (r1 * r1 - r2 * r2 + d * d) / (2.0 * d);
             let h = (r1 * r1 - s * s).max(0.0).sqrt();
             let base = self.axis().origin() + mhat * s;
             let nhat = a1.cross(mhat);
@@ -1035,12 +1065,22 @@ fn crossing_equal_cylinders(
         return None;
     }
     let (a1, a2) = (first.axis().direction(), second.axis().direction());
-    let center = axes_meeting_point(
+    let (center, miss) = axes_meeting_point(
         (first.axis().origin(), a1.vector()),
         (second.axis().origin(), a2.vector()),
         tol,
     )?;
     let radius = 0.5 * (r1 + r2);
+    // The ellipses cross where the cylinders touch, across both axes from
+    // where they meet, at most `|r1 − r2|` and the axes' miss apart: read
+    // as crossing there only where the curve of the cylinders as given
+    // stays within confusion of it.
+    let across = a1.cross(a2).normalized()?;
+    let contacts = [center + across * radius, center - across * radius];
+    let gap_bound = (r1 - r2).abs() + miss;
+    if !crossings_read_as_touching(first, second, &contacts, gap_bound, radius, tol) {
+        return None;
+    }
     // The plane normal to `normal` holds the ellipse whose major axis is
     // along `major`, as far from the axis `a1` as `radius`.
     let ellipse = |major: Vector, normal: Vector| {
@@ -1056,10 +1096,10 @@ fn crossing_equal_cylinders(
 
 /// A cylinder or a cone around a sphere centred on its axis at `M`:
 /// with `x = X − M`, its points are those where `|x|² − ρ² = L(x)²`, with
-/// `L(x) = (x·a − offset) / cosine`. The sphere of radius `ρ` touches it
+/// `L(x) = (x·a − offset) / cos φ`, `φ` its half-angle. The sphere of radius `ρ` touches it
 /// along the circle where `L = 0`.
 ///
-/// A cylinder of radius `r` has `L = x·a` and `ρ = r`. A cone of
+/// A cylinder of radius `r` has `φ = 0`, `L = x·a` and `ρ = r`. A cone of
 /// half-angle `φ` whose apex is at `t a` from `M` has
 /// `L = (x·a − t sin²φ) / cos φ` and `ρ = |t| sin φ`: expanding its
 /// equation `|x|² − (x·a)² = (x·a − t)² tan²φ` gives
@@ -1068,7 +1108,9 @@ fn crossing_equal_cylinders(
 struct AroundSphere {
     axis: Vector,
     offset: f64,
-    cosine: f64,
+    /// The cosine is taken where the conics are cut: the quartic, when
+    /// the spheres differ, does without it.
+    half_angle: f64,
     sphere_radius: f64,
 }
 
@@ -1077,42 +1119,46 @@ impl AroundSphere {
         AroundSphere {
             axis: cylinder.axis().direction().vector(),
             offset: 0.0,
-            cosine: 1.0,
+            half_angle: 0.0,
             sphere_radius: cylinder.radius(),
         }
     }
 
-    fn cone(cone: &Cone, centre: Point) -> AroundSphere {
+    /// The cone whose apex is at `apex`, as the caller has it, around
+    /// the sphere centred at `centre`.
+    fn cone(cone: &Cone, apex: Point, centre: Point) -> AroundSphere {
         let axis = cone.frame().z_direction();
-        let (sine, cosine) = cone.half_angle().abs().sin_cos();
-        let apex = (cone.apex() - centre).dot(axis);
+        let half_angle = cone.half_angle().abs();
+        let sine = half_angle.sin();
+        let apex = (apex - centre).dot(axis);
         AroundSphere {
             axis: axis.vector(),
             offset: apex * sine * sine,
-            cosine,
+            half_angle,
             sphere_radius: apex.abs() * sine,
         }
     }
 }
 
 /// The point where two axes that are not parallel meet: the middle of
-/// their closest points, or `None` when those are more than
-/// `tol.confusion` apart.
+/// their closest points, with how far apart those are, or `None` when they
+/// are more than `tol.confusion` apart.
 fn axes_meeting_point(
     (p1, a1): (Point, Vector),
     (p2, a2): (Point, Vector),
     tol: Tolerance,
-) -> Option<Point> {
+) -> Option<(Point, f64)> {
     let w = p1 - p2;
     let c = a1.dot(a2);
     let (d, e) = (a1.dot(w), a2.dot(w));
     let denominator = 1.0 - c * c;
     let q1 = p1 + a1 * ((c * e - d) / denominator);
     let q2 = p2 + a2 * ((e - c * d) / denominator);
-    (q1.distance(q2) <= tol.confusion).then(|| q1 + (q2 - q1) * 0.5)
+    let miss = q1.distance(q2);
+    (miss <= tol.confusion).then(|| (q1 + (q2 - q1) * 0.5, miss))
 }
 
-/// The conics of two surfaces around the sphere centred at `centre`,
+/// The conics of `surfaces`, around the sphere centred at `centre`,
 /// each cut from one of them by `section`; `None` when the spheres they
 /// touch differ by more than `tol.confusion`, or the sphere is a point.
 ///
@@ -1120,7 +1166,13 @@ fn axes_meeting_point(
 /// the plane `L₁ = L₂` or `L₁ = −L₂`; on either plane, a point of one
 /// surface is on the other. The planes meet on the line `L₁ = L₂ = 0`,
 /// where `|x| = ρ`: the conics cross where it meets the sphere, at the
-/// points where both surfaces touch it.
+/// points where both surfaces touch it. A line within confusion of
+/// touching the sphere is read as touching it, the conics touching at one
+/// point, only where the two points where it would cross the sphere, or
+/// where the conics come nearest, stay within confusion of it: they lie
+/// `√(2 ρ ε)` from it, `ε` how far the line is from touching, the
+/// curvature across the contact the sphere's (see `reads_as_touching`).
+/// `size` bounds the lengths the line is found from.
 ///
 /// Always inlined: out of line, it takes the two surfaces through memory,
 /// loses the cylinder's constant offset and cosine, and returns the
@@ -1129,9 +1181,9 @@ fn axes_meeting_point(
 /// closure that builds each plane, which the compiler kept out of line.
 #[inline(always)]
 fn common_sphere_conics<S>(
-    first: AroundSphere,
-    second: AroundSphere,
-    centre: Point,
+    (first, second): (AroundSphere, AroundSphere),
+    surfaces: (&impl ContactSurface, &impl ContactSurface),
+    (centre, size): (Point, f64),
     section: impl Fn(&Plane) -> S,
     tol: Tolerance,
 ) -> Option<CommonSphereConics<S>> {
@@ -1141,9 +1193,10 @@ fn common_sphere_conics<S>(
         return None;
     }
     let (a1, a2) = (first.axis, second.axis);
+    let (cos1, cos2) = (first.half_angle.cos(), second.half_angle.cos());
     let plane = |sign: f64| {
-        let normal = a1 * (1.0 / first.cosine) - a2 * (sign / second.cosine);
-        let offset = first.offset / first.cosine - sign * second.offset / second.cosine;
+        let normal = a1 * (1.0 / cos1) - a2 * (sign / cos2);
+        let offset = first.offset / cos1 - sign * second.offset / cos2;
         let foot = centre + normal * (offset / normal.dot(normal));
         Plane::new(foot, normal).ok()
     };
@@ -1157,11 +1210,23 @@ fn common_sphere_conics<S>(
     let across = a1.cross(a2).normalized()?;
     let radius = 0.5 * (first.sphere_radius + second.sphere_radius);
     let distance = nearest.magnitude();
+    let inside = radius - distance;
     let mut touching_points = [centre + nearest; 2];
-    let touching_count = if distance > radius + tol.confusion {
-        0
-    } else if distance >= radius - tol.confusion {
+    let touching_count = if inside.abs() <= tol.confusion
+        && reads_as_touching_across(
+            surfaces,
+            1.0 / radius,
+            centre + nearest,
+            inside.abs(),
+            size,
+            tol,
+        ) {
         1
+    } else if inside < 0.0 {
+        // Where the conics come nearest, beside the sphere, kept for the
+        // caller to read how far they are from the surfaces as given.
+        touching_points[0] = centre + nearest * (radius / distance);
+        0
     } else {
         let half_chord = (radius * radius - distance * distance).sqrt();
         touching_points = [
@@ -1452,24 +1517,97 @@ fn cone_and_crossing_cylinder(
     cylinder: &Cylinder,
     tol: Tolerance,
 ) -> ConeCylinderIntersection {
-    let axis = cylinder.axis();
-    let Some(centre) = axes_meeting_point(
-        (cone.apex(), cone.frame().z_direction().vector()),
+    let (axis, apex) = (cylinder.axis(), cone.apex());
+    let Some((centre, miss)) = axes_meeting_point(
+        (apex, cone.frame().z_direction().vector()),
         (axis.origin(), axis.direction().vector()),
         tol,
     ) else {
         return cone_cylinder_quartic(cone, cylinder, tol);
     };
+    // Spheres of one radius within its rounding: the conics cross where
+    // the surfaces touch. Otherwise, read them only where the curve stays
+    // within confusion of those points.
+    let around_cone = AroundSphere::cone(cone, apex, centre);
+    let gap_bound = (around_cone.sphere_radius - cylinder.radius()).abs() + miss;
+    if gap_bound > tol.confusion {
+        // Spheres apart: no common one.
+        return cone_cylinder_quartic(cone, cylinder, tol);
+    }
+    let size = cylinder.radius() + apex.distance(centre);
+    if !offset_within_rounding(gap_bound, size) {
+        return cone_and_cylinder_near_a_sphere(
+            (cone, cylinder),
+            (around_cone, centre),
+            gap_bound,
+            size,
+            tol,
+        );
+    }
     let conics = common_sphere_conics(
-        AroundSphere::cone(cone, centre),
-        AroundSphere::cylinder(cylinder),
-        centre,
+        (around_cone, AroundSphere::cylinder(cylinder)),
+        (cone, cylinder),
+        (centre, size),
         |plane| plane.intersect_exact(cylinder, tol),
         tol,
     );
     match conics {
         Some(conics) => ConeCylinderIntersection::TwoConics(conics),
         None => cone_cylinder_quartic(cone, cylinder, tol),
+    }
+}
+
+/// The rest of [`cone_and_crossing_cylinder`], for a cone and a cylinder
+/// whose spheres around `centre` differ by more than their rounding: the
+/// two conics where the curve stays within confusion of them where they
+/// cross or come nearest, the quartic otherwise.
+#[cold]
+#[inline(never)]
+fn cone_and_cylinder_near_a_sphere(
+    (cone, cylinder): (&Cone, &Cylinder),
+    (around_cone, centre): (AroundSphere, Point),
+    gap_bound: f64,
+    size: f64,
+    tol: Tolerance,
+) -> ConeCylinderIntersection {
+    let conics = common_sphere_conics(
+        (around_cone, AroundSphere::cylinder(cylinder)),
+        (cone, cylinder),
+        (centre, size),
+        |plane| plane.intersect_exact(cylinder, tol),
+        tol,
+    );
+    match conics {
+        Some(conics) if conics_read_as_given((cone, cylinder), &conics, gap_bound, size, tol) => {
+            ConeCylinderIntersection::TwoConics(conics)
+        }
+        _ => cone_cylinder_quartic(cone, cylinder, tol),
+    }
+}
+
+/// Whether the conics of two surfaces around spheres within `gap_bound`
+/// of one stand for the curve of the surfaces as given: where they cross,
+/// each gap read as a contact's (see [`crossings_read_as_touching`]); where
+/// they do not, the gap where they come nearest, which turns into a
+/// distance from the curve as the surfaces part there slowly (see
+/// [`parted_conics_read_as_given`]).
+#[inline]
+fn conics_read_as_given<S>(
+    (first, second): (&impl ContactSurface, &impl ContactSurface),
+    conics: &CommonSphereConics<S>,
+    gap_bound: f64,
+    size: f64,
+    tol: Tolerance,
+) -> bool {
+    match conics.touching_points() {
+        [] => parted_conics_read_as_given(
+            (first, second),
+            conics.touching_points[0],
+            gap_bound,
+            size,
+            tol,
+        ),
+        contacts => crossings_read_as_touching(first, second, contacts, gap_bound, size, tol),
     }
 }
 
@@ -1495,18 +1633,28 @@ fn cones_around_a_sphere(
     second: &Cone,
     tol: Tolerance,
 ) -> Option<CommonSphereConics<PlaneConeIntersection>> {
-    let centre = axes_meeting_point(
-        (first.apex(), first.frame().z_direction().vector()),
-        (second.apex(), second.frame().z_direction().vector()),
+    let apexes = (first.apex(), second.apex());
+    let (centre, miss) = axes_meeting_point(
+        (apexes.0, first.frame().z_direction().vector()),
+        (apexes.1, second.frame().z_direction().vector()),
         tol,
     )?;
-    common_sphere_conics(
-        AroundSphere::cone(first, centre),
-        AroundSphere::cone(second, centre),
-        centre,
+    let (around_first, around_second) = (
+        AroundSphere::cone(first, apexes.0, centre),
+        AroundSphere::cone(second, apexes.1, centre),
+    );
+    // The gap where the cones touch their spheres is at most the spheres'
+    // difference and the axes' miss.
+    let gap_bound = (around_first.sphere_radius - around_second.sphere_radius).abs() + miss;
+    let size = apexes.0.distance(centre) + apexes.1.distance(centre);
+    let conics = common_sphere_conics(
+        (around_first, around_second),
+        (first, second),
+        (centre, size),
         |plane| plane.intersect_exact(first, tol),
         tol,
-    )
+    )?;
+    conics_read_as_given((first, second), &conics, gap_bound, size, tol).then_some(conics)
 }
 
 impl IntersectExact<Cylinder> for Sphere {
@@ -1552,9 +1700,21 @@ impl IntersectExact<Cylinder> for Sphere {
         }
         let r = self.radius();
         let tube = cylinder.radius();
+        // Read as touching where the two circles of the surfaces as given
+        // are within confusion of the one (see `reads_as_touching`): the
+        // curvature across it is the sphere's.
         if tube > r + tol.confusion {
             SphereCylinderIntersection::Empty
-        } else if tube >= r - tol.confusion {
+        } else if tube >= r - tol.confusion
+            && reads_as_touching_across(
+                (self, cylinder),
+                1.0 / r,
+                self.center(),
+                r - tube,
+                r + tube,
+                tol,
+            )
+        {
             let circle = Circle::new(self.center(), a, tube)
                 .expect("tube radius is non-negative by construction");
             SphereCylinderIntersection::Circle(circle)
@@ -1580,7 +1740,8 @@ impl IntersectExact<Cone> for Sphere {
     /// |tan(phi)|` meets the sphere section, on either nappe. The center
     /// is `|tc| * |sin(phi)|` from the generators: beyond `R +
     /// tol.confusion` the sphere misses, within `tol.confusion` of `R` it
-    /// grazes one ring, and nearer it cuts two, one of them the apex
+    /// grazes one ring, unless the two it cuts are beyond confusion of it,
+    /// and nearer it cuts two, one of them the apex
     /// itself when the apex lies on the sphere. An axis off the center gives a space
     /// quartic, or the points where the sphere touches the cone: with the
     /// apex inside the sphere, a loop on each nappe; on it, a loop through
@@ -1625,7 +1786,19 @@ impl IntersectExact<Cone> for Sphere {
                 .expect("latitude radius is non-negative by construction")
         };
         let base = tc * cos_phi * cos_phi;
-        if reach >= r - tol.confusion {
+        // Read as touching where the two circles of the surfaces as given
+        // are within confusion of the one (see `reads_as_touching`): the
+        // curvature across it is the sphere's.
+        if reach >= r - tol.confusion
+            && reads_as_touching_across(
+                (self, cone),
+                1.0 / r,
+                self.center(),
+                r - reach,
+                r + reach,
+                tol,
+            )
+        {
             return SphereConeIntersection::TangentCircle(mk(base));
         }
         let root = (r * r - reach * reach).sqrt() * cos_phi.abs();
@@ -1653,7 +1826,8 @@ impl IntersectExact<Sphere> for Sphere {
     /// below `|r1 - r2| - tol.confusion` the spheres miss
     /// ([`SphereSphereIntersection::Empty`]), within `tol.confusion` of
     /// either they graze in a single
-    /// [`SphereSphereIntersection::TangentPoint`], and between they meet
+    /// [`SphereSphereIntersection::TangentPoint`], unless they cross in a
+    /// circle wider than `tol.confusion`, and between they meet
     /// in a [`Circle`] whose axis points from this center to the other,
     /// in the radical plane, which cuts the center line at distance
     /// `a = (r1^2 - r2^2 + d^2) / (2d)` from this center.
@@ -1694,7 +1868,29 @@ impl IntersectExact<Sphere> for Sphere {
             let dir = axis * (1.0 / d);
             let a = (r1 * r1 - r2 * r2 + d * d) / (2.0 * d);
             let center = c1 + dir * a;
-            if d >= outside - tol.confusion || d <= inside + tol.confusion {
+            // Read as touching where the circle of the spheres as given is
+            // within confusion of the point (see `reads_as_touching`).
+            let size = outside + d;
+            let (bend1, bend2) = (1.0 / r1, 1.0 / r2);
+            let touching = (d >= outside - tol.confusion
+                && reads_as_touching_across(
+                    (self, other),
+                    bend1 + bend2,
+                    center,
+                    outside - d,
+                    size,
+                    tol,
+                ))
+                || (d <= inside + tol.confusion
+                    && reads_as_touching_across(
+                        (self, other),
+                        bend1 - bend2,
+                        center,
+                        d - inside,
+                        size,
+                        tol,
+                    ));
+            if touching {
                 SphereSphereIntersection::TangentPoint(center)
             } else {
                 // `d` is strictly between the two tangencies, so
@@ -1760,9 +1956,22 @@ impl IntersectExact<Plane> for Torus {
         } else if n.is_parallel(a, angular) {
             let h = plane.signed_distance(o);
             let h_abs = h.abs();
+            // Read as touching where the two circles of the surfaces as
+            // given are within confusion of the one (see
+            // `reads_as_touching`): the curvature across it is the tube's,
+            // the rounding that of the centre's coordinates and the radii.
             if h_abs > minor + tol.confusion {
                 TorusPlaneIntersection::Empty
-            } else if h_abs >= minor - tol.confusion {
+            } else if h_abs >= minor - tol.confusion
+                && reads_as_touching_across(
+                    (self, plane),
+                    1.0 / minor,
+                    o,
+                    minor - h_abs,
+                    major + 2.0 * minor,
+                    tol,
+                )
+            {
                 let center = o - n * h;
                 TorusPlaneIntersection::TangentCircle(
                     Circle::new(center, n, major)
@@ -1788,17 +1997,48 @@ impl IntersectExact<Plane> for Torus {
             // planes meet.
             let through_center = plane.signed_distance(o).abs() <= tol.confusion;
             if through_center && (major * sin - minor).abs() <= tol.confusion {
-                let m = n.cross(a) * (1.0 / sin);
-                let mk = |sgn: f64| {
-                    Circle::new(o + m * (sgn * minor), n, major)
-                        .expect("major radius is positive by construction")
-                };
-                TorusPlaneIntersection::TwoCircles(mk(1.0), mk(-1.0))
+                villarceau_circles(self, plane, sin, tol)
             } else {
                 spiric_section(self, plane, tol)
             }
         }
     }
+}
+
+/// The two Villarceau circles of `torus` and a plane through its centre
+/// at `sin` of its axis, within confusion of touching its tube twice; the
+/// spiric section where it does not read as touching. The plane touches
+/// the tube where its normal is the torus's, `(R − r sin) e − r (n·a) a`
+/// either way from the centre, `e` the normal's part across the axis: the
+/// circles cross there, read so only where the curve of the surfaces as
+/// given is within confusion of those points (see `reads_as_touching`).
+#[cold]
+#[inline(never)]
+fn villarceau_circles(
+    torus: &Torus,
+    plane: &Plane,
+    sin: f64,
+    tol: Tolerance,
+) -> TorusPlaneIntersection {
+    let (o, a, n) = (
+        torus.center(),
+        torus.frame().z_direction(),
+        plane.normal_direction(),
+    );
+    let (major, minor) = (torus.major_radius(), torus.minor_radius());
+    let height = n.dot(a);
+    let across = n.vector().component_perpendicular_to(a) * (1.0 / sin);
+    let reach = across * (major - minor * sin) - a * (minor * height);
+    let contacts = [o + reach, o - reach];
+    if !crossings_read_as_touching(torus, plane, &contacts, f64::INFINITY, major + minor, tol) {
+        return spiric_section(torus, plane, tol);
+    }
+    let m = n.cross(a) * (1.0 / sin);
+    let mk = |sgn: f64| {
+        Circle::new(o + m * (sgn * minor), n, major)
+            .expect("major radius is positive by construction")
+    };
+    TorusPlaneIntersection::TwoCircles(mk(1.0), mk(-1.0))
 }
 
 /// The spiric section of a plane in no special position, `NotAnalytic`
@@ -1815,7 +2055,8 @@ impl IntersectExact<Sphere> for Torus {
     /// With the sphere center on the torus axis, in a half-plane on the
     /// axis the tube's circle meets the sphere's great circle in up to two
     /// points, each a latitude ring, and one where the circles are within
-    /// `tol.confusion` of touching. A sphere centred anywhere else meets a
+    /// `tol.confusion` of touching, and the two rings they cross in, if
+    /// any, within confusion of it. A sphere centred anywhere else meets a
     /// ring torus in two tube circles it holds, a
     /// [`TorusSphereIntersection::Quartic`], or a point where it touches.
     ///
@@ -1846,7 +2087,7 @@ impl IntersectExact<Sphere> for Torus {
         let great_circle = Circle2D::new(Point2D::new(tc, 0.0), sphere.radius())
             .expect("a sphere's radius is non-negative");
         let ring = |section: Point2D| latitude_circle(o, a.vector(), section, tol);
-        match tube_section(self).intersect_exact(&great_circle, tol) {
+        match meridian_circles_meet(&tube_section(self), &great_circle, (self, sphere), tol) {
             CircleCircle2DIntersection::Points(p, q) => {
                 let (p, q) = lower_first(p, q);
                 match (ring(p), ring(q)) {
@@ -1915,9 +2156,15 @@ impl IntersectExact<Cylinder> for Torus {
         }
         let rc = cylinder.radius();
         let gap = (rc - major).abs();
+        // Read as touching where the two circles of the surfaces as given
+        // are within confusion of the one (see `reads_as_touching`): the
+        // curvature across it is the tube's.
+        let size = major + minor + rc;
         if gap > minor + tol.confusion {
             TorusCylinderIntersection::Empty
-        } else if gap >= minor - tol.confusion {
+        } else if gap >= minor - tol.confusion
+            && reads_as_touching_across((self, cylinder), 1.0 / minor, o, minor - gap, size, tol)
+        {
             TorusCylinderIntersection::TangentCircle(
                 Circle::new(o, a, rc).expect("tube radius is non-negative by construction"),
             )
@@ -1941,7 +2188,8 @@ impl IntersectExact<Cone> for Torus {
     /// line through the apex, and the torus is the tube's circle: where
     /// they meet on that nappe's side of the apex are rings, up to four in
     /// all, a grazing one where the generator is within `tol.confusion` of
-    /// touching the circle. Off the axis, the curve is read along the
+    /// touching the circle, and the two rings it crosses it in, if any,
+    /// within confusion of it. Off the axis, the curve is read along the
     /// torus's tube circles (see [`OcticCurve`]).
     ///
     /// # Examples
@@ -2000,7 +2248,7 @@ impl IntersectExact<Cone> for Torus {
                     }
                 }
             };
-            match unit_line_meets_circle(apex, generator, tube, tol) {
+            match meridian_line_meets_circle(apex, generator, tube, (self, cone), tol) {
                 LineCircle2DIntersection::Points((_, p), (_, q)) => {
                     push(p, false);
                     push(q, false);
@@ -2028,7 +2276,8 @@ impl IntersectExact<Torus> for Torus {
     /// With collinear axes, in a half-plane on the axis the two tubes
     /// are circles, which meet in up to two points, each a latitude
     /// ring, and in one where they are within `tol.confusion` of
-    /// touching. Any other pair is read along this torus's tube circles,
+    /// touching, and the two rings they cross in, if any, within
+    /// confusion of it. Any other pair is read along this torus's tube circles,
     /// each meeting the other torus in up to four points (see
     /// [`OcticCurve`]).
     ///
@@ -2078,7 +2327,7 @@ impl IntersectExact<Torus> for Torus {
         let other_tube = Circle2D::new(Point2D::new(w.dot(a), r2), s2)
             .expect("a torus's minor radius is non-negative");
         let ring = |section: Point2D| latitude_circle(o1, a.vector(), section, tol);
-        match tube_section(self).intersect_exact(&other_tube, tol) {
+        match meridian_circles_meet(&tube_section(self), &other_tube, (self, other), tol) {
             CircleCircle2DIntersection::Points(p, q) => {
                 let (p, q) = lower_first(p, q);
                 match (ring(p), ring(q)) {
@@ -2095,6 +2344,123 @@ impl IntersectExact<Torus> for Torus {
             CircleCircle2DIntersection::Coincident => TorusTorusIntersection::Coincident,
         }
     }
+}
+
+/// A torus and a surface of revolution about its axis: the contact is
+/// read from the torus's centre, within their size of where they meet.
+type Place<'a, Other> = (&'a Torus, &'a Other);
+
+/// Where two circles of the sections of surfaces of revolution about one
+/// axis by a half-plane on it meet: each point a latitude ring. Circles
+/// within confusion of touching are read as touching where the two rings
+/// of the surfaces as given are within confusion of the one (see
+/// `reads_as_touching`), the curvature across it that of the circles,
+/// `1/r1 + 1/r2` outside and `1/r1 − 1/r2` inside; `place`, the torus
+/// and the other surface, bounds the rounding of their offset.
+#[inline]
+fn meridian_circles_meet(
+    first: &Circle2D,
+    second: &Circle2D,
+    place: Place<impl ContactSurface>,
+    tol: Tolerance,
+) -> CircleCircle2DIntersection {
+    match first.intersect_exact(second, tol) {
+        CircleCircle2DIntersection::Tangent(_) => {
+            meridian_circles_near_touching(first, second, place, tol)
+        }
+        result => result,
+    }
+}
+
+/// The rest of [`meridian_circles_meet`], for two circles tangent within
+/// confusion.
+#[cold]
+#[inline(never)]
+fn meridian_circles_near_touching(
+    first: &Circle2D,
+    second: &Circle2D,
+    operands: Place<impl ContactSurface>,
+    tol: Tolerance,
+) -> CircleCircle2DIntersection {
+    let d = (second.center() - first.center()).magnitude();
+    let (r1, r2) = (first.radius(), second.radius());
+    let (outside, inside) = (r1 + r2, (r1 - r2).abs());
+    let (overlap, curvature) = if (d - outside).abs() <= (d - inside).abs() {
+        (outside - d, 1.0 / r1 + 1.0 / r2)
+    } else {
+        (d - inside, 1.0 / r1 - 1.0 / r2)
+    };
+    // Touching, as read within confusion; otherwise read without it: the
+    // two points where they cross.
+    let confusion = if reads_as_touching_across(
+        operands,
+        curvature,
+        operands.0.center(),
+        overlap,
+        outside + d,
+        tol,
+    ) {
+        tol.confusion
+    } else {
+        0.0
+    };
+    first.intersect_exact(second, Tolerance { confusion, ..tol })
+}
+
+/// Where a line through `origin` along the unit `direction` meets a circle
+/// of a section by a half-plane on the axis, as [`meridian_circles_meet`]:
+/// within confusion of touching, read as touching where the two rings of
+/// the surfaces as given are within confusion of the one, the curvature
+/// across it the circle's.
+#[inline]
+fn meridian_line_meets_circle(
+    origin: Point2D,
+    direction: Vector2D,
+    circle: (Point2D, f64),
+    place: Place<impl ContactSurface>,
+    tol: Tolerance,
+) -> LineCircle2DIntersection {
+    match unit_line_meets_circle(origin, direction, circle, tol) {
+        LineCircle2DIntersection::Tangent(..) => {
+            meridian_line_near_touching(origin, direction, circle, place, tol)
+        }
+        result => result,
+    }
+}
+
+/// The rest of [`meridian_line_meets_circle`], for a line tangent to the
+/// circle within confusion.
+#[cold]
+#[inline(never)]
+fn meridian_line_near_touching(
+    origin: Point2D,
+    direction: Vector2D,
+    (centre, radius): (Point2D, f64),
+    operands: Place<impl ContactSurface>,
+    tol: Tolerance,
+) -> LineCircle2DIntersection {
+    let w = origin - centre;
+    let offset = (w.x * direction.y - w.y * direction.x).abs();
+    let size = radius + offset + w.magnitude();
+    // Touching, as read within confusion; otherwise read without it.
+    let confusion = if reads_as_touching_across(
+        operands,
+        1.0 / radius,
+        operands.0.center(),
+        radius - offset,
+        size,
+        tol,
+    ) {
+        tol.confusion
+    } else {
+        0.0
+    };
+    unit_line_meets_circle(
+        origin,
+        direction,
+        (centre, radius),
+        Tolerance { confusion, ..tol },
+    )
 }
 
 /// The section of a torus by a half-plane on its axis: the tube's circle,

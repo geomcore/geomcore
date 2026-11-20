@@ -101,6 +101,12 @@ create_exception!(
 );
 create_exception!(
     geomcore,
+    CurveOffset2DError,
+    GeomcoreError,
+    "A 2D curve has no offset at the asked distance within the asked deviation."
+);
+create_exception!(
+    geomcore,
     SurfaceIsoError,
     GeomcoreError,
     "An iso-parametric curve of a surface could not be extracted."
@@ -151,6 +157,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "UvCurveTo3DApproximationError",
         py.get_type::<UvCurveTo3DApproximationError>(),
     )?;
+    m.add("CurveOffset2DError", py.get_type::<CurveOffset2DError>())?;
     m.add("SurfaceIsoError", py.get_type::<SurfaceIsoError>())?;
     m.add(
         "DiscretizationCriteriaError",
@@ -271,6 +278,7 @@ map_error!(Curve3DToUvError: geomcore::Curve3DToUvError);
 map_error!(Curve3DToUvApproximationError: geomcore::Curve3DToUvApproximationError);
 map_error!(UvCurveTo3DError: geomcore::UvCurveTo3DError);
 map_error!(UvCurveTo3DApproximationError: geomcore::UvCurveTo3DApproximationError);
+map_error!(CurveOffset2DError: geomcore::CurveOffset2DError);
 map_error!(SurfaceIsoError: geomcore::SurfaceIsoError);
 map_error!(DiscretizationCriteriaError: geomcore::DiscretizationCriteriaError);
 

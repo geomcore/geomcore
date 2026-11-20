@@ -325,16 +325,24 @@ fn test_a_pipe_beside_the_apex_touching_both_nappes_meets_them_at_the_two_points
 
 #[test]
 fn test_a_pipe_beside_the_apex_within_confusion_of_both_nappes_touches_them() {
-    // Within confusion of touching both nappes, the two points; farther
-    // in, an arc on each nappe; farther out, nothing.
+    // Within confusion outside both nappes, the two points; a hair in, a
+    // small arc on each nappe, whose curve lies far beyond confusion from
+    // the points (#439); farther in, larger arcs; farther out, nothing.
     let sqrt3 = 3.0_f64.sqrt();
     let tube = |radius: f64| cylinder(Point::new(1.0, 0.0, 0.0), Vector::Y, radius);
-    for off_by in [1e-9, -1e-9, 0.0] {
+    for off_by in [-1e-9, 0.0] {
         assert!(matches!(
             upright().intersect_exact(&tube(sqrt3 / 2.0 + off_by), TOL),
             ConeCylinderIntersection::TwoTangentPoints(..)
         ));
     }
+    let ConeCylinderIntersection::Quartic(small) =
+        upright().intersect_exact(&tube(sqrt3 / 2.0 + 1e-9), TOL)
+    else {
+        panic!("the quartic");
+    };
+    assert_eq!(small.component_count(), 2);
+    assert_eq!(small.contact_point(), None);
     let ConeCylinderIntersection::Quartic(arcs) =
         upright().intersect_exact(&tube(sqrt3 / 2.0 + 1e-3), TOL)
     else {

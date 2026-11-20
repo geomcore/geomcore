@@ -15,6 +15,7 @@ SUBCLASS_PARENTS = {
     "BSplineConversionError": "GeomcoreError",
     "Curve3DToUvError": "GeomcoreError",
     "UvCurveTo3DError": "GeomcoreError",
+    "CurveOffset2DError": "GeomcoreError",
     "SurfaceIsoError": "GeomcoreError",
     "DiscretizationCriteriaError": "GeomcoreError",
 }
