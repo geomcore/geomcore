@@ -241,13 +241,16 @@ pub(crate) fn sphere_partial(frame: &Frame, r: f64, u: Turn, v: Turn, du: u32, d
 
 /// Recovers `(u, v)` of a point on (or near) the sphere.
 ///
-/// At the poles (`hypot(x, y) < 1e-9`), `u = 0` and `v = +-PI/2` by the sign
-/// of `z`; otherwise `u = atan2(y, x)` wrapped into `[0, 2*PI)` and
-/// `v = atan(z / hypot(x, y))`.
+/// At the poles (`hypot(x, y) ≤ 1e-9 |z|`, the centre among them), `u = 0`
+/// and `v = +-PI/2` by the sign of `z`; otherwise `u = atan2(y, x)` wrapped
+/// into `[0, 2*PI)` and `v = atan(z / hypot(x, y))`. The pole's reach is
+/// relative to the sphere's size: a point read there moves by at most
+/// `1e-9` of it, so that scaling the sphere and the point scales that move
+/// with them.
 pub(crate) fn sphere_parameters(frame: &Frame, _r: f64, p: Point) -> (f64, f64) {
     let (x, y, z) = frame.local_coordinates(p);
     let l = x.hypot(y);
-    if l < 1e-9 {
+    if l <= 1e-9 * z.abs() {
         (
             0.0,
             if z >= 0.0 {
