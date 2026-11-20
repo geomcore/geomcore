@@ -58,8 +58,15 @@ impl<const N: usize> TrigonometricPolynomial<N> {
     /// The polynomial at `(u, v)`.
     #[inline]
     pub(crate) fn value(&self, u: f64, v: f64) -> f64 {
-        let along = self.along_v(u);
-        dot(&along, &basis::<N>(v))
+        self.value_on(&basis::<N>(u), &basis::<N>(v))
+    }
+
+    /// The polynomial at the angles whose bases are `at_u` and `at_v`:
+    /// several polynomials at one point share them.
+    #[inline]
+    fn value_on(&self, at_u: &[f64; N], at_v: &[f64; N]) -> f64 {
+        let along: [f64; N] = std::array::from_fn(|k| (0..N).map(|j| self.c[j][k] * at_u[j]).sum());
+        dot(&along, at_v)
     }
 
     /// The one-angle polynomial in `v` on the line of `u`.
@@ -243,17 +250,18 @@ fn newton<const N: usize>(
     let [mut u, mut v] = start;
     let mut previous = f64::INFINITY;
     for _ in 0..40 {
+        let (at_u, at_v) = (basis::<N>(u), basis::<N>(v));
         let (a, b, c, d) = (
-            f_u.value(u, v),
-            f_v.value(u, v),
-            g_u.value(u, v),
-            g_v.value(u, v),
+            f_u.value_on(&at_u, &at_v),
+            f_v.value_on(&at_u, &at_v),
+            g_u.value_on(&at_u, &at_v),
+            g_v.value_on(&at_u, &at_v),
         );
         let determinant = a * d - b * c;
         if determinant == 0.0 || !determinant.is_finite() {
             return None;
         }
-        let (fv, gv) = (f.value(u, v), g.value(u, v));
+        let (fv, gv) = (f.value_on(&at_u, &at_v), g.value_on(&at_u, &at_v));
         let (du, dv) = (
             (fv * d - gv * b) / determinant,
             (gv * a - fv * c) / determinant,
@@ -288,12 +296,9 @@ fn parts_signs<const N: usize>(
     let (at_u, at_v) = (basis::<N>(u), basis::<N>(v));
     let along_u = [basis::<N>(u - reach), basis::<N>(u + reach)];
     let along_v = [basis::<N>(v - reach), basis::<N>(v + reach)];
-    let value = |p: &TrigonometricPolynomial<N>, first: &[f64; N], second: &[f64; N]| {
-        (0..N).map(|j| first[j] * dot(&p.c[j], second)).sum::<f64>()
-    };
     let parts = |p: &TrigonometricPolynomial<N>| {
-        value(p, &along_u[0], &at_v) * value(p, &along_u[1], &at_v) < 0.0
-            || value(p, &at_u, &along_v[0]) * value(p, &at_u, &along_v[1]) < 0.0
+        p.value_on(&along_u[0], &at_v) * p.value_on(&along_u[1], &at_v) < 0.0
+            || p.value_on(&at_u, &along_v[0]) * p.value_on(&at_u, &along_v[1]) < 0.0
     };
     parts(f) && parts(g)
 }
