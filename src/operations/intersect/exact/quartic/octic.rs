@@ -991,10 +991,9 @@ fn touching_exactly(
     touching: &[[f64; 2]],
     tol: Tolerance,
 ) -> Option<Option<OtherSurface>> {
-    let (local_tubes, local) = centred(tubes, surface);
     let gaps: Vec<(f64, Vector)> = touching
         .iter()
-        .map(|&[u, v]| local.offset(local_tubes.point(Point2D::new(u, v))))
+        .map(|&[u, v]| surface.offset(tubes.point(Point2D::new(u, v))))
         .collect();
     if gaps.iter().all(|(gap, _)| *gap == 0.0) {
         return None;

@@ -146,7 +146,10 @@ pub(crate) fn common_zeros<const N: usize>(
         g.derivative_u(),
         g.derivative_v(),
     );
-    let charts = [chart_basis::<N>(CHART_TURN), chart_basis::<N>(CHART_TURN + PI)];
+    let charts = [
+        chart_basis::<N>(CHART_TURN),
+        chart_basis::<N>(CHART_TURN + PI),
+    ];
     let mut zeros = CommonZeros::default();
     let mut boxes = 0;
     // `(1 + s²)^K (1 + t²)^K` is at most `4^K` on a chart.
@@ -265,7 +268,7 @@ fn newton<const N: usize>(
         if step <= CONVERGED || (step >= previous && step <= SAME_ZERO) {
             return (changes_sign(f, (f_u, f_v), [u, v], SAME_ZERO)
                 && changes_sign(g, (g_u, g_v), [u, v], SAME_ZERO))
-                .then_some([u, v]);
+            .then_some([u, v]);
         }
         if step > 1.0 {
             return None;

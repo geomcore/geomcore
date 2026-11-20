@@ -724,7 +724,11 @@ fn a_torus_near_touching_reads_the_same_moved_in_both_orders() {
         );
     }
     for radius in [1.0, 1.0 - 2f64.powi(-24), 1.0 + 2f64.powi(-16)] {
-        others.push(Sphere::new(Point::new(4.0, 0.0, 0.0), radius).unwrap().into());
+        others.push(
+            Sphere::new(Point::new(4.0, 0.0, 0.0), radius)
+                .unwrap()
+                .into(),
+        );
     }
     let torus = [torus];
     let mut mismatches = compare_pairs(family, &torus, &others, false, surface_surface);

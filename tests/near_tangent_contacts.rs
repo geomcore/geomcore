@@ -25,7 +25,7 @@ const TOL: Tolerance = Tolerance::DEFAULT;
 /// The loops of an exact result: a quartic, or the octic of a torus off
 /// another surface's axis.
 enum Loops {
-    Quartic(QuarticCurve),
+    Quartic(Box<QuarticCurve>),
     Octic(Box<OcticCurve>),
 }
 
@@ -72,7 +72,7 @@ fn answer(curve: Option<Loops>, debug: &impl std::fmt::Debug) -> Answer {
 fn cylinders(first: &Cylinder, second: &Cylinder, tol: Tolerance) -> Answer {
     let result = first.intersect_exact(second, tol);
     let curve = match &result {
-        CylinderCylinderIntersection::Quartic(curve) => Some(Loops::Quartic(*curve)),
+        CylinderCylinderIntersection::Quartic(curve) => Some(Loops::Quartic(Box::new(*curve))),
         _ => None,
     };
     answer(curve, &result)
@@ -81,7 +81,7 @@ fn cylinders(first: &Cylinder, second: &Cylinder, tol: Tolerance) -> Answer {
 fn sphere_cylinder(sphere: &Sphere, cylinder: &Cylinder, tol: Tolerance) -> Answer {
     let result = sphere.intersect_exact(cylinder, tol);
     let curve = match &result {
-        SphereCylinderIntersection::Quartic(curve) => Some(Loops::Quartic(*curve)),
+        SphereCylinderIntersection::Quartic(curve) => Some(Loops::Quartic(Box::new(*curve))),
         _ => None,
     };
     answer(curve, &result)
@@ -90,7 +90,7 @@ fn sphere_cylinder(sphere: &Sphere, cylinder: &Cylinder, tol: Tolerance) -> Answ
 fn sphere_cone(sphere: &Sphere, cone: &Cone, tol: Tolerance) -> Answer {
     let result = sphere.intersect_exact(cone, tol);
     let curve = match &result {
-        SphereConeIntersection::Quartic(curve) => Some(Loops::Quartic(*curve)),
+        SphereConeIntersection::Quartic(curve) => Some(Loops::Quartic(Box::new(*curve))),
         _ => None,
     };
     answer(curve, &result)
@@ -99,7 +99,7 @@ fn sphere_cone(sphere: &Sphere, cone: &Cone, tol: Tolerance) -> Answer {
 fn cone_cylinder(cone: &Cone, cylinder: &Cylinder, tol: Tolerance) -> Answer {
     let result = cone.intersect_exact(cylinder, tol);
     let curve = match &result {
-        ConeCylinderIntersection::Quartic(curve) => Some(Loops::Quartic(*curve)),
+        ConeCylinderIntersection::Quartic(curve) => Some(Loops::Quartic(Box::new(*curve))),
         _ => None,
     };
     answer(curve, &result)
@@ -108,7 +108,7 @@ fn cone_cylinder(cone: &Cone, cylinder: &Cylinder, tol: Tolerance) -> Answer {
 fn torus_plane(torus: &Torus, plane: &Plane, tol: Tolerance) -> Answer {
     let result = torus.intersect_exact(plane, tol);
     let curve = match &result {
-        TorusPlaneIntersection::Quartic(curve) => Some(Loops::Quartic(*curve)),
+        TorusPlaneIntersection::Quartic(curve) => Some(Loops::Quartic(Box::new(*curve))),
         _ => None,
     };
     answer(curve, &result)
@@ -144,7 +144,7 @@ fn tori(first: &Torus, second: &Torus, tol: Tolerance) -> Answer {
 fn torus_sphere(torus: &Torus, sphere: &Sphere, tol: Tolerance) -> Answer {
     let result = torus.intersect_exact(sphere, tol);
     let curve = match &result {
-        TorusSphereIntersection::Quartic(curve) => Some(Loops::Quartic(*curve)),
+        TorusSphereIntersection::Quartic(curve) => Some(Loops::Quartic(Box::new(*curve))),
         _ => None,
     };
     answer(curve, &result)
@@ -1319,8 +1319,12 @@ fn test_a_cone_near_touching_a_torus_outside_reads_its_offset() {
     sweep_offsets(
         &OFFSETS,
         |d| {
-            let cone = Cone::from_apex(Point::new(5.0 - d, 0.0, -3.0), Vector::new(sin, 0.0, cos), 0.3)
-                .unwrap();
+            let cone = Cone::from_apex(
+                Point::new(5.0 - d, 0.0, -3.0),
+                Vector::new(sin, 0.0, cos),
+                0.3,
+            )
+            .unwrap();
             (small_torus(), cone)
         },
         Point::new(5.0, 0.0, 0.0),
@@ -1350,7 +1354,10 @@ fn test_a_torus_near_touching_another_reads_its_offset() {
 /// The offsets of the sweep but one confusion through, the edge of
 /// holding the tube circle, which rounding decides either way.
 fn holding_offsets() -> Vec<f64> {
-    OFFSETS.into_iter().filter(|&offset| offset != 1.0).collect()
+    OFFSETS
+        .into_iter()
+        .filter(|&offset| offset != 1.0)
+        .collect()
 }
 
 /// A sphere centred on the centre circle, of the tube's radius `1 + d`:
@@ -1397,7 +1404,10 @@ fn test_a_sphere_near_holding_a_tube_circle_off_centre_reads_its_offset() {
         let tol = scaled(scale);
         // Ten confusions inside, the general quartic reads its thin band of
         // tube circles at the edge of its precision (#452).
-        for offset in holding_offsets().into_iter().filter(|&offset| offset != -10.0) {
+        for offset in holding_offsets()
+            .into_iter()
+            .filter(|&offset| offset != -10.0)
+        {
             let d = offset * TOL.confusion;
             let torus = small_torus().transformed(transform).unwrap();
             let case = format!("{name}, {offset} confusions");
