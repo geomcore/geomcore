@@ -214,9 +214,7 @@ fn a_bspline_patch_over_a_plane_and_its_trimmed_piece() {
 /// A cylinder against a piece of itself: the valley of zero distance over
 /// the piece is reported at the piece's start, and the valley between the
 /// first's edge and the piece's edge across the gap of the first at the
-/// piece's lower end, wherever the pair is placed (#444). The edge valley
-/// is lost after a translation by 1e7 in this placement, as it was before
-/// (#448), so the translations stop at 1e3.
+/// piece's lower end, wherever the pair is placed (#444, #448).
 #[test]
 fn test_a_cylinder_against_a_piece_of_itself_reads_its_valleys_from_the_piece() {
     use crate::Transform;
@@ -224,7 +222,7 @@ fn test_a_cylinder_against_a_piece_of_itself_reads_its_valleys_from_the_piece() 
     let whole = TrimmedSurface::new(cylinder, (0.0, 6.2), (-2.0, 4.0)).unwrap();
     let piece = TrimmedSurface::new(cylinder, (1.2566, 5.65), (-1.0, 3.0)).unwrap();
     let mut reference: Option<Vec<Point>> = None;
-    for distance in [0.0, 1e3] {
+    for distance in [0.0, 1e3, 1e7] {
         let moved = Transform::translation(Vector::new(distance, -2.0 * distance, distance));
         let (first, second) = (
             whole.transformed(moved).unwrap(),
@@ -250,5 +248,33 @@ fn test_a_cylinder_against_a_piece_of_itself_reads_its_valleys_from_the_piece() 
                 }
             }
         }
+    }
+}
+
+/// The same pair: the minimum held on the first's edge `u = 0` and the
+/// piece's edge `u = 5.65`, across the gap of the first, is seeded wherever
+/// the pair is placed. The contact over the piece is a valley along `v` in
+/// each column of samples; one seed per column, not one per sample, so the
+/// seeds of the valley do not crowd out the edge's (#448).
+#[test]
+fn test_a_minimum_held_on_the_edges_of_two_pieces_is_found_at_any_placement() {
+    use crate::Transform;
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    let whole = TrimmedSurface::new(cylinder, (0.0, 6.2), (-2.0, 4.0)).unwrap();
+    let piece = TrimmedSurface::new(cylinder, (1.2566, 5.65), (-1.0, 3.0)).unwrap();
+    // The chord between the angles 0 and 5.65 on a radius of 2.
+    let across_the_gap = 4.0 * (0.5 * (std::f64::consts::TAU - 5.65)).sin();
+    for distance in [1e3, 1e7] {
+        let moved = Transform::translation(Vector::new(distance, -2.0 * distance, distance));
+        let (first, second) = (
+            whole.transformed(moved).unwrap(),
+            piece.transformed(moved).unwrap(),
+        );
+        let extrema = surface_surface_extrema(&first, &second, TOL);
+        assert_eq!(extrema.len(), 2, "{extrema:?}");
+        let edge = extrema[1];
+        assert!((edge.distance - across_the_gap).abs() < 1e-6, "{edge:?}");
+        assert!(close(edge.first_parameters.0, 0.0), "{edge:?}");
+        assert!(close(edge.second_parameters.0, 5.65), "{edge:?}");
     }
 }

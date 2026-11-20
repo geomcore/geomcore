@@ -299,3 +299,34 @@ fn test_a_circle_against_a_piece_of_a_coaxial_cylinder_is_one_valley() {
         }
     }
 }
+
+/// An arc of a circle against a piece of a coaxial cylinder: the minimum
+/// held on the arc's end at the angle 0 and the piece's edge `u = 5.65`,
+/// across the gap of the arc, is seeded wherever the pair is placed. The
+/// contact over the piece is a plateau of samples along the arc; one seed
+/// for it, not one per sample, so that its samples do not crowd out the
+/// end's (#448).
+#[test]
+fn test_a_minimum_held_on_the_ends_of_an_arc_and_a_piece_is_found_at_any_placement() {
+    use crate::{Circle, Cylinder, Point, Transform, TrimmedSurface};
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    let piece = TrimmedSurface::new(cylinder, (1.2566, 5.65), (-1.0, 3.0)).unwrap();
+    let circle = Circle::new(Point::new(0.0, 0.0, 0.5), Vector::Z, 2.0).unwrap();
+    let arc = TrimmedCurve::new(circle, 0.0, 6.2).unwrap();
+    // The chord between the angles 0 and 5.65 on a radius of 2.
+    let across_the_gap = 4.0 * (0.5 * (std::f64::consts::TAU - 5.65)).sin();
+    for distance in [0.0, 1e3, 1e7] {
+        let moved = Transform::translation(Vector::new(distance, -2.0 * distance, distance));
+        let (curve, surface) = (
+            arc.transformed(moved).unwrap(),
+            piece.transformed(moved).unwrap(),
+        );
+        let extrema = curve_surface_extrema(&curve, &surface, TOL);
+        assert_consistent(&curve, &surface, &extrema);
+        assert_eq!(extrema.len(), 2, "{extrema:?}");
+        let end = extrema[1];
+        assert!((end.distance - across_the_gap).abs() < 1e-6, "{end:?}");
+        assert!(close(end.curve_parameter, 0.0), "{end:?}");
+        assert!(close(end.surface_parameters.0, 5.65), "{end:?}");
+    }
+}
