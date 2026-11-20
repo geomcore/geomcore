@@ -88,6 +88,13 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- A cone's parameters of a point a hair from its axis no longer snap to
+  `u = 0` when the cone is small (#456, ADR 0051). The axis's reach was
+  `1e-9` in absolute length, so scaled by `2^-10` a point several
+  confusions from the apex read `u = 0` and `point_at` landed 1.3
+  confusions away; it is now `1e-9` times the point's distance from the
+  apex, as the sphere's pole reach became in #452.
+
 - A sphere a few confusions from holding a tube circle of a torus is read
   with its loops (#452, ADR 0057). Centred on the centre circle of the
   torus of radii 4 and 1, of radius `1 + 1.5e-7` or `1 + 3e-7`, it was
