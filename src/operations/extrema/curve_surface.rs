@@ -1,6 +1,7 @@
 //! The local minima of the distance between a curve and a surface
 //! ([`CurveSurfaceExtrema`]).
 
+use std::cell::OnceCell;
 use std::f64::consts::TAU;
 use std::ops::Deref;
 
@@ -443,6 +444,8 @@ where
         surface_domains,
         scale,
         tol,
+        reference_pair: OnceCell::new(),
+        reached_from_reference: OnceCell::new(),
     };
     // Seen from the curve, each sample measured to its foot on the surface
     // from the nearest surface sample: a distance exact at every sample, so
@@ -489,9 +492,33 @@ struct Search<'a, C, S> {
     /// The configuration's length scale, for the outer window.
     scale: f64,
     tol: Tolerance,
+    /// The curve at its reference parameter and its foot, with the foot's
+    /// parameters: the same first candidate for every valley, read once.
+    reference_pair: OnceCell<(CurveSurfaceExtremum, [f64; 2])>,
+    /// The minimum the search reaches from the reference pair, read once.
+    reached_from_reference: OnceCell<Option<CurveSurfaceExtremum>>,
 }
 
 impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
+    /// The curve at its reference parameter and its foot on the surface,
+    /// with the foot's parameters.
+    fn reference_pair(&self) -> (CurveSurfaceExtremum, [f64; 2]) {
+        *self.reference_pair.get_or_init(|| {
+            let t = self.curve_domain.reference();
+            let projection = self.surface.project_point(self.curve.point_at(t), self.tol);
+            let start = [projection.u, projection.v];
+            (self.local(t, start).0, start)
+        })
+    }
+
+    /// The minimum the search reaches from the reference pair.
+    fn reached_from_reference(&self) -> Option<CurveSurfaceExtremum> {
+        *self.reached_from_reference.get_or_init(|| {
+            let (pair, start) = self.reference_pair();
+            self.refine(pair.curve_parameter, start)
+        })
+    }
+
     /// The extremum of the curve point at `t` and its foot on the surface
     /// from `start`, with half the squared distance and its first and
     /// reduced second derivatives along `t`, the curve's speed and the
@@ -734,14 +761,11 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
         let in_valley = |pair: &CurveSurfaceExtremum| {
             pair.distance <= e.distance + self.tol.confusion && self.same_basin(e, pair)
         };
-        let t = self.curve_domain.reference();
-        let projection = self.surface.project_point(self.curve.point_at(t), self.tol);
-        let start = [projection.u, projection.v];
-        let pair = self.local(t, start).0;
+        let (pair, _) = self.reference_pair();
         if in_valley(&pair) {
             return Some(pair);
         }
-        let reached = || self.refine(t, start).filter(in_valley);
+        let reached = || self.reached_from_reference().filter(in_valley);
         if !self.flat_along_curve(e) {
             return reached();
         }
