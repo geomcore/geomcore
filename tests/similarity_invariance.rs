@@ -17,45 +17,118 @@ use std::collections::BTreeSet;
 use std::fmt::Debug;
 use std::path::PathBuf;
 
-use common::samples::{curves, parameters, surface_parameters, surfaces, tilted_frame};
+use common::samples::{
+    curves, curves_2d, parameters, surface_parameters, surfaces, tilted_frame, trimmed_2d,
+};
 use geomcore::prelude::*;
 use geomcore::{
     BSplineCurve, BezierCurve, Circle, Completeness, Curve, ExtrusionSurface, Frame,
-    IntersectionMethod, Line, Plane, Point, Surface, Tolerance, Torus, Transform, Vector,
-    curve_curve_extrema, curve_surface_extrema, surface_surface_extrema,
+    IntersectionMethod, Line, Plane, Point, Point2D, Surface, Tolerance, Torus, Transform,
+    Transform2D, TrimmedCurve2D, Vector, Vector2D, curve_curve_extrema, curve_surface_extrema,
+    surface_surface_extrema,
 };
 
-/// A similarity, its factor on lengths and its inverse.
-struct Similarity {
+/// A similarity, its factor on lengths and its inverse, in space
+/// ([`Transform`]) or in the plane ([`Transform2D`]).
+struct Similarity<T> {
     name: String,
-    transform: Transform,
-    inverse: Transform,
+    transform: T,
+    inverse: T,
     scale: f64,
 }
 
-fn similarities() -> Vec<Similarity> {
-    let mut list: Vec<Similarity> = [-20, 20]
-        .into_iter()
-        .map(|exponent| {
-            let scale = 2f64.powi(exponent);
-            Similarity {
-                name: format!("scale 2^{exponent}"),
-                transform: Transform::scaling(Point::ORIGIN, scale),
-                inverse: Transform::scaling(Point::ORIGIN, 1.0 / scale),
-                scale,
-            }
-        })
-        .collect();
-    for distance in [1e3, 1e7] {
-        let offset = Vector::new(distance, -2.0 * distance, 1.5 * distance);
-        list.push(Similarity {
-            name: format!("translation {distance:e}"),
-            transform: Transform::translation(offset),
-            inverse: Transform::translation(Vector::new(-offset.x, -offset.y, -offset.z)),
-            scale: 1.0,
-        });
+/// The similarities of one tier, and how a point is brought back and
+/// compared.
+trait TierSimilarity: Copy + Sized {
+    type Point: Copy;
+
+    /// The scales by 2^-20 and 2^20, and the translations by 1e3 and 1e7.
+    fn similarities() -> Vec<Similarity<Self>>;
+
+    fn apply(self, point: Self::Point) -> Self::Point;
+
+    fn distance(first: Self::Point, second: Self::Point) -> f64;
+}
+
+const EXPONENTS: [i32; 2] = [-20, 20];
+const DISTANCES: [f64; 2] = [1e3, 1e7];
+
+impl TierSimilarity for Transform {
+    type Point = Point;
+
+    fn similarities() -> Vec<Similarity<Transform>> {
+        let mut list: Vec<Similarity<Transform>> = EXPONENTS
+            .into_iter()
+            .map(|exponent| {
+                let scale = 2f64.powi(exponent);
+                Similarity {
+                    name: format!("scale 2^{exponent}"),
+                    transform: Transform::scaling(Point::ORIGIN, scale),
+                    inverse: Transform::scaling(Point::ORIGIN, 1.0 / scale),
+                    scale,
+                }
+            })
+            .collect();
+        for distance in DISTANCES {
+            let offset = Vector::new(distance, -2.0 * distance, 1.5 * distance);
+            list.push(Similarity {
+                name: format!("translation {distance:e}"),
+                transform: Transform::translation(offset),
+                inverse: Transform::translation(Vector::new(-offset.x, -offset.y, -offset.z)),
+                scale: 1.0,
+            });
+        }
+        list
     }
-    list
+
+    fn apply(self, point: Point) -> Point {
+        self.apply_point(point)
+    }
+
+    fn distance(first: Point, second: Point) -> f64 {
+        first.distance(second)
+    }
+}
+
+impl TierSimilarity for Transform2D {
+    type Point = Point2D;
+
+    fn similarities() -> Vec<Similarity<Transform2D>> {
+        let mut list: Vec<Similarity<Transform2D>> = EXPONENTS
+            .into_iter()
+            .map(|exponent| {
+                let scale = 2f64.powi(exponent);
+                Similarity {
+                    name: format!("scale 2^{exponent}"),
+                    transform: Transform2D::scaling(Point2D::ORIGIN, scale),
+                    inverse: Transform2D::scaling(Point2D::ORIGIN, 1.0 / scale),
+                    scale,
+                }
+            })
+            .collect();
+        for distance in DISTANCES {
+            let offset = Vector2D::new(distance, -2.0 * distance);
+            list.push(Similarity {
+                name: format!("translation {distance:e}"),
+                transform: Transform2D::translation(offset),
+                inverse: Transform2D::translation(Vector2D::new(-offset.x, -offset.y)),
+                scale: 1.0,
+            });
+        }
+        list
+    }
+
+    fn apply(self, point: Point2D) -> Point2D {
+        self.apply_point(point)
+    }
+
+    fn distance(first: Point2D, second: Point2D) -> f64 {
+        first.distance(second)
+    }
+}
+
+fn similarities() -> Vec<Similarity<Transform>> {
+    Transform::similarities()
 }
 
 fn tolerance(scale: f64) -> Tolerance {
@@ -101,15 +174,19 @@ fn completeness<R>(completeness: &Completeness<R>) -> String {
 }
 
 /// Whether every reference point has an image point beside it.
-fn same_points(reference: &[Point], image: &[Point], similarity: &Similarity) -> bool {
-    let back: Vec<Point> = image
+fn same_points<T: TierSimilarity>(
+    reference: &[T::Point],
+    image: &[T::Point],
+    similarity: &Similarity<T>,
+) -> bool {
+    let back: Vec<T::Point> = image
         .iter()
-        .map(|point| similarity.inverse.apply_point(*point))
+        .map(|point| similarity.inverse.apply(*point))
         .collect();
     reference.len() == back.len()
         && reference.iter().all(|point| {
             back.iter()
-                .any(|other| point.distance(*other) <= POINT_SLACK)
+                .any(|other| T::distance(*point, *other) <= POINT_SLACK)
         })
 }
 
@@ -230,16 +307,17 @@ type Mismatch = (String, String);
 
 /// Runs `operation` on every pair at every similarity and returns the
 /// mismatches.
-fn compare_pairs<A, B>(
+fn compare_pairs<A, B, T>(
     family: &str,
     firsts: &[A],
     seconds: &[B],
     symmetric: bool,
-    operation: impl Fn(&A, &B, Tolerance) -> (String, Vec<Point>),
+    operation: impl Fn(&A, &B, Tolerance) -> (String, Vec<T::Point>),
 ) -> Vec<Mismatch>
 where
-    A: Transformable<Transform = Transform> + Clone + Debug,
-    B: Transformable<Transform = Transform> + Clone + Debug,
+    A: Transformable<Transform = T> + Clone + Debug,
+    B: Transformable<Transform = T> + Clone + Debug,
+    T: TierSimilarity,
 {
     let mut mismatches = Vec::new();
     let mut compared = 0;
@@ -250,7 +328,7 @@ where
             }
             let (reference_text, reference_points) = operation(a, b, tolerance(1.0));
             let pair = format!("{family} {} x {}", label(i, a), label(j, b));
-            for similarity in similarities() {
+            for similarity in T::similarities() {
                 let (Ok(image_a), Ok(image_b)) = (
                     a.clone().transformed(similarity.transform),
                     b.clone().transformed(similarity.transform),
@@ -480,6 +558,41 @@ fn curve_curve_extrema_are_similarity_invariant() {
     );
 }
 
+/// The extrema of two 2D curves: their count and completeness. Their
+/// points are left out, as the 3D family leaves them out: a tangent
+/// contact's point moves under a translation by more than the slack
+/// (ADR 0051), and so does the representative of a valley.
+fn extrema_2d<C>(a: &C, b: &C, tol: Tolerance) -> (String, Vec<Point2D>)
+where
+    C: geomcore::CurveExtremaOperand<Point = Point2D>,
+{
+    let result = curve_curve_extrema(a, b, tol);
+    let text = format!(
+        "extrema={} {}",
+        result.len(),
+        completeness(result.completeness())
+    );
+    (text, Vec::new())
+}
+
+/// Every pair of the 2D samples and every pair of their trimmed pieces. A
+/// whole curve against a piece of itself is left out: its valley of zero
+/// distance is split or merged depending on the placement (#444).
+#[test]
+fn curve_curve_extrema_2d_are_similarity_invariant() {
+    let curves = curves_2d();
+    let pieces: Vec<TrimmedCurve2D> = curves.iter().map(trimmed_2d).collect();
+    let mut mismatches = compare_pairs("extrema-2d", &curves, &curves, true, extrema_2d);
+    mismatches.extend(compare_pairs(
+        "extrema-2d trimmed",
+        &pieces,
+        &pieces,
+        true,
+        extrema_2d,
+    ));
+    report("extrema-2d", mismatches);
+}
+
 #[test]
 fn curve_surface_extrema_are_similarity_invariant() {
     report(
@@ -611,4 +724,144 @@ fn a_plane_near_a_saddle_level_of_a_torus_reads_the_same_moved() {
             "offset {offset:e}: a contact read for a curve beyond confusion of it"
         );
     }
+}
+
+/// The 2D forms of the similarities: the same scales, and translations by
+/// the same distances in the plane.
+fn similarities_2d() -> Vec<(String, Transform2D, Transform2D, f64)> {
+    let mut list: Vec<(String, Transform2D, Transform2D, f64)> = [-20, 20]
+        .into_iter()
+        .map(|exponent| {
+            let scale = 2f64.powi(exponent);
+            (
+                format!("scale 2^{exponent}"),
+                Transform2D::scaling(Point2D::ORIGIN, scale),
+                Transform2D::scaling(Point2D::ORIGIN, 1.0 / scale),
+                scale,
+            )
+        })
+        .collect();
+    for distance in [1e3, 1e7] {
+        let offset = Vector2D::new(distance, -2.0 * distance);
+        list.push((
+            format!("translation {distance:e}"),
+            Transform2D::translation(offset),
+            Transform2D::translation(Vector2D::new(-offset.x, -offset.y)),
+            1.0,
+        ));
+    }
+    list
+}
+
+/// The offset of `curve` at `distance` within `max_deviation`, as text
+/// (refused and why, or exact, the degree and pole count of a B-spline and
+/// the cusp count) and points: the cusps on the curve, and the offset's
+/// points nearest each of `probes`.
+fn offset_2d<C>(
+    curve: &C,
+    distance: f64,
+    max_deviation: f64,
+    probes: &[Point2D],
+    tol: Tolerance,
+) -> (String, Vec<Point2D>)
+where
+    C: Offset2D,
+    C::Offset: PointExtrema2D,
+{
+    let offset = match curve.offset(distance, max_deviation, tol) {
+        Ok(offset) => offset,
+        Err(error) => {
+            let text = format!("{error:?}");
+            return (
+                text.split([' ', '{']).next().unwrap().to_string(),
+                Vec::new(),
+            );
+        }
+    };
+    let shape = match offset.curve().as_bspline() {
+        Some(spline) => format!("degree {} poles {}", spline.degree(), spline.poles().len()),
+        None => "exact".to_string(),
+    };
+    let text = format!("{shape} cusps {}", offset.cusp_parameters().len());
+    let mut points: Vec<Point2D> = offset
+        .cusp_parameters()
+        .iter()
+        .map(|&cusp| curve.point_at(cusp))
+        .collect();
+    points.extend(
+        probes
+            .iter()
+            .map(|&probe| offset.curve().project_point(probe, tol).point),
+    );
+    (text, points)
+}
+
+/// Compares the offsets of every curve of `samples` with those of its
+/// images, at two distances, one past the smallest radius of curvature of
+/// the sample ellipse.
+fn compare_offsets<C>(family: &str, samples: &[C], mismatches: &mut Vec<Mismatch>) -> usize
+where
+    C: Offset2D + Transformable<Transform = Transform2D> + Clone + Debug,
+    C::Offset: PointExtrema2D,
+{
+    let mut compared = 0;
+    for (index, curve) in samples.iter().enumerate() {
+        let probes: Vec<Point2D> = parameters(curve.bounds())
+            .iter()
+            .map(|&u| curve.point_at(u))
+            .collect();
+        for distance in [-0.3, 0.9] {
+            let max_deviation = 1e-4;
+            let (reference_text, reference_points) =
+                offset_2d(curve, distance, max_deviation, &probes, tolerance(1.0));
+            for (name, transform, inverse, scale) in similarities_2d() {
+                let image = curve.clone().transformed(transform).unwrap();
+                let image_probes: Vec<Point2D> = probes
+                    .iter()
+                    .map(|&probe| transform.apply_point(probe))
+                    .collect();
+                let (image_text, image_points) = offset_2d(
+                    &image,
+                    distance * scale,
+                    max_deviation * scale,
+                    &image_probes,
+                    tolerance(scale),
+                );
+                compared += 1;
+                let key = format!(
+                    "offset {family} {} at {distance} | {name}",
+                    label(index, curve)
+                );
+                let back: Vec<Point2D> = image_points
+                    .iter()
+                    .map(|&point| inverse.apply_point(point))
+                    .collect();
+                if image_text != reference_text {
+                    mismatches.push((key, format!("[{reference_text}] became [{image_text}]")));
+                } else if back.len() != reference_points.len()
+                    || reference_points
+                        .iter()
+                        .zip(&back)
+                        .any(|(a, b)| a.distance(*b) > POINT_SLACK)
+                {
+                    mismatches.push((key, format!("[{reference_text}] points moved")));
+                }
+            }
+        }
+    }
+    compared
+}
+
+#[test]
+fn offsets_of_2d_curves_are_similarity_invariant() {
+    let wholes = curves_2d();
+    let pieces: Vec<TrimmedCurve2D> = wholes.iter().map(trimmed_2d).collect();
+    let mut mismatches = Vec::new();
+    let compared = compare_offsets("whole", &wholes, &mut mismatches)
+        + compare_offsets("trimmed", &pieces, &mut mismatches);
+    println!(
+        "offset: {compared} comparisons, {} mismatches",
+        mismatches.len()
+    );
+    report("offset", mismatches);
 }

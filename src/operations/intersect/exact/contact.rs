@@ -2,7 +2,7 @@
 //! as touching: the one decision every closed form takes before it
 //! answers with the topology of a contact (a tangent point, a loop that
 //! crosses itself, two conics that cross) in place of the curve of the
-//! surfaces as given (ADR 0056).
+//! surfaces as given (ADR 0057).
 //!
 //! Near a contact two surfaces part quadratically: offset by `ε` along
 //! their common normal, the curve where they meet lies `√(2ε / κ)` from

@@ -1071,7 +1071,7 @@ fn test_conics_of_spheres_a_hair_apart_that_do_not_cross_are_not_read() {
 
 // Contacts in rounded data: an offset of a few digits past the tenth is
 // tens to hundreds of confusions of curve at the default tolerance, and is
-// read as given (ADR 0056). A caller whose data is rounded that far reads
+// read as given (ADR 0057). A caller whose data is rounded that far reads
 // such contacts at a confusion of `√(2 ε / κ)` or more.
 
 /// A plane `1e-10` through a sphere of radius `2` cuts it in a circle of

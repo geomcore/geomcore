@@ -21,6 +21,18 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- The offset of a 2D curve, `offset(distance, max_deviation, tol)` on
+  every 2D curve in Rust (the `Offset2D` trait, in the prelude) and Python
+  (#250, ADR 0056). Every point moves along the curve's left normal, so a
+  positive distance goes to the side a positive curvature turns toward. A
+  line offsets exactly to a line and a circle to a circle, and a segment
+  or an arc to a piece of one over the same range; every other curve to
+  one B-spline within `max_deviation` of the true offset at the same
+  parameter. The result, `CurveOffset2D`, gives the curve, its deviation,
+  whether it is proven or exact, and the parameters where the offset has
+  a cusp; loops are kept. `CurveOffset2DError` refuses a whole parabola or
+  hyperbola, a circle whose radius would not stay positive, and a curve
+  that stops or turns a corner.
 - `Transform2D`, the plane twin of `Transform`, in Rust and Python (#421):
   a similarity of the plane built by `translation`, `rotation(center,
   angle)` (counterclockwise), `scaling`, `mirror_point`, `mirror_axis`
@@ -53,12 +65,32 @@ the Python distribution are versioned in lockstep.
   surface's `extrema` takes a curve or a surface on every surface class
   and `TrimmedSurface`, and `minimum_distance(other)` gives the closest
   minimum or `None`.
+- Curve–curve extrema of 2D curves, in Rust and Python (#422).
+  `curve_curve_extrema` takes two 2D curves (`Curve2D`, each concrete 2D
+  curve and `TrimmedCurve2D`) and returns a `CurveCurveExtrema2D` of
+  `CurveCurveExtremum2D` minima, with the same contract as in space:
+  local minima closest first, both parameters and both points of each, a
+  valley of equal minima (parallel lines, concentric circles) reported
+  once, and the search's completeness. The results are
+  `GenericCurveCurveExtrema<P>` and `GenericCurveCurveExtremum<P>` over
+  the tier's point, with `CurveCurveExtrema` and `CurveCurveExtremum` the
+  aliases in space, and the curves the function takes are named by the
+  new trait `CurveExtremaOperand`, which every 3D `ParametricCurve`
+  implements. In Python, a 2D curve's `extrema(other)` takes a 2D curve
+  as well as a point, `minimum_distance(other)` is new on 2D curves, the
+  deprecated `curve_curve_extrema` takes 2D pairs, and a 2D curve against
+  a 3D curve raises `TypeError` saying so.
+- The Python guide says which methods a 2D class lacks beside its 3D
+  twin and why: no z, no normal (a 2D arc takes `counterclockwise=`), no
+  surfaces. With `Transform2D` and the 2D curve–curve extrema, every row
+  of the 2D ↔ 3D parity list in `test_parity.py` is now filled or
+  deliberately excluded (#197).
 
 ### Fixed
 
 - Two surfaces within confusion of a contact are answered with the
   contact only where their curve stays within confusion of it (#438,
-  #439, ADR 0056). Near a contact two surfaces part quadratically, so an
+  #439, ADR 0057). Near a contact two surfaces part quadratically, so an
   offset `ε` puts their curve `√(2ε / κ)` from the contact point, `κ`
   their relative curvature: a plane `5e-8` off a saddle level of a torus
   was answered with a crossing `1.3e-3` from its loops, a thin cylinder

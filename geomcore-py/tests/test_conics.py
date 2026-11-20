@@ -78,6 +78,14 @@ def test_circle_2d_from_three_points_takes_point_likes_and_raises_on_collinear_o
         Circle2D.from_three_points((0.0, 0.0), (1.0, 0.0), (2.0, 0.0))
 
 
+def test_circle_from_three_points_refuses_coincident_points_in_both_tiers():
+    # Two equal points leave a whole family of circles through the three.
+    with pytest.raises(geomcore.ConstructionError, match="confused"):
+        Circle2D.from_three_points((0.0, 0.0), (0.0, 0.0), (1.0, 1.0))
+    with pytest.raises(geomcore.ConstructionError, match="confused"):
+        Circle.from_three_points(Point.origin(), Point.origin(), Point(1.0, 1.0, 0.0))
+
+
 def test_hyperbola_asymptotes_are_lines_of_its_tier():
     rising, falling = Hyperbola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 4.0, 3.0).asymptotes()
     assert isinstance(rising, Line) and isinstance(falling, Line)

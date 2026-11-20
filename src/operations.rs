@@ -11,5 +11,8 @@ pub(crate) mod extrema;
 /// [`Intersect`](crate::Intersect), the typed exact
 /// [`IntersectExact`](crate::IntersectExact), and their results.
 pub(crate) mod intersect;
+/// The offset of a 2D curve: exact for lines and circles, within a
+/// deviation otherwise.
+pub(crate) mod offset;
 /// Point projection onto curves and surfaces.
 pub(crate) mod projection;

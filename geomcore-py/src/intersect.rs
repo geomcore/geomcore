@@ -7,17 +7,17 @@ use crate::arguments::{
 };
 use crate::curves::PyTrimmedCurve2D;
 use crate::results::{
-    PyCurveCurveExtrema, PyCurveCurveIntersection, PyCurveCurveIntersection2D,
-    PyCurveSurfaceExtrema, PyCurveSurfaceIntersection, PySurfaceSurfaceExtrema,
-    PySurfaceSurfaceIntersection,
+    PyCurveCurveExtrema, PyCurveCurveExtrema2D, PyCurveCurveIntersection,
+    PyCurveCurveIntersection2D, PyCurveSurfaceExtrema, PyCurveSurfaceIntersection,
+    PySurfaceSurfaceExtrema, PySurfaceSurfaceIntersection,
 };
 use crate::surfaces::PyTrimmedSurface;
 use geomcore::prelude::*;
 use geomcore::{
-    Curve2D, CurveCurveIntersection, CurveCurveIntersection2D, CurveSurfaceExtrema,
-    CurveSurfaceIntersection, Surface, SurfaceSurfaceExtrema, SurfaceSurfaceIntersection,
-    Tolerance, TrimmedCurve2D, TrimmedSurface, curve_curve_extrema, curve_surface_extrema,
-    surface_surface_extrema,
+    Curve2D, CurveCurveExtrema2D, CurveCurveIntersection, CurveCurveIntersection2D,
+    CurveSurfaceExtrema, CurveSurfaceIntersection, Surface, SurfaceSurfaceExtrema,
+    SurfaceSurfaceIntersection, Tolerance, TrimmedCurve2D, TrimmedSurface, curve_curve_extrema,
+    curve_surface_extrema, surface_surface_extrema,
 };
 use pyo3::exceptions::PyTypeError;
 use pyo3::prelude::*;
@@ -60,6 +60,11 @@ const INTERSECT_TAKES: &str = "intersect takes a geomcore curve or surface";
 
 /// What `extrema` takes, leading the `TypeError` for anything else.
 pub(crate) const EXTREMA_TAKES: &str = "extrema takes a Point, a 3D curve or a surface";
+
+/// What `extrema` takes on a 2D curve, leading the `TypeError` for
+/// anything else.
+const EXTREMA_2D_TAKES: &str =
+    "extrema of a 2D curve takes a Point2D, a sequence of 2 numbers or a 2D curve";
 
 /// The operand `obj` holds, read by type tests that raise nothing on a
 /// miss: the surface classes first when `surfaces_first` (the other
@@ -206,6 +211,13 @@ pub(crate) fn extrema(
         }
         .into_pyobject(py)?
         .into_any(),
+        (Operand::Curve2D(a), Operand::Curve2D(b)) => PyCurveCurveExtrema2D {
+            result: py.detach(|| curve_curve_extrema_2d(a, b, tol)),
+            first,
+            second,
+        }
+        .into_pyobject(py)?
+        .into_any(),
         (Operand::Curve(curve), other) | (other, Operand::Curve(curve))
             if other.as_surface().is_some() =>
         {
@@ -227,6 +239,45 @@ pub(crate) fn extrema(
         }
     };
     Ok(object.unbind())
+}
+
+/// Whether `obj` is a 2D curve or a piece of one.
+fn is_curve_2d(obj: &Bound<'_, PyAny>) -> bool {
+    obj.downcast::<PyTrimmedCurve2D>().is_ok() || curve_2d_classes::of(obj).is_some()
+}
+
+/// The extrema of the 2D curve `first` with `second`, which must be a 2D
+/// curve too: a `CurveCurveExtrema2D`, or a `TypeError` naming what a 2D
+/// curve's `extrema` takes.
+pub(crate) fn extrema_2d(
+    first: &Bound<'_, PyAny>,
+    second: &Bound<'_, PyAny>,
+    tol: Tolerance,
+) -> PyResult<Py<PyAny>> {
+    let is_2d =
+        second.downcast::<PyTrimmedCurve2D>().is_ok() || curve_2d_classes::of(second).is_some();
+    if !is_2d {
+        let name = second.get_type().name()?;
+        let tier = if curve_arg_of(second).is_some() {
+            "; a 2D curve has no extrema with a 3D curve"
+        } else {
+            ""
+        };
+        return Err(PyTypeError::new_err(format!(
+            "{EXTREMA_2D_TAKES}, not {name}{tier}"
+        )));
+    }
+    extrema(first, second, tol)
+}
+
+/// The extrema of two 2D curves passed from Python.
+fn curve_curve_extrema_2d(a: &CurveArg2D, b: &CurveArg2D, tol: Tolerance) -> CurveCurveExtrema2D {
+    match (a, b) {
+        (CurveArg2D::Whole(a), CurveArg2D::Whole(b)) => curve_curve_extrema(a, b, tol),
+        (CurveArg2D::Whole(a), CurveArg2D::Trimmed(b)) => curve_curve_extrema(a, b, tol),
+        (CurveArg2D::Trimmed(a), CurveArg2D::Whole(b)) => curve_curve_extrema(a, b, tol),
+        (CurveArg2D::Trimmed(a), CurveArg2D::Trimmed(b)) => curve_curve_extrema(a, b, tol),
+    }
 }
 
 /// The extrema of a curve and a surface passed from Python.
@@ -271,8 +322,10 @@ pub(crate) fn py_curve_curve_extrema<'py>(
         c"geomcore.curve_curve_extrema(first, second) is deprecated: use first.extrema(second)",
         1,
     )?;
-    extract_curve_arg(first)?;
-    extract_curve_arg(second)?;
+    if !(is_curve_2d(first) && is_curve_2d(second)) {
+        extract_curve_arg(first)?;
+        extract_curve_arg(second)?;
+    }
     first.call_method1("extrema", (second, tol))
 }
 

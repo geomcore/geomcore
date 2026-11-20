@@ -11,12 +11,12 @@
 
 use crate::arguments::{curve_2d_classes, curve_classes};
 use geomcore::{
-    Completeness, CurveCurveExtrema, CurveCurveExtremum, CurveCurveOverlap, CurveCurveRegion,
-    CurveProjection, CurveSurfaceExtrema, CurveSurfaceExtremum, CurveSurfaceHit,
-    CurveSurfaceIntersection, CurveSurfaceOverlap, CurveSurfaceRegion, Direction, Discretization,
-    Discretization2D, GenericCurveCurveHit, GenericCurveCurveIntersection, IncompleteReason,
-    IntersectionCurve, IntersectionMethod, Point, Point2D, SurfaceCurvatures, SurfaceProjection,
-    SurfaceSurfaceExtrema, SurfaceSurfaceExtremum, SurfaceSurfaceIntersection,
+    Completeness, CurveCurveOverlap, CurveCurveRegion, CurveProjection, CurveSurfaceExtrema,
+    CurveSurfaceExtremum, CurveSurfaceHit, CurveSurfaceIntersection, CurveSurfaceOverlap,
+    CurveSurfaceRegion, Direction, Discretization, Discretization2D, GenericCurveCurveExtrema,
+    GenericCurveCurveExtremum, GenericCurveCurveHit, GenericCurveCurveIntersection,
+    IncompleteReason, IntersectionCurve, IntersectionMethod, Point, Point2D, SurfaceCurvatures,
+    SurfaceProjection, SurfaceSurfaceExtrema, SurfaceSurfaceExtremum, SurfaceSurfaceIntersection,
     SurfaceSurfaceRegion, TierPoint, Vector,
 };
 use pyo3::IntoPyObjectExt;
@@ -323,8 +323,8 @@ impl Plain for IntersectionCurve {
     }
 }
 
-impl Plain for CurveCurveExtremum {
-    type State = (f64, f64, [f64; 3], [f64; 3], f64);
+impl<P: TierPoint + Plain> Plain for GenericCurveCurveExtremum<P> {
+    type State = (f64, f64, P::State, P::State, f64);
 
     fn state(&self, py: Python<'_>) -> PyResult<Self::State> {
         Ok((
@@ -340,11 +340,11 @@ impl Plain for CurveCurveExtremum {
         py: Python<'_>,
         (first, second, first_point, second_point, distance): Self::State,
     ) -> PyResult<Self> {
-        Ok(CurveCurveExtremum {
+        Ok(GenericCurveCurveExtremum {
             first_parameter: first,
             second_parameter: second,
-            first_point: Point::from_state(py, first_point)?,
-            second_point: Point::from_state(py, second_point)?,
+            first_point: P::from_state(py, first_point)?,
+            second_point: P::from_state(py, second_point)?,
             distance,
         })
     }
@@ -524,9 +524,9 @@ impl Plain for SurfaceSurfaceIntersection {
     }
 }
 
-impl Plain for CurveCurveExtrema {
+impl<P: TierPoint + Plain> Plain for GenericCurveCurveExtrema<P> {
     type State = (
-        Vec<<CurveCurveExtremum as Plain>::State>,
+        Vec<<GenericCurveCurveExtremum<P> as Plain>::State>,
         <Completeness<CurveCurveRegion> as Plain>::State,
     );
 
@@ -538,7 +538,7 @@ impl Plain for CurveCurveExtrema {
     }
 
     fn from_state(py: Python<'_>, (minima, completeness): Self::State) -> PyResult<Self> {
-        Ok(CurveCurveExtrema::from_parts(
+        Ok(GenericCurveCurveExtrema::from_parts(
             Vec::from_state(py, minima)?,
             Completeness::from_state(py, completeness)?,
         ))
@@ -789,6 +789,33 @@ use crate::surfaces::PyBSplineSurface;
 approximation_state!(geomcore::CurveApproximation, PyBSplineCurve, curve);
 approximation_state!(geomcore::CurveApproximation2D, PyBSplineCurve2D, curve);
 approximation_state!(geomcore::SurfaceApproximation, PyBSplineSurface, surface);
+
+/// An offset pickles its curve as itself, a whole curve or a trimmed one.
+impl Plain for geomcore::CurveOffset2D<crate::approximation::OffsetCurve2D> {
+    type State = (Py<PyAny>, f64, bool, Vec<f64>);
+
+    fn state(&self, py: Python<'_>) -> PyResult<Self::State> {
+        Ok((
+            crate::approximation::offset_curve_to_py(py, self.curve())?,
+            self.deviation(),
+            self.is_proven(),
+            self.cusp_parameters().to_vec(),
+        ))
+    }
+
+    fn from_state(
+        py: Python<'_>,
+        (curve, deviation, proven, cusp_parameters): Self::State,
+    ) -> PyResult<Self> {
+        use crate::approximation::OffsetCurve2D;
+        let curve = curve.bind(py);
+        let curve = match curve.cast::<crate::curves::PyTrimmedCurve2D>() {
+            Ok(trimmed) => OffsetCurve2D::Trimmed(trimmed.borrow().0.clone()),
+            Err(_) => OffsetCurve2D::Whole(curve_2d_classes::extract(curve)?),
+        };
+        Ok(Self::from_parts(curve, deviation, proven, cusp_parameters))
+    }
+}
 
 /// Implements [`Plain`] for a fit whose shape is held in Python as
 /// `$class`: the shape pickled as itself, with its two residuals.

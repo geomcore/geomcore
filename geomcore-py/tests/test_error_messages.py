@@ -42,10 +42,15 @@ def test_two_dimensional_extrema_say_what_they_take():
     circle = Circle2D(Point2D.origin(), 1.0)
     with raises(
         TypeError,
-        "extrema of a 2D curve takes a Point2D or a sequence of 2 numbers, not Circle2D; "
-        "the extrema between two 2D curves are not supported",
+        "extrema of a 2D curve takes a Point2D, a sequence of 2 numbers or a 2D curve, "
+        "not Line; a 2D curve has no extrema with a 3D curve",
     ):
-        circle.extrema(Circle2D(Point2D(3.0, 0.0), 1.0))
+        circle.extrema(Line(ORIGIN, Z))  # type: ignore[call-overload]
+    with raises(
+        TypeError,
+        "extrema of a 2D curve takes a Point2D, a sequence of 2 numbers or a 2D curve, not str",
+    ):
+        circle.minimum_distance("circle")  # type: ignore[arg-type]
 
 
 def test_a_cone_half_angle_gives_its_unit_and_range():

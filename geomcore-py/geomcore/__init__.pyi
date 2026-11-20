@@ -89,6 +89,9 @@ class UvCurveTo3DError(GeomcoreError):
 class UvCurveTo3DApproximationError(GeomcoreError):
     """A UV curve, a curve in a surface's parameter space, has no 3D curve within the asked deviation."""
 
+class CurveOffset2DError(GeomcoreError):
+    """A 2D curve has no offset at the asked distance within the asked deviation."""
+
 class SurfaceIsoError(GeomcoreError):
     """An iso-parametric curve of a surface could not be extracted."""
 
@@ -1086,6 +1089,44 @@ class CurveApproximation2D:
         """
 
 @final
+class CurveOffset2D:
+    """The offset of a 2D curve, from `offset`: the offset curve, how far it is
+    from the true offset `c(t) + d n(t)` at the same parameter, whether that
+    distance is proven, and the parameters where the true offset has a cusp.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def curve(self) -> Union[Line2D, Circle2D, BSplineCurve2D, TrimmedCurve2D]:
+        """The offset curve, in the parameter of the source curve: a `Line2D`
+        for a line, a `Circle2D` for a circle, a `BSplineCurve2D` for the
+        other curves, and a `TrimmedCurve2D` over the same range for a
+        trimmed curve.
+        """
+    @property
+    def deviation(self) -> float:
+        """The largest distance between the offset curve's point at `t` and the
+        true offset's: zero for an exact offset, a bound when `is_proven()`,
+        the largest sampled distance otherwise. It is within the asked
+        deviation, up to rounding.
+        """
+    def is_proven(self) -> bool:
+        """Whether `deviation` is a proven bound, up to rounding, rather than
+        sampled.
+        """
+    def is_exact(self) -> bool:
+        """Whether the offset curve is the true offset itself, up to rounding:
+        a line's or a circle's.
+        """
+    @property
+    def cusp_parameters(self) -> List[float]:
+        """The parameters on the source curve, in increasing order, where the
+        true offset has a cusp: where the distance crosses the radius of
+        curvature on its side, so that the offset stops and turns back.
+        Between two cusps the offset runs against the curve and forms a
+        loop, which is kept, not trimmed.
+        """
+
+@final
 class SurfaceApproximation:
     """A B-spline surface within a deviation of what it approximates, from
     `BSplineSurface.approximate_within`: as `CurveApproximation` is for a
@@ -1826,6 +1867,61 @@ class CurveCurveExtrema:
         """Whether the search proved there is no other minimum."""
 
 @final
+class CurveCurveExtremum2D:
+    """A local minimum of the distance between two 2D curves."""
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    @property
+    def first_parameter(self) -> float:
+        """The parameter on the first curve."""
+    @property
+    def second_parameter(self) -> float:
+        """The parameter on the second curve."""
+    @property
+    def first_point(self) -> Point2D:
+        """The point of the first curve at `first_parameter`."""
+    @property
+    def second_point(self) -> Point2D:
+        """The point of the second curve at `second_parameter`."""
+    @property
+    def distance(self) -> float:
+        """The distance between `first_point` and `second_point`."""
+
+@final
+class CurveCurveExtrema2D:
+    """The local minima of the distance between two 2D curves, closest
+    first, with whether the search proved there is no other.
+
+    `first` and `second` are the curves, in the order of the call.
+    """
+    __hash__: ClassVar[None]  # type: ignore[assignment]
+    def __len__(self) -> int: ...
+    def closest(self) -> Optional[CurveCurveExtremum2D]:
+        """The closest minimum, the first of `minima`, or `None` when there
+        is none.
+        """
+    def __iter__(self) -> Iterator[CurveCurveExtremum2D]: ...
+    def __reversed__(self) -> Iterator[CurveCurveExtremum2D]:
+        """Iterates over the minima, farthest first."""
+    @overload
+    def __getitem__(self, index: int, /) -> CurveCurveExtremum2D: ...
+    @overload
+    def __getitem__(self, index: slice, /) -> List[CurveCurveExtremum2D]: ...
+    @property
+    def minima(self) -> List[CurveCurveExtremum2D]:
+        """The minima, closest first."""
+    @property
+    def completeness(self) -> Completeness:
+        """Whether the search proved there is no other minimum."""
+    @property
+    def first(self) -> Curve2D | TrimmedCurve2D:
+        """The operand the method was called on."""
+    @property
+    def second(self) -> Curve2D | TrimmedCurve2D:
+        """The operand passed to the method."""
+    def is_complete(self) -> bool:
+        """Whether the search proved there is no other minimum."""
+
+@final
 class CurveSurfaceExtremum:
     """A local minimum of the distance between a curve and a surface."""
     __hash__: ClassVar[None]  # type: ignore[assignment]
@@ -1963,12 +2059,21 @@ def uv_curve_to_3d_within(
     """Deprecated: use `surface.uv_curve_to_3d_within(uv_curve,
     max_deviation, tol)`.
     """
+@overload
 @deprecated("use first.extrema(second, tol)")
 def curve_curve_extrema(
     first: _CurveMethods,
     second: _CurveMethods,
     tol: Optional[_ToleranceLike] = None,
 ) -> CurveCurveExtrema:
+    """Deprecated: use `first.extrema(second, tol)`."""
+@overload
+@deprecated("use first.extrema(second, tol)")
+def curve_curve_extrema(
+    first: _Curve2DMethods,
+    second: _Curve2DMethods,
+    tol: Optional[_ToleranceLike] = None,
+) -> CurveCurveExtrema2D:
     """Deprecated: use `first.extrema(second, tol)`."""
 
 # ---------------------------------------------------------------- curves
@@ -2241,16 +2346,67 @@ class _Curve2DMethods(
         a 3D curve or a surface, and for an object that is not a
         geomcore curve or surface. Other Python threads run meanwhile.
         """
+    def offset(
+        self,
+        distance: float,
+        max_deviation: float,
+        tol: Optional[_ToleranceLike] = None,
+    ) -> CurveOffset2D:
+        """The offset of the curve at the signed `distance`: every
+        point moved along the curve's left normal, the tangent
+        turned a quarter counterclockwise, so a positive distance
+        goes to the side a positive curvature turns toward. A line
+        offsets exactly to a `Line2D` and a circle to a
+        `Circle2D`; every other curve to one `BSplineCurve2D`
+        within `max_deviation` of the true offset at the same
+        parameter, its deviation sampled. A `TrimmedCurve2D`
+        offsets to a `TrimmedCurve2D` over the same range. Where
+        the distance passes the radius of curvature, the offset
+        has cusps and loops, which are kept; the result reports
+        the cusps' parameters. Raises `CurveOffset2DError` for a
+        distance that is not finite, a `max_deviation` that is not
+        positive and finite, a whole parabola or hyperbola (offset
+        a trimmed piece), a circle whose offset radius would not
+        be positive, a curve that stops or turns a corner, or a
+        deviation not reached. `tol` is `Tolerance.default()` when
+        omitted.
+        """
+    @overload
     def extrema(
-        self, point: _Point2DLike, tol: Optional[_ToleranceLike] = None
+        self, other: _Point2DLike, tol: Optional[_ToleranceLike] = None
     ) -> List[CurveProjection2D]:
-        """The local minima of the distance from `point` to the
+        """The extrema of the distance to `other`, a point or a 2D
+        curve.
+
+        From a point, a `Point2D` or a sequence of its two
+        coordinates: the local minima of its distance to the
         curve, an end of a bounded curve among them where the
         distance grows from it into the curve, as
         `CurveProjection2D` objects ordered by ascending distance.
-        `point` is a `Point2D` or a sequence of its two
-        coordinates. Raises `TypeError` for anything else: the
-        extrema between two 2D curves are not supported.
+
+        From a 2D curve or `TrimmedCurve2D`: a `CurveCurveExtrema2D`
+        of the local minima of the distance between the two curves,
+        closest first, with whether the search proved there is no
+        other. Parallel lines, concentric circles and other
+        continuous families of equal minima report the distance
+        once, with a representative pair. The result holds this
+        curve as `first` and `other` as `second`. Other Python
+        threads run during the search. Raises `TypeError` for
+        anything else, a 3D curve included.
+        """
+    @overload
+    def extrema(
+        self, other: _Curve2DMethods, tol: Optional[_ToleranceLike] = None
+    ) -> CurveCurveExtrema2D: ...
+    def minimum_distance(
+        self, other: _Curve2DMethods, tol: Optional[_ToleranceLike] = None
+    ) -> Optional[CurveCurveExtremum2D]:
+        """The minimum distance to `other`, a 2D curve: the closest of
+        `extrema(other)`, a `CurveCurveExtremum2D` with the two
+        points where it is reached, or `None` when there is no
+        minimum. Whether the search proved it the global one is the
+        `completeness` of `extrema(other)`. Raises `TypeError` for
+        anything else.
         """
 
 class _BoundedCurveMethods(Generic[_PointType, _DiscretizationType]):
@@ -4563,6 +4719,7 @@ __all__ = [
     "Curve3DToUvApproximationError",
     "UvCurveTo3DError",
     "UvCurveTo3DApproximationError",
+    "CurveOffset2DError",
     "SurfaceIsoError",
     "DiscretizationCriteriaError",
     "Point",
@@ -4604,6 +4761,8 @@ __all__ = [
     "SurfaceProjection",
     "CurveCurveExtremum",
     "CurveCurveExtrema",
+    "CurveCurveExtremum2D",
+    "CurveCurveExtrema2D",
     "CurveSurfaceExtremum",
     "CurveSurfaceExtrema",
     "SurfaceSurfaceExtremum",
@@ -4611,6 +4770,7 @@ __all__ = [
     "SurfaceCurvatures",
     "CurveApproximation",
     "CurveApproximation2D",
+    "CurveOffset2D",
     "SurfaceApproximation",
     "PlaneFit",
     "CircleFit",

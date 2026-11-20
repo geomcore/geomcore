@@ -153,7 +153,7 @@ mod geometry;
 /// formulas of the elementary shapes and the numerical toolbox.
 mod math;
 /// The operations on curves and surfaces: discretization, intersection, point
-/// projection and distance extrema.
+/// projection, distance extrema and the offset of 2D curves.
 mod operations;
 /// The shape and operation traits, for `use geomcore::prelude::*`.
 pub mod prelude;
@@ -201,9 +201,10 @@ pub use operations::discretization::{
     Discretize, Discretize2D,
 };
 pub use operations::extrema::{
-    CurveCurveExtrema, CurveCurveExtremum, CurveSurfaceExtrema, CurveSurfaceExtremum,
-    SurfaceSurfaceExtrema, SurfaceSurfaceExtremum, curve_curve_extrema, curve_surface_extrema,
-    surface_surface_extrema,
+    CurveCurveExtrema, CurveCurveExtrema2D, CurveCurveExtremum, CurveCurveExtremum2D,
+    CurveExtremaOperand, CurveSurfaceExtrema, CurveSurfaceExtremum, GenericCurveCurveExtrema,
+    GenericCurveCurveExtremum, SurfaceSurfaceExtrema, SurfaceSurfaceExtremum, curve_curve_extrema,
+    curve_surface_extrema, surface_surface_extrema,
 };
 pub use operations::intersect::{
     CircleCircle2DIntersection, CircleCircleIntersection, CircleSurfaceIntersection,
@@ -229,4 +230,5 @@ pub use operations::intersect::{
 };
 pub use operations::intersect::{Intersect, IntersectExact};
 pub use operations::intersect::{intersect_curve_curve, intersect_curve_surface};
+pub use operations::offset::{CurveOffset2D, CurveOffset2DError, Offset2D};
 pub use operations::projection::{CurveProjection, CurveProjection2D, SurfaceProjection};

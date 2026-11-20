@@ -23,13 +23,13 @@
 
 use std::fmt;
 
-use super::approximation::{
-    Breakpoint, Jet, LOW_ORDER, MAXIMUM_SPAN_COUNT, SAMPLES_PER_SPAN, SAMPLING_MARGIN, SpanSource,
-    bezier_point, degree, hermite_poles, joined, knots_between, sampled_spans,
-};
 use crate::Side;
 use crate::geometry::approximation::CurveApproximation2D;
-use crate::geometry::curves::{BSplineCurve, BSplineCurve2D, ParametricCurve};
+use crate::geometry::approximation::hermite_spans::{
+    Breakpoint, Jet, LOW_ORDER, MAXIMUM_SPAN_COUNT, SAMPLES_PER_SPAN, SAMPLING_MARGIN, SpanSource,
+    bezier_point, degree, hermite_poles, joined_2d, knots_between, sampled_spans,
+};
+use crate::geometry::curves::{BSplineCurve, ParametricCurve};
 use crate::geometry::surfaces::ParametricSurface;
 use crate::{Point, Point2D, Tolerance, Vector, Vector2D};
 
@@ -207,21 +207,7 @@ where
     let inversion = Inversion::new(surface, curve, (first, last), max_deviation, tol)?;
     let (breakpoints, deviation) =
         sampled_spans(&inversion, (first, last), max_deviation, MAXIMUM_SPAN_COUNT)?;
-    let spline = joined(&breakpoints, LOW_ORDER);
-    let poles = spline
-        .poles()
-        .iter()
-        .map(|pole| Point2D::new(pole.x, pole.y))
-        .collect();
-    let curve = BSplineCurve2D::from_parts(
-        spline.degree(),
-        poles,
-        None,
-        spline.knots().to_vec(),
-        spline.multiplicities().to_vec(),
-        false,
-    )
-    .expect("the joined spline's knots and poles are valid in 2D");
+    let curve = joined_2d(&breakpoints, LOW_ORDER);
     Ok(CurveApproximation2D::new(curve, deviation, false))
 }
 

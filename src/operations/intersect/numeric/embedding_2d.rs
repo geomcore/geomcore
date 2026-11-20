@@ -149,9 +149,25 @@ impl<C: Embed> Embed for TrimmedCurve2D<C> {
 }
 
 /// A 2D curve seen in space at `z = 0`, over its own bounds.
-struct Embedded<'a, C> {
+///
+/// Public in name only, unreachable from outside the crate: it is the
+/// curve in space of the 2D [`CurveExtremaOperand`](crate::CurveExtremaOperand)s.
+pub struct Embedded<'a, C> {
     curve: &'a C,
     basis: EmbeddedBasis,
+}
+
+impl<'a, C> Embedded<'a, C> {
+    /// `curve` embedded in space.
+    pub(crate) fn new(curve: &'a C) -> Self
+    where
+        C: Embed,
+    {
+        Embedded {
+            curve,
+            basis: curve.embedded_basis(),
+        }
+    }
 }
 
 impl<C: Embed> ParametricCurve for Embedded<'_, C> {
@@ -203,13 +219,7 @@ pub(crate) fn intersect_numeric_2d<A: Embed, B: Embed>(
     b: &B,
     tol: Tolerance,
 ) -> CurveCurveIntersection2D {
-    fn embed<C: Embed>(curve: &C) -> Embedded<'_, C> {
-        Embedded {
-            curve,
-            basis: curve.embedded_basis(),
-        }
-    }
-    let result = intersect_curve_curve(&embed(a), &embed(b), tol);
+    let result = intersect_curve_curve(&Embedded::new(a), &Embedded::new(b), tol);
     let hits = result
         .hits()
         .iter()

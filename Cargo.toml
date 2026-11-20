@@ -70,6 +70,10 @@ harness = false
 name = "shape_fitting"
 harness = false
 
+[[bench]]
+name = "curve_offset_2d"
+harness = false
+
 # The instruction budget in benches/budget.tsv depends on codegen. These
 # settings are cargo's defaults for release, written out so that a change to
 # the defaults cannot move the counts.

@@ -873,11 +873,9 @@ TWO_D_PARITY = {
         "mirror_plane": _Row(EXCLUDED, "the plane mirrors across a line: `mirror_axis`"),
     },
     "_CurveMethods": {
-        "extrema(curve)": _Row(PENDING, "#422: curve–curve extrema in 2D", _takes_a_2d_curve),
+        "extrema(curve)": _Row(REQUIRED, probe=_takes_a_2d_curve),
         "minimum_distance": _Row(
-            PENDING,
-            "#422: curve–curve extrema in 2D",
-            lambda: hasattr(geomcore.Circle2D, "minimum_distance"),
+            REQUIRED, probe=lambda: hasattr(geomcore.Circle2D, "minimum_distance")
         ),
     },
 }
@@ -886,8 +884,6 @@ TWO_D_PARITY = {
 _IN_SPACE_ONLY = _Row(EXCLUDED, "a surface, or a result or fit involving one, lives in space")
 _SHARED = _Row(EXCLUDED, "serves both tiers")
 CLASSES_WITHOUT_A_2D_TWIN = {
-    "CurveCurveExtrema": _Row(PENDING, "#422: curve–curve extrema in 2D"),
-    "CurveCurveExtremum": _Row(PENDING, "#422: curve–curve extrema in 2D"),
     "QuarticBranch": _Row(EXCLUDED, "where two quadric surfaces meet in space"),
     **dict.fromkeys(
         [
