@@ -88,6 +88,19 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- Distance extrema report a valley of equal minima once, at the same pair
+  wherever the shapes are placed, when the valley runs along a piece of a
+  shape (#444, ADR 0051). A whole curve against a piece of itself, a
+  circle against a piece of a coaxial cylinder, or a cylinder against a
+  piece of itself had its valley split in two at one placement and merged
+  at another, or reported at whichever point the search reached. Minima
+  are now merged by walking the valley, led by either shape, instead of
+  along the straight way between their parameters, which on a closed
+  curve could leave the piece; and the representative is read from the
+  shapes alone: the first shape at its reference parameters when the
+  valley passes there, else the second shape at its own, where a valley
+  along a piece starts. A minimum the search reached alone on its valley
+  is moved to the representative too.
 - Two tori sharing a circle that is not a tube circle of both are read in
   closed form in either order (#348, ADR 0050). A tube circle of the
   first torus lying on the second, as a latitude circle of it, ran the
@@ -133,7 +146,6 @@ the Python distribution are versioned in lockstep.
   reads as one however far its surfaces are placed from it, and moving a
   pair does not change the answer. The curvature is read in closed form,
   at a sphere's pole as anywhere else.
-
 - The sampled curve–surface search finds the same hits at any size (#434).
   Its Newton steps read the tolerance, a length, as the pivot ratio of
   their linear solve, so at a large scale a crossing at a few degrees

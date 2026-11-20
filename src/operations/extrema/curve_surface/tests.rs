@@ -1,4 +1,5 @@
 use super::*;
+use crate::Transformable;
 use crate::{BSplineCurve, Torus, TrimmedCurve, Vector};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -262,4 +263,39 @@ fn a_far_surface_minimum_hidden_behind_a_nearer_one_is_seeded_from_the_surface()
     let distances: Vec<f64> = extrema.iter().map(|m| m.distance).collect();
     assert!(distances.iter().any(|&d| close(d, 1.0)), "{extrema:?}");
     assert!(distances.iter().any(|&d| close(d, 3.0)), "{extrema:?}");
+}
+
+/// A whole circle against a piece of a cylinder about it, inside it and
+/// on it: one valley along the piece, reported at the piece's start
+/// wherever the pair is placed, though the circle's reference parameter
+/// `0` is off the piece and the shorter way round the circle between two
+/// of its members leaves the piece (#444).
+#[test]
+fn test_a_circle_against_a_piece_of_a_coaxial_cylinder_is_one_valley() {
+    use crate::{Circle, Transform, TrimmedSurface};
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    let piece = TrimmedSurface::new(cylinder, (1.2566, 5.65), (-1.0, 3.0)).unwrap();
+    for radius in [2.0, 1.0] {
+        let circle = Circle::new(Point::ORIGIN, Vector::Z, radius).unwrap();
+        for distance in [0.0, 1e3, 1e7] {
+            let moved = Transform::translation(Vector::new(distance, -2.0 * distance, distance));
+            let (circle, piece) = (
+                circle.transformed(moved).unwrap(),
+                piece.transformed(moved).unwrap(),
+            );
+            let extrema = curve_surface_extrema(&circle, &piece, TOL);
+            assert_consistent(&circle, &piece, &extrema);
+            assert_eq!(
+                extrema.len(),
+                1,
+                "radius {radius} at {distance}: {extrema:?}"
+            );
+            let valley = extrema[0];
+            assert!(
+                (valley.distance - (2.0 - radius)).abs() < 1e-7,
+                "{valley:?}"
+            );
+            assert!((valley.curve_parameter - 1.2566).abs() < 1e-7, "{valley:?}");
+        }
+    }
 }

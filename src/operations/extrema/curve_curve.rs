@@ -501,11 +501,14 @@ where
 /// leave the seeded range.
 ///
 /// Configurations with a continuous family of equal minima (parallel
-/// lines, concentric circles, overlapping curves) report the distance
-/// once, with a representative pair: the first curve at its reference
-/// parameter (`0` on a line or circle, the start of a bounded domain)
-/// with its closest point on the second, when that pair belongs to the
-/// family, else a member found by the search.
+/// lines, concentric circles, overlapping curves, a curve against a piece
+/// of itself) report the distance once, with a representative pair read
+/// from the curves, the same wherever they are placed: the first curve at
+/// its reference parameter (`0` on a line or circle, the start of a
+/// bounded domain) with its closest point on the second, when that pair
+/// belongs to the family, else the second curve at its reference
+/// parameter with its closest point on the first (the start of a piece
+/// the family runs along), else a member found by the search.
 ///
 /// A B-spline or Bézier curve, or trimmed curve over one, against
 /// another or against a segment (a line trimmed to a range), unless both
@@ -740,7 +743,11 @@ where
             tol,
         )
     };
-    merge_valleys(found, same_valley, |_| extremum(dom.reference()), tol)
+    let representative = |e: &CurveCurveExtremum| {
+        let r = extremum(dom.reference());
+        same_valley(e, &r).then_some(r)
+    };
+    merge_valleys(found, same_valley, representative)
 }
 
 /// Seeds for the local minima of the distance between two curves over
@@ -1049,33 +1056,208 @@ where
             found.push(curve_pair_extremum(a, b, s, t));
         }
     }
-    let same_valley = |p: &CurveCurveExtremum, q: &CurveCurveExtremum| {
-        let ds = da.step(p.first_parameter, q.first_parameter);
-        let dt = db.step(p.second_parameter, q.second_parameter);
-        flat_between(
-            p.distance,
-            q.distance,
-            |f| {
-                a.point_at(p.first_parameter + f * ds)
-                    .distance(b.point_at(p.second_parameter + f * dt))
-            },
-            tol,
+    let same_valley =
+        |p: &CurveCurveExtremum, q: &CurveCurveExtremum| one_valley(a, da, b, db, p, q, tol);
+    let representative = |e: &CurveCurveExtremum| valley_representative(a, da, b, db, e, tol);
+    merge_valleys(found, same_valley, representative)
+}
+
+/// Steps of the walk along a valley in [`one_valley`].
+const VALLEY_WALK_STEPS: usize = 16;
+
+/// Whether two minima lie on one valley of equal distance: their
+/// distances agree within `tol.confusion`, and one curve, walked from one
+/// minimum's parameter to the other's, keeps its closest point on the
+/// other curve (each found from the last) at that distance, and arrives
+/// on the other minimum's point. Either curve may lead: a valley along a
+/// piece of a closed curve is walked along the piece, as the shorter way
+/// round the closed curve may leave the piece; a valley of one curve over
+/// a single point of the other (a circle about a line through its
+/// centre) is walked along the circle. The walk follows the valley where
+/// it bends, which the straight way in the parameters does not. Copies of
+/// one minimum pass at once, and so do two minima joined by the straight
+/// way in both parameters, the valley of two copies of one curve. Only
+/// minima where the distance is flat in some direction (see
+/// [`lies_flat`]) are walked.
+fn one_valley<A, B>(
+    a: &A,
+    da: ParameterDomain,
+    b: &B,
+    db: ParameterDomain,
+    p: &CurveCurveExtremum,
+    q: &CurveCurveExtremum,
+    tol: Tolerance,
+) -> bool
+where
+    A: ParametricCurve,
+    B: ParametricCurve,
+{
+    if (p.distance - q.distance).abs() > tol.confusion {
+        return false;
+    }
+    if !p.parameters_apart(q, tol) {
+        return true;
+    }
+    let ds = da.step(p.first_parameter, q.first_parameter);
+    let dt = db.step(p.second_parameter, q.second_parameter);
+    let straight = |f: f64| {
+        a.point_at(p.first_parameter + f * ds)
+            .distance(b.point_at(p.second_parameter + f * dt))
+    };
+    let along_first = (p.first_parameter, ds, p.second_parameter, q.second_point);
+    let along_second = (p.second_parameter, dt, p.first_parameter, q.first_point);
+    if flat_between(p.distance, q.distance, straight, tol) {
+        return true;
+    }
+    lies_flat(a, b, p, tol)
+        && lies_flat(a, b, q, tol)
+        && (walks_along_valley(a, b, db, along_first, p.distance, tol)
+            || walks_along_valley(b, a, da, along_second, p.distance, tol))
+}
+
+/// The smallest eigenvalue of the Hessian of half the squared distance
+/// at a point of a valley, read per unit length along each curve, is zero
+/// to rounding; at an isolated minimum where the curves cross at the angle
+/// `a` it is about `sin(a)^2`. Above this, a minimum is on no valley.
+const VALLEY_FLATNESS: f64 = 1e-4;
+
+/// Whether the distance is flat to second order in some direction at
+/// the minimum `e`, read by [`flat_minimum`]. A minimum on a valley of
+/// equal distance is; an isolated one, but for a tangent contact or a
+/// shallow crossing, is not, and needs no walk nor representative.
+fn lies_flat<A, B>(a: &A, b: &B, e: &CurveCurveExtremum, tol: Tolerance) -> bool
+where
+    A: ParametricCurve,
+    B: ParametricCurve,
+{
+    let (pa, a1, a2) = a.second_derivatives(e.first_parameter);
+    let (pb, b1, b2) = b.second_derivatives(e.second_parameter);
+    let r = pa - pb;
+    let mixed = -a1.dot(b1);
+    flat_minimum(
+        [r.dot(a1), -r.dot(b1)],
+        [
+            [a1.dot(a1) + r.dot(a2), mixed],
+            [mixed, b1.dot(b1) - r.dot(b2)],
+        ],
+        [a1.magnitude(), b1.magnitude()],
+        tol,
+    )
+}
+
+/// Whether a box minimum of half the squared distance, with gradient `g`,
+/// Hessian `h` and parameter speeds `speed`, is flat to second order
+/// along some direction it is free to move in: the smallest eigenvalue of
+/// the Hessian over its stationary parameters (those not held at a bound,
+/// as [`is_box_minimum`] reads them), each read per unit length, is at
+/// most [`VALLEY_FLATNESS`]. A minimum held in both parameters is a
+/// corner of the box, on no valley. The test is dimensionless, so it does
+/// not change with the size of the shapes.
+pub(crate) fn flat_minimum(g: [f64; 2], h: [[f64; 2]; 2], speed: [f64; 2], tol: Tolerance) -> bool {
+    if !(speed[0] > 0.0 && speed[1] > 0.0) {
+        return true;
+    }
+    let free = [0, 1].map(|i| g[i].abs() <= tol.confusion * speed[i]);
+    let first = h[0][0] / (speed[0] * speed[0]);
+    let mixed = 0.5 * (h[0][1] + h[1][0]) / (speed[0] * speed[1]);
+    let second = h[1][1] / (speed[1] * speed[1]);
+    let smallest = match free {
+        [true, true] => {
+            0.5 * (first + second)
+                - (0.25 * (first - second) * (first - second) + mixed * mixed).sqrt()
+        }
+        [true, false] => first,
+        [false, true] => second,
+        [false, false] => return false,
+    };
+    smallest.is_nan() || smallest <= VALLEY_FLATNESS
+}
+
+/// Whether `leader`, walked from `start` by `step`, keeps its closest
+/// point on `follower` (from `warm`, then from the last one) within
+/// `tol.confusion` of `distance`, and the last of them is `arrival`.
+fn walks_along_valley<L, F>(
+    leader: &L,
+    follower: &F,
+    follower_domain: ParameterDomain,
+    (start, step, warm, arrival): (f64, f64, f64, Point),
+    distance: f64,
+    tol: Tolerance,
+) -> bool
+where
+    L: ParametricCurve,
+    F: ParametricCurve,
+{
+    let mut warm = warm;
+    let mut last = None;
+    for k in 1..=VALLEY_WALK_STEPS {
+        let point = leader.point_at(start + step * k as f64 / VALLEY_WALK_STEPS as f64);
+        let (u, foot) = closest_from(follower, follower_domain, point, warm);
+        if (foot.distance(point) - distance).abs() > tol.confusion {
+            return false;
+        }
+        warm = u;
+        last = Some(foot);
+    }
+    last.is_some_and(|foot| foot.distance(arrival) <= tol.confusion)
+}
+
+/// The closest point of `curve` to `point` that Newton's method reaches
+/// from the parameter `start`, with its parameter.
+pub(crate) fn closest_from<C: ParametricCurve>(
+    curve: &C,
+    domain: ParameterDomain,
+    point: Point,
+    start: f64,
+) -> (f64, Point) {
+    let objective = |u: f64| {
+        let (on_curve, first, second) = curve.second_derivatives(u);
+        let r = point - on_curve;
+        (
+            0.5 * r.dot(r),
+            -r.dot(first),
+            first.dot(first) - r.dot(second),
         )
     };
-    // A valley's representative: the first curve at its reference
-    // parameter and its closest point on the second.
-    let representative = |e: &CurveCurveExtremum| {
-        let s = da.reference();
-        let p = a.point_at(s);
-        let objective = |t: f64| {
-            let (q, b1, b2) = b.second_derivatives(t);
-            let r = p - q;
-            (0.5 * r.dot(r), -r.dot(b1), b1.dot(b1) - r.dot(b2))
-        };
-        let t = newton_min_1d(objective, e.second_parameter, db.bounds(), 1e-14, 100);
-        curve_pair_extremum(a, b, s, db.wrap(t))
-    };
-    merge_valleys(found, same_valley, representative, tol)
+    let u = domain.wrap(newton_min_1d(objective, start, domain.bounds(), 1e-14, 100));
+    (u, curve.point_at(u))
+}
+
+/// The representative of the valley of equal distance through `e`, or
+/// `None` when it lies on none (see [`lies_flat`]): the first curve at its reference
+/// parameter with its closest point on the second, when that pair is on
+/// the valley, else the second curve at its reference parameter with its
+/// closest point on the first. Both are read from the curves alone, so the
+/// pair does not depend on where the search entered the valley nor on the
+/// placement (ADR 0051). One of them is on any valley whose ends are the
+/// ends of the curves' domains (an overlap of two pieces, a whole curve
+/// against a piece of itself, parallel segments, concentric arcs): the
+/// valley starts where the later of the two pieces starts.
+fn valley_representative<A, B>(
+    a: &A,
+    da: ParameterDomain,
+    b: &B,
+    db: ParameterDomain,
+    e: &CurveCurveExtremum,
+    tol: Tolerance,
+) -> Option<CurveCurveExtremum>
+where
+    A: ParametricCurve,
+    B: ParametricCurve,
+{
+    if !lies_flat(a, b, e, tol) {
+        return None;
+    }
+    let s = da.reference();
+    let (t, on_second) = closest_from(b, db, a.point_at(s), e.second_parameter);
+    let from_first = CurveCurveExtremum::new(s, a.point_at(s), t, on_second);
+    if one_valley(a, da, b, db, e, &from_first, tol) {
+        return Some(from_first);
+    }
+    let t = db.reference();
+    let (s, on_first) = closest_from(a, da, b.point_at(t), e.first_parameter);
+    let from_second = CurveCurveExtremum::new(s, on_first, t, b.point_at(t));
+    one_valley(a, da, b, db, e, &from_second, tol).then_some(from_second)
 }
 
 /// Length scale of a configuration: the gap between the curves'
@@ -1201,36 +1383,40 @@ pub(crate) fn flat_between(d0: f64, d1: f64, along: impl Fn(f64) -> f64, tol: To
 }
 
 /// Collapses minima on one valley of equal distance (and copies of one
-/// minimum) into a single entry, lowest distance first. A genuine
-/// valley, met by seeds at distinct parameters, is reported at its
-/// `representative` when that pair belongs to it.
+/// minimum) into a single entry, lowest distance first, each reported at
+/// its `representative`: the valley's own pair, read from the shapes
+/// rather than from the member the search reached, or `None` to keep the
+/// minimum, which lies on no valley. A minimum the search reached alone on
+/// its valley is replaced too, so that the pair does not depend on how
+/// many of the valley's points the search met. A representative that
+/// falls on the valley of another entry the merge kept apart is reported
+/// once.
 pub(crate) fn merge_valleys<E: Extremum>(
     mut found: Vec<E>,
     same_valley: impl Fn(&E, &E) -> bool,
-    representative: impl Fn(&E) -> E,
-    tol: Tolerance,
+    representative: impl Fn(&E) -> Option<E>,
 ) -> Vec<E> {
     found.sort_by(|x, y| x.distance().total_cmp(&y.distance()));
-    let mut kept: Vec<(E, bool)> = Vec::new();
+    let mut kept: Vec<E> = Vec::new();
     for e in found {
-        match kept.iter_mut().find(|(k, _)| same_valley(k, &e)) {
-            Some((k, valley)) => {
-                *valley |= k.parameters_apart(&e, tol);
-            }
-            None => kept.push((e, false)),
+        if !kept.iter().any(|k| same_valley(k, &e)) {
+            kept.push(e);
         }
     }
-    kept.into_iter()
-        .map(|(e, valley)| {
-            if valley {
-                let r = representative(&e);
-                if same_valley(&e, &r) {
-                    return r;
-                }
-            }
-            e
-        })
-        .collect()
+    let (mut represented, mut moved) = (Vec::with_capacity(kept.len()), Vec::new());
+    for e in &kept {
+        match representative(e) {
+            Some(r) => moved.push(r),
+            None => represented.push(*e),
+        }
+    }
+    for r in moved {
+        if !represented.iter().any(|k| same_valley(k, &r)) {
+            represented.push(r);
+        }
+    }
+    represented.sort_by(|x, y| x.distance().total_cmp(&y.distance()));
+    represented
 }
 
 #[cfg(test)]

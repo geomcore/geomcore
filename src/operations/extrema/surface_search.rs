@@ -320,7 +320,6 @@ pub(crate) fn foot<S: ParametricSurface>(
     point: Point,
     start: [f64; 2],
 ) -> Foot {
-    let bounds = domains.map(ParameterDomain::bounds);
     let [u, v] = newton_min_2d(
         |u, v| point_objective(surface, point, u, v).0,
         start,
@@ -328,6 +327,18 @@ pub(crate) fn foot<S: ParametricSurface>(
         1e-14,
         100,
     );
+    foot_at_parameters(surface, domains, point, [u, v])
+}
+
+/// The surface's point at `parameters`, wrapped into a period, read as the
+/// foot of `point` without searching: for a foot already found.
+pub(crate) fn foot_at_parameters<S: ParametricSurface>(
+    surface: &S,
+    domains: [ParameterDomain; 2],
+    point: Point,
+    [u, v]: [f64; 2],
+) -> Foot {
+    let bounds = domains.map(ParameterDomain::bounds);
     let parameters = [domains[0].wrap(u), domains[1].wrap(v)];
     let ((_, gradient, hessian), surface_point, first) =
         point_objective(surface, point, parameters[0], parameters[1]);
@@ -553,28 +564,20 @@ pub(crate) fn one_basin(
 
 /// `found` with the minima of one basin (see [`one_basin`], read by
 /// `same_basin`) merged into the lowest, each then replaced by its
-/// basin's `representative` when that lies in the basin no higher than
-/// `tol.confusion` above it: the reported pair of a valley does not depend
-/// on which of its points the search reached.
+/// basin's `representative`, which is `None` unless it lies in the basin
+/// no higher than `tol.confusion` above it: the reported pair of a valley
+/// does not depend on which of its points the search reached.
 pub(crate) fn merge_basins<E: Extremum>(
     found: Vec<E>,
     same_basin: impl Fn(&E, &E) -> bool,
-    representative: impl Fn(&E) -> E,
-    tol: Tolerance,
+    representative: impl Fn(&E) -> Option<E>,
 ) -> Vec<E> {
-    let represented = merge_valleys(found, &same_basin, |e| *e, tol)
+    let represented = merge_valleys(found, &same_basin, |_| None)
         .into_iter()
-        .map(|e| {
-            let r = representative(&e);
-            if r.distance() <= e.distance() + tol.confusion && same_basin(&e, &r) {
-                r
-            } else {
-                e
-            }
-        })
+        .map(|e| representative(&e).unwrap_or(e))
         .collect();
     // Two minima the merge kept apart may share a representative.
-    merge_valleys(represented, &same_basin, |e| *e, tol)
+    merge_valleys(represented, &same_basin, |_| None)
 }
 
 /// Gauss–Newton steps closing the gap `r(x)` between two shapes from a

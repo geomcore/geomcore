@@ -1,16 +1,19 @@
 //! The local minima of the distance between a curve and a surface
 //! ([`CurveSurfaceExtrema`]).
 
+use std::cell::OnceCell;
 use std::f64::consts::TAU;
 use std::ops::Deref;
 
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve};
 use crate::geometry::surfaces::{ElementarySurface, ParametricSurface};
 use crate::math::numeric::newton_min_1d;
-use crate::operations::extrema::curve_curve::{curve_size, is_box_minimum};
+use crate::operations::extrema::curve_curve::{
+    closest_from, curve_size, flat_minimum, is_box_minimum,
+};
 use crate::operations::extrema::surface_search::{
-    Carried, Foot, Samples, above_rounding, closed_gap, foot, holds_off_focus, inside,
-    merge_basins, one_basin, outer_window, pair_scale, probe_length, reference_parameters,
+    Carried, Foot, Samples, above_rounding, closed_gap, foot, foot_at_parameters, holds_off_focus,
+    inside, merge_basins, one_basin, outer_window, pair_scale, probe_length, reference_parameters,
     surface_domains, surface_size,
 };
 use crate::operations::extrema::{Extremum, parameters_apart};
@@ -231,7 +234,10 @@ impl<'a> IntoIterator for &'a CurveSurfaceExtrema {
 /// curve lying on the surface) is reported once, with a representative:
 /// the curve at its reference parameter (`0` on a line or circle, the
 /// start of a bounded domain) and its closest point on the surface, when
-/// that pair belongs to the family, else a member found by the search.
+/// that pair belongs to the family, else the curve's closest point to the
+/// surface at its reference parameters (where a family along a piece of
+/// the surface starts) and that point's closest point on the surface,
+/// else a member found by the search.
 ///
 /// # Examples
 ///
@@ -438,6 +444,8 @@ where
         surface_domains,
         scale,
         tol,
+        reference_pair: OnceCell::new(),
+        reached_from_reference: OnceCell::new(),
     };
     // Seen from the curve, each sample measured to its foot on the surface
     // from the nearest surface sample: a distance exact at every sample, so
@@ -472,7 +480,6 @@ where
         found,
         |p, q| search.same_basin(p, q),
         |e| search.representative(e),
-        tol,
     )
 }
 
@@ -485,16 +492,52 @@ struct Search<'a, C, S> {
     /// The configuration's length scale, for the outer window.
     scale: f64,
     tol: Tolerance,
+    /// The curve at its reference parameter and its foot, with the foot's
+    /// parameters: the same first candidate for every valley, read once.
+    reference_pair: OnceCell<(CurveSurfaceExtremum, [f64; 2])>,
+    /// The minimum the search reaches from the reference pair, read once.
+    reached_from_reference: OnceCell<Option<CurveSurfaceExtremum>>,
 }
 
 impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
+    /// The curve at its reference parameter and its foot on the surface,
+    /// with the foot's parameters.
+    fn reference_pair(&self) -> (CurveSurfaceExtremum, [f64; 2]) {
+        *self.reference_pair.get_or_init(|| {
+            let t = self.curve_domain.reference();
+            let projection = self.surface.project_point(self.curve.point_at(t), self.tol);
+            let start = [projection.u, projection.v];
+            (self.local(t, start).0, start)
+        })
+    }
+
+    /// The minimum the search reaches from the reference pair.
+    fn reached_from_reference(&self) -> Option<CurveSurfaceExtremum> {
+        *self.reached_from_reference.get_or_init(|| {
+            let (pair, start) = self.reference_pair();
+            self.refine(pair.curve_parameter, start)
+        })
+    }
+
     /// The extremum of the curve point at `t` and its foot on the surface
     /// from `start`, with half the squared distance and its first and
     /// reduced second derivatives along `t`, the curve's speed and the
     /// foot itself.
     fn local(&self, t: f64, start: [f64; 2]) -> (CurveSurfaceExtremum, (f64, f64, f64), f64, Foot) {
+        self.local_from(t, |point| {
+            foot(self.surface, self.surface_domains, point, start)
+        })
+    }
+
+    /// [`local`](Self::local) with the foot given by `find_foot` from the
+    /// curve point.
+    fn local_from(
+        &self,
+        t: f64,
+        find_foot: impl FnOnce(Point) -> Foot,
+    ) -> (CurveSurfaceExtremum, (f64, f64, f64), f64, Foot) {
         let (point, first, second) = self.curve.second_derivatives(t);
-        let foot = foot(self.surface, self.surface_domains, point, start);
+        let foot = find_foot(point);
         let r = point - foot.point;
         let [[reduced]] = foot.reduced(
             [[first.dot(first) + r.dot(second)]],
@@ -602,6 +645,39 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
         self.walks_to(p, q) || self.walks_to(q, p) || self.straight_between(p, q)
     }
 
+    /// Whether the walk on the surface from `p`'s surface point to `q`'s,
+    /// along the straight way in its parameters, keeps the closest point
+    /// on the curve in one basin and arrives on `q`'s curve point: for a
+    /// valley along a piece of the surface that the shorter way round a
+    /// closed curve leaves (a whole circle against a piece of a coaxial
+    /// cylinder). Two members of such a valley share their representative,
+    /// so they are merged once both are moved to it.
+    fn walks_on_surface_to(&self, p: &CurveSurfaceExtremum, q: &CurveSurfaceExtremum) -> bool {
+        let (from, to) = (p.surface_parameter_array(), q.surface_parameter_array());
+        let way = [0, 1].map(|i| self.surface_domains[i].step(from[i], to[i]));
+        let mut warm = p.curve_parameter;
+        let mut last = p.curve_point;
+        let no_ridge = one_basin(
+            p.distance,
+            q.distance,
+            |f| {
+                let on_surface = self
+                    .surface
+                    .point_at(from[0] + f * way[0], from[1] + f * way[1]);
+                let (t, on_curve) = closest_from(self.curve, self.curve_domain, on_surface, warm);
+                (warm, last) = (t, on_curve);
+                on_curve.distance(on_surface)
+            },
+            self.tol,
+        );
+        no_ridge && {
+            let end = self.surface.point_at(from[0] + way[0], from[1] + way[1]);
+            let (_, on_curve) = closest_from(self.curve, self.curve_domain, end, warm);
+            last = on_curve;
+            last.distance(q.curve_point) <= self.tol.confusion
+        }
+    }
+
     /// Whether no ridge parts `p` from `q` along the straight way in the
     /// parameters of both shapes, each periodic one the shorter way round.
     fn straight_between(&self, p: &CurveSurfaceExtremum, q: &CurveSurfaceExtremum) -> bool {
@@ -647,19 +723,72 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
         no_ridge && feet.foot_at(1.0).point.distance(q.surface_point) <= self.tol.confusion
     }
 
+    /// Whether the distance is flat along the curve at `e` to second
+    /// order (see `flat_minimum`): the curve parameter is stationary, not
+    /// held at a bound, and the reduced second derivative, per unit length
+    /// along the curve, is small, as on a valley along
+    /// the curve. Only such a minimum is worth the candidate read from the
+    /// surface's reference.
+    fn flat_along_curve(&self, e: &CurveSurfaceExtremum) -> bool {
+        let (_, (_, gradient, reduced), speed, _) = self.local_from(e.curve_parameter, |point| {
+            foot_at_parameters(
+                self.surface,
+                self.surface_domains,
+                point,
+                e.surface_parameter_array(),
+            )
+        });
+        flat_minimum(
+            [gradient, 0.0],
+            [[reduced, 0.0], [0.0, 0.0]],
+            [speed, 1.0],
+            self.tol,
+        ) && gradient.abs() <= self.tol.confusion * speed
+    }
+
     /// A valley's representative: the curve at its reference parameter and
-    /// its foot on the surface, when that pair lies in the valley, else the
-    /// minimum the search reaches from there: along a valley the gradient
-    /// is rounding alone, so the curve parameter stays at the reference.
-    fn representative(&self, e: &CurveSurfaceExtremum) -> CurveSurfaceExtremum {
-        let t = self.curve_domain.reference();
-        let projection = self.surface.project_point(self.curve.point_at(t), self.tol);
-        let start = [projection.u, projection.v];
-        let pair = self.local(t, start).0;
-        if pair.distance <= e.distance + self.tol.confusion && self.same_basin(e, &pair) {
-            return pair;
+    /// its foot on the surface, when that pair lies in the valley; else, at
+    /// a minimum flat along the curve, the curve's closest point to the
+    /// surface at its reference parameters, and its foot, for a valley that
+    /// starts where a piece of the surface starts (a whole circle against a
+    /// piece of a coaxial cylinder); else the minimum the search reaches
+    /// from the curve's reference, when it lies in the valley: along a
+    /// valley the gradient is rounding alone, so the curve parameter stays
+    /// there; else `None`, the minimum lying on no valley. Each is read from
+    /// the shapes alone, not from where the search entered the valley
+    /// (ADR 0051).
+    fn representative(&self, e: &CurveSurfaceExtremum) -> Option<CurveSurfaceExtremum> {
+        let in_valley = |pair: &CurveSurfaceExtremum| {
+            pair.distance <= e.distance + self.tol.confusion && self.same_basin(e, pair)
+        };
+        let (pair, _) = self.reference_pair();
+        if in_valley(&pair) {
+            return Some(pair);
         }
-        self.refine(t, start).unwrap_or(*e)
+        let reached = || self.reached_from_reference().filter(in_valley);
+        if !self.flat_along_curve(e) {
+            return reached();
+        }
+        let [u, v] = reference_parameters(self.surface_domains);
+        let surface_reference = self.surface.point_at(u, v);
+        let (near, _) = closest_from(
+            self.curve,
+            self.curve_domain,
+            surface_reference,
+            e.curve_parameter,
+        );
+        // Its foot is found from the surface's reference parameters, where
+        // the valley starts.
+        let from_surface = self.local(near, [u, v]).0;
+        // The shorter way round a closed curve may leave a piece of the
+        // surface the valley runs along, so the surface leads the walk too,
+        // between two pairs at one distance.
+        let along_surface = (from_surface.distance - e.distance).abs() <= self.tol.confusion
+            && self.walks_on_surface_to(e, &from_surface);
+        if along_surface || in_valley(&from_surface) {
+            return Some(from_surface);
+        }
+        reached()
     }
 }
 

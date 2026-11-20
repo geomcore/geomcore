@@ -18,14 +18,14 @@ use std::fmt::Debug;
 use std::path::PathBuf;
 
 use common::samples::{
-    curves, curves_2d, parameters, surface_parameters, surfaces, tilted_frame, trimmed_2d,
+    curves, curves_2d, parameters, surface_parameters, surfaces, tilted_frame, trimmed, trimmed_2d,
 };
 use geomcore::prelude::*;
 use geomcore::{
-    BSplineCurve, BezierCurve, Circle, Completeness, Curve, ExtrusionSurface, Frame,
-    IntersectionMethod, Line, Plane, Point, Point2D, Surface, Tolerance, Torus, Transform,
-    Transform2D, TrimmedCurve2D, Vector, Vector2D, curve_curve_extrema, curve_surface_extrema,
-    surface_surface_extrema,
+    BSplineCurve, BezierCurve, Circle, Completeness, Curve, Cylinder, ExtrusionSurface, Frame,
+    IntersectionMethod, Line, Plane, Point, Point2D, Sphere, Surface, Tolerance, Torus, Transform,
+    Transform2D, TrimmedCurve, TrimmedCurve2D, TrimmedSurface, Vector, Vector2D,
+    curve_curve_extrema, curve_surface_extrema, surface_surface_extrema,
 };
 
 /// A similarity, its factor on lengths and its inverse, in space
@@ -254,6 +254,31 @@ fn surface_surface(a: &Surface, b: &Surface, tol: Tolerance) -> (String, Vec<Poi
 fn extrema(a: &Curve, b: &Curve, tol: Tolerance) -> (String, Vec<Point>) {
     let result = curve_curve_extrema(a, b, tol);
     (format!("extrema={}", result.len()), Vec::new())
+}
+
+/// The count and completeness of the extrema of a whole curve against a
+/// piece of a curve, and, when the piece is of that curve, the two points
+/// of the valley of zero distance along the piece: the valley's
+/// representative must not depend on where the search entered it (#444).
+/// Other points are left out, as in [`extrema`]: a tangent contact's point
+/// moves under a translation by more than the slack (ADR 0051).
+fn whole_against_piece<A, B>(a: &A, b: &B, tol: Tolerance) -> (String, Vec<A::Point>)
+where
+    A: geomcore::CurveExtremaOperand + Debug,
+    B: geomcore::CurveExtremaOperand<Point = A::Point> + Debug,
+{
+    let result = curve_curve_extrema(a, b, tol);
+    let text = format!(
+        "extrema={} {}",
+        result.len(),
+        completeness(result.completeness())
+    );
+    let own_piece = format!("{b:?}").contains(&format!("{a:?}"));
+    let points = match result.closest() {
+        Some(valley) if own_piece => vec![valley.first_point, valley.second_point],
+        _ => Vec::new(),
+    };
+    (text, points)
 }
 
 /// The count and completeness of the curve–surface minima, with the
@@ -672,12 +697,28 @@ fn tori_sharing_a_circle_are_similarity_invariant_in_both_orders() {
     report(family, mismatches);
 }
 
+/// Every pair of the samples, every pair of their trimmed pieces, and
+/// every sample against every piece, its own among them (#444).
 #[test]
 fn curve_curve_extrema_are_similarity_invariant() {
-    report(
-        "extrema",
-        compare_pairs("extrema", &curves(), &curves(), true, extrema),
-    );
+    let curves = curves();
+    let pieces: Vec<TrimmedCurve<Curve>> = curves.iter().map(trimmed).collect();
+    let mut mismatches = compare_pairs("extrema", &curves, &curves, true, extrema);
+    mismatches.extend(compare_pairs(
+        "extrema trimmed",
+        &pieces,
+        &pieces,
+        true,
+        whole_against_piece,
+    ));
+    mismatches.extend(compare_pairs(
+        "extrema whole x piece",
+        &curves,
+        &pieces,
+        false,
+        whole_against_piece,
+    ));
+    report("extrema", mismatches);
 }
 
 /// The extrema of two 2D curves: their count and completeness. Their
@@ -697,9 +738,8 @@ where
     (text, Vec::new())
 }
 
-/// Every pair of the 2D samples and every pair of their trimmed pieces. A
-/// whole curve against a piece of itself is left out: its valley of zero
-/// distance is split or merged depending on the placement (#444).
+/// Every pair of the 2D samples, every pair of their trimmed pieces, and
+/// every sample against every piece, its own among them (#444).
 #[test]
 fn curve_curve_extrema_2d_are_similarity_invariant() {
     let curves = curves_2d();
@@ -711,6 +751,13 @@ fn curve_curve_extrema_2d_are_similarity_invariant() {
         &pieces,
         true,
         extrema_2d,
+    ));
+    mismatches.extend(compare_pairs(
+        "extrema-2d whole x piece",
+        &curves,
+        &pieces,
+        false,
+        whole_against_piece,
     ));
     report("extrema-2d", mismatches);
 }
@@ -741,6 +788,143 @@ fn surface_surface_extrema_are_similarity_invariant() {
             surface_surface_minima,
         ),
     );
+}
+
+/// Curves along valleys of the surfaces of [`valley_surfaces`]: a circle
+/// on the cylinder and in the plane, a circle coaxial with the cylinder
+/// inside it, the plane's x axis and a segment of it, as a B-spline.
+fn valley_curves() -> Vec<Curve> {
+    let frame = tilted_frame();
+    let axis = Line::new(frame.origin(), frame.x_direction()).unwrap();
+    vec![
+        Circle::from_frame(frame, 2.0).unwrap().into(),
+        Circle::from_frame(frame, 1.0).unwrap().into(),
+        axis.into(),
+        BSplineCurve::new(
+            1,
+            vec![
+                frame.origin() - frame.x_direction() * 3.0,
+                frame.origin() + frame.x_direction() * 10.0,
+            ],
+            vec![0.0, 1.0],
+            vec![2, 2],
+            false,
+        )
+        .unwrap()
+        .into(),
+    ]
+}
+
+/// Pieces of a cylinder, a plane and a sphere about [`tilted_frame`],
+/// none through the reference parameters of the curves of
+/// [`valley_curves`] or of [`valley_wholes`], so that a valley along a
+/// piece does not pass where the first shape's reference is.
+fn valley_surfaces() -> Vec<TrimmedSurface<Surface>> {
+    let frame = tilted_frame();
+    let piece = |surface: Surface, u_range, v_range| {
+        TrimmedSurface::new(surface, u_range, v_range).unwrap()
+    };
+    vec![
+        piece(
+            Cylinder::from_frame(frame, 2.0).unwrap().into(),
+            (1.2566, 5.65),
+            (-1.0, 3.0),
+        ),
+        piece(Plane::from_frame(frame).into(), (2.0, 5.0), (-1.0, 1.0)),
+        piece(
+            Sphere::from_frame(frame, 2.0).unwrap().into(),
+            (1.0, 4.0),
+            (-0.5, 1.0),
+        ),
+    ]
+}
+
+/// Larger pieces of the surfaces of [`valley_surfaces`], each holding the
+/// piece of [`valley_surfaces`] of its own surface.
+fn valley_wholes() -> Vec<TrimmedSurface<Surface>> {
+    let frame = tilted_frame();
+    vec![
+        TrimmedSurface::new(
+            Cylinder::from_frame(frame, 2.0).unwrap().into(),
+            (0.0, 6.2),
+            (-2.0, 4.0),
+        )
+        .unwrap(),
+        TrimmedSurface::new(
+            Sphere::from_frame(frame, 2.0).unwrap().into(),
+            (0.0, 6.2),
+            (-1.5, 1.5),
+        )
+        .unwrap(),
+    ]
+}
+
+/// The count and completeness of the minima, and all their points: on the
+/// valleys of [`valley_curves`] and [`valley_surfaces`] the representative
+/// of each valley is read from the shapes (#444).
+fn curve_surface_valleys(
+    a: &Curve,
+    b: &TrimmedSurface<Surface>,
+    tol: Tolerance,
+) -> (String, Vec<Point>) {
+    let result = curve_surface_extrema(a, b, tol);
+    let text = format!(
+        "{} minima={}",
+        completeness(result.completeness()),
+        result.len()
+    );
+    let points = result
+        .iter()
+        .flat_map(|minimum| [minimum.curve_point, minimum.surface_point])
+        .collect();
+    (text, points)
+}
+
+/// [`curve_surface_valleys`] for two surfaces.
+fn surface_surface_valleys(
+    a: &TrimmedSurface<Surface>,
+    b: &TrimmedSurface<Surface>,
+    tol: Tolerance,
+) -> (String, Vec<Point>) {
+    let result = surface_surface_extrema(a, b, tol);
+    let text = format!(
+        "{} minima={}",
+        completeness(result.completeness()),
+        result.len()
+    );
+    let points = result
+        .iter()
+        .flat_map(|minimum| [minimum.first_point, minimum.second_point])
+        .collect();
+    (text, points)
+}
+
+/// A whole curve or a larger piece against a piece of a surface it lies
+/// on or runs along: the valley is split or merged, and its
+/// representative moves, unless both are read from the shapes (#444).
+#[test]
+fn valley_extrema_are_similarity_invariant() {
+    let mut mismatches = compare_pairs(
+        "valley-extrema curve-surface",
+        &valley_curves(),
+        &valley_surfaces(),
+        false,
+        curve_surface_valleys,
+    );
+    let own_pieces: Vec<TrimmedSurface<Surface>> = valley_surfaces()
+        .into_iter()
+        .filter(|piece| !matches!(piece.basis(), Surface::Plane(_)))
+        .collect();
+    for (index, (whole, piece)) in valley_wholes().iter().zip(&own_pieces).enumerate() {
+        mismatches.extend(compare_pairs(
+            &format!("valley-extrema surface-surface {index}"),
+            std::slice::from_ref(whole),
+            std::slice::from_ref(piece),
+            false,
+            surface_surface_valleys,
+        ));
+    }
+    report("valley-extrema", mismatches);
 }
 
 #[test]

@@ -1,4 +1,5 @@
 use super::*;
+use crate::Transformable;
 use crate::geometry::curves::BSplineCurve;
 use crate::{IntersectExact, Line, Point, Vector};
 
@@ -371,5 +372,94 @@ fn test_circle_and_bspline_far_from_the_origin() {
             (far.distance - near.distance).abs() < 1e-6,
             "{far:?} {near:?}"
         );
+    }
+}
+
+/// A whole circle against an arc of itself: one valley of zero distance
+/// along the arc, reported once at the arc's start, which the circle's
+/// reference parameter `0` is not on (#444).
+#[test]
+fn test_a_circle_against_an_arc_of_itself_is_one_valley_at_the_arc_start() {
+    let tol = Tolerance::DEFAULT;
+    let circle = crate::Circle::new(Point::new(0.5, -1.0, 0.0), Vector::Z, 2.0).unwrap();
+    let (start, end) = (1.2566, 5.6549);
+    let piece = crate::TrimmedCurve::new(circle, start, end).unwrap();
+    for offset in [Vector::new(0.0, 0.0, 0.0), Vector::new(1e3, -2e3, 1.5e3)] {
+        let moved = crate::Transform::translation(offset);
+        let (circle, piece) = (
+            circle.transformed(moved).unwrap(),
+            piece.transformed(moved).unwrap(),
+        );
+        let extrema = curve_curve_extrema(&circle, &piece, tol);
+        assert_eq!(extrema.len(), 1, "{extrema:?}");
+        let valley = extrema[0];
+        assert!(valley.distance <= tol.confusion, "{valley:?}");
+        assert!((valley.second_parameter - start).abs() < 1e-9, "{valley:?}");
+        assert!((valley.first_parameter - start).abs() < 1e-7, "{valley:?}");
+    }
+}
+
+/// A valley's members are merged by walking it: two minima of a circle
+/// against an arc of itself on either side of the circle's reference
+/// parameter are one valley along the arc, though the shorter way round
+/// the circle between them leaves the arc.
+#[test]
+fn test_minima_on_one_valley_are_merged_along_the_valley() {
+    let tol = Tolerance::DEFAULT;
+    let circle = crate::Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
+    let piece = crate::TrimmedCurve::new(circle, 1.0, 5.5).unwrap();
+    let (da, db) = (ParameterDomain::of(&circle), ParameterDomain::of(&piece));
+    let at = |u: f64| curve_pair_extremum(&circle, &piece, u, u);
+    let (near_start, near_end) = (at(1.5), at(5.0));
+    assert!(one_valley(
+        &circle,
+        da,
+        &piece,
+        db,
+        &near_start,
+        &near_end,
+        tol
+    ));
+    // The straight way, the shorter way round the circle, rises off the arc.
+    let ds = da.step(1.5, 5.0);
+    let dt = db.step(1.5, 5.0);
+    let straight = |f: f64| {
+        circle
+            .point_at(1.5 + f * ds)
+            .distance(piece.point_at(1.5 + f * dt))
+    };
+    assert!(!flat_between(0.0, 0.0, straight, tol));
+    // A minimum of another valley, or off every valley, is not merged.
+    let apart = crate::Circle::new(Point::new(0.0, 0.0, 1.0), Vector::Z, 1.0).unwrap();
+    let other = curve_pair_extremum(&apart, &piece, 1.5, 1.5);
+    assert!(!one_valley(&apart, da, &piece, db, &other, &near_end, tol));
+}
+
+/// A B-spline against a piece of itself: the valley's representative is
+/// the piece's start wherever the pair is placed (#444). The search
+/// cannot prove the overlap holds every minimum, so it stays incomplete.
+#[test]
+fn test_a_bspline_against_a_piece_of_itself_is_one_valley_at_the_piece_start() {
+    let tol = Tolerance::DEFAULT;
+    let poles = vec![
+        Point::new(0.0, 0.0, 0.0),
+        Point::new(1.0, 2.0, 0.5),
+        Point::new(3.0, 1.0, -0.5),
+        Point::new(4.0, 3.0, 1.0),
+    ];
+    let curve = BSplineCurve::new(3, poles, vec![0.0, 1.0], vec![4, 4], false).unwrap();
+    let piece = crate::TrimmedCurve::new(curve.clone(), 0.2, 0.9).unwrap();
+    for distance in [0.0, 1e3, 1e7] {
+        let moved = crate::Transform::translation(Vector::new(distance, -2.0 * distance, 0.0));
+        let (whole, part) = (
+            curve.transformed(moved).unwrap(),
+            piece.transformed(moved).unwrap(),
+        );
+        let extrema = curve_curve_extrema(&whole, &part, tol);
+        assert_eq!(extrema.len(), 1, "{extrema:?}");
+        assert!(!extrema.is_complete());
+        let valley = extrema[0];
+        let back = moved.inverse().unwrap().apply_point(valley.second_point);
+        assert!(back.distance(piece.point_at(0.2)) < 1e-5, "{valley:?}");
     }
 }
