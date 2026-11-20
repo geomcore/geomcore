@@ -685,10 +685,20 @@ fn test_loops_a_hair_from_a_contact_are_fitted() {
     let (thick, thin) = thin_inside_thick(-1e-8);
     let torus = saddle_torus();
     let plane = tilted_plane(3.0 + 5e-8);
-    let pairs = [
+    let mut pairs = vec![
         (Surface::Cylinder(thick), Surface::Cylinder(thin)),
         (Surface::Torus(torus), Surface::Plane(plane)),
     ];
+    // A sphere a few confusions wider than the tube, centred on the centre
+    // circle, or of the tube's radius a few confusions inside it: a band
+    // of tube circles a hair wide (#452).
+    for d in [1.5e-7, 3e-7, 6e-7] {
+        let wider = Sphere::new(Point::new(4.0, 0.0, 0.0), 1.0 + d).unwrap();
+        let inside = Sphere::new(Point::new(4.0 - d, 0.0, 0.0), 1.0).unwrap();
+        for sphere in [wider, inside] {
+            pairs.push((Surface::Torus(small_torus()), Surface::Sphere(sphere)));
+        }
+    }
     for (first, second) in pairs {
         let routed = first.intersect(&second, TOL);
         assert!(routed.is_complete(), "{first:?}");
@@ -1406,11 +1416,14 @@ fn test_tori_sharing_a_tube_circle_read_their_other_contact_by_its_offset() {
 }
 
 /// The offsets of the sweep but one confusion through, the edge of
-/// holding the tube circle, which rounding decides either way.
+/// holding the tube circle, which rounding decides either way, and a few
+/// confusions either way just beyond it, where the band of tube circles
+/// the curve runs across is thinnest (#452).
 fn holding_offsets() -> Vec<f64> {
     OFFSETS
         .into_iter()
         .filter(|&offset| offset != 1.0)
+        .chain([1.5, -1.5, 3.0, -3.0, 6.0, -6.0])
         .collect()
 }
 
@@ -1456,12 +1469,7 @@ fn test_a_sphere_near_holding_a_tube_circle_of_its_radius_reads_its_offset() {
 fn test_a_sphere_near_holding_a_tube_circle_off_centre_reads_its_offset() {
     for (name, transform, scale) in placements() {
         let tol = scaled(scale);
-        // Ten confusions inside, the general quartic reads its thin band of
-        // tube circles at the edge of its precision (#452).
-        for offset in holding_offsets()
-            .into_iter()
-            .filter(|&offset| offset != -10.0)
-        {
+        for offset in holding_offsets() {
             let d = offset * TOL.confusion;
             let torus = small_torus().transformed(transform).unwrap();
             let case = format!("{name}, {offset} confusions");

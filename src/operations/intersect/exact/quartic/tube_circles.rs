@@ -492,15 +492,22 @@ fn tube_loops(
             gamma.signum(),
         )
     };
-    // `Δ = L x² + 2 B x + K`, `x = cos τ`, and its roots.
+    // `Δ = L x² + 2 B x + K`, `x = cos τ`, and its roots, read from the end
+    // `x = ± 1` nearer their middle `−B / L` (see `roots_from_end`).
     let leading = alpha_cos * alpha_cos - gamma_cos * gamma_cos;
     let roots = |gamma_constant: f64| {
         let half_linear = alpha_constant * alpha_cos - gamma_constant * gamma_cos;
-        let constant =
-            alpha_constant * alpha_constant + beta * beta - gamma_constant * gamma_constant;
-        let discriminant = half_linear * half_linear - leading * constant;
-        let q = -(half_linear + discriminant.sqrt().copysign(half_linear));
-        (discriminant >= 0.0 && q != 0.0).then(|| (q / leading, constant / q))
+        let end = if half_linear * leading <= 0.0 {
+            1.0
+        } else {
+            -1.0
+        };
+        roots_from_end(
+            (alpha_constant, alpha_cos),
+            beta,
+            (gamma_constant, gamma_cos),
+            end,
+        )
     };
     let gaps = [reach(1.0).0, reach(-1.0).0];
     let touching = if gaps.iter().all(|gap| gap.abs() > tol.confusion) {
@@ -565,6 +572,50 @@ fn tube_loops(
     };
     let loops = factored_loops(factors, factor_touching, None)?;
     Some(TubeCut::Loops(shift, loops))
+}
+
+/// The roots of `Δ = α² + β² − γ²` in `x = cos τ`, `α = α₀ + α₁ x` and
+/// `γ = γ₀ + γ₁ x`, read as `x = end + s` from `end`, `± 1`: `None` where
+/// `Δ` has none.
+///
+/// In `s`, `Δ = L s² + 2 (α₁ α(end) − γ₁ γ(end)) s + Δ(end)`, with
+/// `L = α₁² − γ₁²`. Two roots near an end bound a band of tube circles
+/// beside the one there: a sphere just wider than the tube, centred near
+/// the centre circle, crosses the torus along a band `φ` wide around the
+/// axis, `cos τ` within `φ² / 2` of `± 1`, and its two roots are a
+/// fraction of that apart (#452). Read in `x`, the discriminant that
+/// separates them is that fraction squared against terms of the size of
+/// the torus, below their rounding, and the band is lost. Read in `s`,
+/// each coefficient is of the size of the band, `α(end)` and `γ(end)`
+/// the circle's own reach and gap, and rounding the terms of `x`'s
+/// coefficients moves them as a hair's change of the other surface's
+/// size would.
+#[inline]
+fn roots_from_end(
+    (alpha_constant, alpha_cos): (f64, f64),
+    beta: f64,
+    (gamma_constant, gamma_cos): (f64, f64),
+    end: f64,
+) -> Option<(f64, f64)> {
+    let leading = alpha_cos * alpha_cos - gamma_cos * gamma_cos;
+    let (alpha_end, gamma_end) = (
+        alpha_constant + alpha_cos * end,
+        gamma_constant + gamma_cos * end,
+    );
+    let half_linear = alpha_cos * alpha_end - gamma_cos * gamma_end;
+    let constant = alpha_end * alpha_end + beta * beta - gamma_end * gamma_end;
+    let discriminant = half_linear * half_linear - leading * constant;
+    if discriminant < 0.0 {
+        return None;
+    }
+    let q = -(half_linear + discriminant.sqrt().copysign(half_linear));
+    // `q` vanishes only with `Δ`'s value and slope at the end: a double
+    // root there.
+    Some(if q == 0.0 {
+        (end, end)
+    } else {
+        (end + q / leading, end + constant / q)
+    })
 }
 
 /// A torus whose tube circle towards or across from another surface comes
