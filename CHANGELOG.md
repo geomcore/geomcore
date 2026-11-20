@@ -68,6 +68,11 @@ the Python distribution are versioned in lockstep.
   as well as a point, `minimum_distance(other)` is new on 2D curves, the
   deprecated `curve_curve_extrema` takes 2D pairs, and a 2D curve against
   a 3D curve raises `TypeError` saying so.
+- The Python guide says which methods a 2D class lacks beside its 3D
+  twin and why: no z, no normal (a 2D arc takes `counterclockwise=`), no
+  surfaces. With `Transform2D` and the 2D curve–curve extrema, every row
+  of the 2D ↔ 3D parity list in `test_parity.py` is now filled or
+  deliberately excluded (#197).
 
 ### Fixed
 

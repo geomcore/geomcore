@@ -264,6 +264,17 @@ Its `rotation(center, angle)` turns counterclockwise about a point, and
 `mirror_axis(axis)` reflects across a line, which turns a counterclockwise
 `Circle2D` clockwise (`is_counterclockwise()` is then false).
 
+Each 2D class answers what its 3D twin does, under the same names, except
+where the plane has nothing to say. A 2D shape has no z coordinate or
+direction, and no normal: a 2D circle or arc picks its turning direction
+with `is_counterclockwise()` and the `counterclockwise=` argument of
+`TrimmedCurve2D.arc`, where `TrimmedCurve.arc` takes a normal. A 2D
+frame is built from its x direction (`Frame2D.from_x`), a 2D angle is
+signed without a reference (`Vector2D.signed_angle`), and `Transform2D`
+mirrors across a line (`mirror_axis`) rather than a plane. Surfaces and
+every result that involves one live in space only. `test_parity.py` keeps
+this list row by row.
+
 Every value and every curve and surface pickles, and copies with `copy` and
 `copy.deepcopy`, so shapes cross to `multiprocessing` workers and into
 caches. The copy is equal to the original, bit for bit. Every result
