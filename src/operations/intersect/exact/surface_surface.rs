@@ -2279,7 +2279,9 @@ impl IntersectExact<Torus> for Torus {
     /// touching, and the two rings they cross in, if any, within
     /// confusion of it. Any other pair is read along this torus's tube circles,
     /// each meeting the other torus in up to four points (see
-    /// [`OcticCurve`]).
+    /// [`OcticCurve`]), or along the other's where a tube circle of this
+    /// one lies on it, as a latitude circle of it: the same curve, in
+    /// this torus's parameters first.
     ///
     /// # Examples
     ///
@@ -2309,7 +2311,19 @@ impl IntersectExact<Torus> for Torus {
             ..tol
         };
         if !self.axis().is_coaxial(other.axis(), across_the_other_torus) {
-            return match torus_torus(self, other, tol) {
+            // Where a circle of this torus lies on the other, reading along
+            // this torus's tube circles gives up; the other's may still
+            // read it, a latitude circle of this torus being a line of
+            // roots across the other's tube circles. Its curve is then
+            // swapped back into this order, so neither order is marched
+            // where the other is read.
+            let cut = torus_torus(self, other, tol).or_else(|| {
+                torus_torus(other, self, tol).map(|cut| match cut {
+                    OcticCut::Curve(curve) => OcticCut::Curve(curve.operands_swapped()),
+                    cut => cut,
+                })
+            });
+            return match cut {
                 Some(OcticCut::Curve(curve)) => match curve.shared_circle() {
                     // Touching along a shared tube circle and nowhere else.
                     Some(circle)

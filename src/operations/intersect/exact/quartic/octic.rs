@@ -38,7 +38,12 @@
 //! circle they share, as pipe bends joined end to end do: there `F`
 //! vanishes to second order on the line `u = u₀`, and the rest of the
 //! curve is the zeros of `F / (1 − cos(u − u₀))`, again of degree two in
-//! `v`.
+//! `v`. A tube circle lying on the other surface and crossing it, as a
+//! latitude circle of a second torus, makes `F` vanish on a line too, to
+//! first order: that reading gives up, and a second torus is read along
+//! its own tube circles instead, where the circle is a branch. So is a
+//! Villarceau circle, of degree one in `tan(u / 2)` and `tan(v / 2)`: one
+//! point on each tube circle.
 
 use super::tube_circles::Tubes;
 use super::*;
@@ -492,12 +497,20 @@ pub struct OcticCurve {
 }
 
 /// A point where the surfaces touch and two branches cross: its angles,
-/// and the slopes `dv/du` of the branches through it.
+/// the slopes `dv/du` of the branches through it, and how far apart, in
+/// angle, the branches may pass there (see [`Touching::apart`]).
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Crossing {
     angles: [f64; 2],
     slopes: [f64; 2],
+    apart: f64,
 }
+
+/// How many times [`Crossing::apart`] from a crossing in `u` its branches
+/// are read on their lines through it rather than refined: nearer, the
+/// two points on the tube circle are within the rounding that split the
+/// crossing, and refining one may land on the other or on none.
+const ON_THE_LINES_WITHIN: f64 = 4.0;
 
 /// How far in `u` from a crossing its branches are read from their slopes
 /// there and refined: nearer, the quartic on the tube circle merges their
@@ -625,7 +638,7 @@ impl OcticCurve {
             }
             // The two points nearest the crossing, from the branches.
             let steepest = crossing.slopes[0].abs().max(crossing.slopes[1].abs());
-            let window = 2.0 * steepest * from.abs() + 1e-6;
+            let window = 2.0 * steepest * from.abs() + 1e-6 + 2.0 * crossing.apart;
             let mut kept = InlineList::new();
             for &v in &points {
                 if angular_distance([0.0, v], [0.0, at_v]) > window {
@@ -636,6 +649,8 @@ impl OcticCurve {
                 if kept.len() < 4 {
                     kept.push(if from.abs() <= AT_A_CROSSING {
                         at_v
+                    } else if from.abs() <= ON_THE_LINES_WITHIN * crossing.apart {
+                        at_v + slope * from
                     } else {
                         self.on_tube_circle(u, at_v + slope * from)
                     });
@@ -725,6 +740,12 @@ struct Touching {
     crossing: bool,
     /// The slopes `dv/du` of the branches through a crossing.
     slopes: [f64; 2],
+    /// How far apart, in angle, the branches through a crossing may pass:
+    /// where the surfaces touch only within rounding, as moved far from
+    /// the origin, `F` there is `F₀` off zero, and the two branches are
+    /// a hyperbola `F₀ + ½ (a δu² + 2b δu δv + c δv²) = 0` that opens
+    /// about `√(2 |F₀| / max(|a|, |b|, |c|))` across.
+    apart: f64,
 }
 
 /// A point where a branch pair ends on a tube circle that grazes: on the
@@ -764,12 +785,17 @@ fn torus_against(torus: &Torus, mut surface: OtherSurface, tol: Tolerance) -> Op
             (equation, touching)
         }
         None => {
-            let mut touching = touching_points(&tubes, &surface, within, tol)?;
+            let mut equation = equation(&tubes, &surface);
+            if holds_a_tube_circle(&tubes, &surface, &equation, tol) {
+                return None;
+            }
+            let mut touching = touching_points(&tubes, &surface, &equation, within, tol)?;
             if let Some(snapped) = touching_exactly(&tubes, &surface, &touching, tol) {
                 surface = snapped?;
-                touching = touching_points(&tubes, &surface, within, tol)?;
+                equation = self::equation(&tubes, &surface);
+                touching = touching_points(&tubes, &surface, &equation, within, tol)?;
             }
-            (equation(&tubes, &surface), touching)
+            (equation, touching)
         }
     };
     let classified = classify(&equation, &touching)?;
@@ -853,6 +879,40 @@ fn holds_tube_circle(tubes: &Tubes, other: &Tubes, u: f64, tol: Tolerance) -> bo
     })
 }
 
+/// Whether a tube circle of the torus lies within confusion of `surface`
+/// and crosses it there, as a latitude circle of a second torus, or a
+/// tube circle a cylinder holds: `F`, `equation`, then vanishes on the
+/// line `u = u₀`, where the search for the points the surfaces touch
+/// meets a line of common zeros and subdivides it to its depth, seconds
+/// of work before it gives up. `u₀` is then a zero of `F` along every
+/// circle `v = v*`, a trigonometric polynomial of degree two in `u`, and
+/// a simple one where `∂F/∂u` does not vanish there; at the angle
+/// [`OFF_SYMMETRY`], off those a symmetric pair turns on, its zeros are
+/// the candidates, each checked by sixteen points of its tube circle.
+fn holds_a_tube_circle(
+    tubes: &Tubes,
+    surface: &OtherSurface,
+    equation: &Equation,
+    tol: Tolerance,
+) -> bool {
+    let on_surface = |u: f64| {
+        let (sin_u, cos_u) = u.sin_cos();
+        let radial = tubes.radial(sin_u, cos_u);
+        (0..16).all(|k| {
+            let (sin_v, cos_v) = (k as f64 * TAU / 16.0).sin_cos();
+            surface.offset(tubes.point_on(radial, cos_v, sin_v)).0.abs() <= tol.confusion
+        })
+    };
+    roots_along(equation, OFF_SYMMETRY)
+        .iter()
+        .any(|&(u, _)| on_surface(u))
+}
+
+/// The angle around the tube [`holds_a_tube_circle`] reads `F` along:
+/// a golden section of the turn, off the multiples of a quarter turn a
+/// symmetric pair touches or turns at.
+const OFF_SYMMETRY: f64 = CUT_IN_A_GAP * TAU;
+
 /// `F` divided by `1 − cos(u − u₀)`, where the tube circle at `u₀` lies on
 /// the other surface and touches it: there `F` vanishes to second order
 /// on each tube circle's coefficient, each of degree two in `u`, which
@@ -882,8 +942,9 @@ fn without_tube_circle(equation: &Equation, at: f64) -> Equation {
 
 /// The other surface moved to touch the torus exactly where it touches it
 /// within confusion: by the one translation that closes every gap, or for
-/// a cylinder or a torus by the one change of its radius or minor radius. `None` when nothing needs
-/// moving, `Some(None)` when no single move closes every gap.
+/// a cylinder or a torus by the one change of its radius or minor radius.
+/// `None` when nothing needs moving, `Some(None)` when no single move
+/// closes every gap.
 fn touching_exactly(
     tubes: &Tubes,
     surface: &OtherSurface,
@@ -926,12 +987,12 @@ const SNAPS_AGREE: f64 = 1e-3;
 fn touching_points(
     tubes: &Tubes,
     surface: &OtherSurface,
+    equation: &Equation,
     within: f64,
     tol: Tolerance,
 ) -> Option<Vec<[f64; 2]>> {
-    let equation = equation(tubes, surface);
     let (along_u, along_v) = (equation.derivative_u(), equation.derivative_v());
-    let zeros = common_zeros(&along_u, &along_v, Some((&equation, within)))?;
+    let zeros = common_zeros(&along_u, &along_v, Some((equation, within)))?;
     let near = |&[u, v]: &[f64; 2]| {
         surface.offset(tubes.point(Point2D::new(u, v))).0.abs() <= tol.confusion
     };
@@ -979,6 +1040,7 @@ fn classify(equation: &Equation, touching: &[[f64; 2]]) -> Option<Vec<Touching>>
                 angles: [u, v],
                 crossing,
                 slopes: [(-b - root) / c, (-b + root) / c],
+                apart: (2.0 * equation.value(u, v).abs() / size).sqrt(),
             })
         })
         .collect()
@@ -1275,6 +1337,7 @@ fn sweep(
             .map(|t| Crossing {
                 angles: t.angles,
                 slopes: t.slopes,
+                apart: t.apart,
             })
             .collect(),
     })
@@ -1335,7 +1398,25 @@ fn split(
             });
             return Some(());
         }
-        if fewest.as_ref().is_none_or(|best| inside.len() < best.len()) {
+        // Of those crossed as often, the one leaving the shortest longest
+        // stretch: one crossed near an end splits off a sliver, and a
+        // branch sweeping round the tube circles would be split again
+        // and again just short of it.
+        let longest = |inside: &[f64]| {
+            inside
+                .iter()
+                .chain(std::iter::once(&end))
+                .scan(start, |from, &u| {
+                    let length = u - *from;
+                    *from = u;
+                    Some(length)
+                })
+                .fold(0.0, f64::max)
+        };
+        if fewest.as_ref().is_none_or(|best| {
+            inside.len() < best.len()
+                || (inside.len() == best.len() && longest(&inside) < longest(best))
+        }) {
             fewest = Some(inside);
         }
     }

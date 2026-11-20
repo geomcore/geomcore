@@ -344,6 +344,30 @@ where
     B: Transformable<Transform = T> + Clone + Debug,
     T: TierSimilarity,
 {
+    compare_pairs_moved_by(
+        family,
+        firsts,
+        seconds,
+        symmetric,
+        T::similarities(),
+        operation,
+    )
+}
+
+/// [`compare_pairs`] at the given similarities.
+fn compare_pairs_moved_by<A, B, T>(
+    family: &str,
+    firsts: &[A],
+    seconds: &[B],
+    symmetric: bool,
+    similarities: Vec<Similarity<T>>,
+    operation: impl Fn(&A, &B, Tolerance) -> (String, Vec<T::Point>),
+) -> Vec<Mismatch>
+where
+    A: Transformable<Transform = T> + Clone + Debug,
+    B: Transformable<Transform = T> + Clone + Debug,
+    T: TierSimilarity,
+{
     let mut mismatches = Vec::new();
     let mut compared = 0;
     for (i, a) in firsts.iter().enumerate() {
@@ -353,7 +377,7 @@ where
             }
             let (reference_text, reference_points) = operation(a, b, tolerance(1.0));
             let pair = format!("{family} {} x {}", label(i, a), label(j, b));
-            for similarity in T::similarities() {
+            for similarity in &similarities {
                 let (Ok(image_a), Ok(image_b)) = (
                     a.clone().transformed(similarity.transform),
                     b.clone().transformed(similarity.transform),
@@ -372,7 +396,7 @@ where
                         format!("{pair} | {}", similarity.name),
                         format!("[{reference_text}] became [{image_text}]"),
                     ));
-                } else if !same_points(&reference_points, &image_points, &similarity) {
+                } else if !same_points(&reference_points, &image_points, similarity) {
                     mismatches.push((
                         format!("{pair} | {}", similarity.name),
                         format!("[{reference_text}] points moved"),
@@ -573,6 +597,104 @@ fn surface_surface_intersections_are_similarity_invariant() {
             surface_surface,
         ),
     );
+}
+
+/// The torus of radii 4 and 1 about `Z`, and tori holding one of its
+/// circles that is not a tube circle of both (#348): one whose latitude
+/// circle is its tube circle at `(4, 0, 0)`, and ones whose tube circle or
+/// latitude circle is its Villarceau circle about `(0, 1, 0)`.
+fn tori_sharing_a_circle() -> (Surface, Vec<Surface>) {
+    let torus = Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap();
+    let sin: f64 = 0.25;
+    let across = Vector::new((1.0 - sin * sin).sqrt(), 0.0, sin);
+    let normal = Vector::Y.cross(across);
+    let centre = Point::new(0.0, 1.0, 0.0);
+    let scale = 4.0 / (3.0 + 3.0f64.sqrt());
+    let mut others = vec![
+        Torus::new(Point::new(4.0, -0.75f64.sqrt(), 0.0), Vector::Y, 1.5, 1.0).unwrap(),
+        // Radii 3 and 2, scaled for its latitude circle at height 1, of
+        // radius 3 + √3, to be of radius 4.
+        Torus::new(centre - normal * scale, normal, 3.0 * scale, 2.0 * scale).unwrap(),
+    ];
+    for (major, turn) in [(6.0, 0.0), (9.0, 0.0), (9.0, 1.2)] {
+        let (sin, cos) = f64::sin_cos(turn);
+        let radial = Vector::Y * cos + across * sin;
+        let axis = Vector::Y * -sin + across * cos;
+        others.push(Torus::new(centre - radial * major, axis, major, 4.0).unwrap());
+    }
+    (
+        torus.into(),
+        others.into_iter().map(Surface::from).collect(),
+    )
+}
+
+/// Tori sharing a circle are read alike moved, in both orders, and alike
+/// in either order: the same method, completeness, curves and contact
+/// points.
+///
+/// Moved `1e7` away, only those whose image is the same pair: with no
+/// point where they touch (the first), or with centres that are whole
+/// numbers there (the third and fourth). Elsewhere the tori touch at two
+/// points of the circle, and a centre that is not a whole number rounds
+/// by up to `2e-9` there. That parts the curve `√(2ε / κ)`, about `1e-4`,
+/// from each point where they touched: no longer a contact within
+/// confusion (ADR 0057) but another pair, which no reading can answer as
+/// the reference one.
+#[test]
+fn tori_sharing_a_circle_are_similarity_invariant_in_both_orders() {
+    let family = "tori-sharing-a-circle";
+    let (torus, others) = tori_sharing_a_circle();
+    let torus = [torus];
+    let near = || {
+        let mut similarities = similarities();
+        similarities.retain(|similarity| similarity.name != "translation 1e7");
+        similarities
+    };
+    let far = || {
+        let mut similarities = similarities();
+        similarities.retain(|similarity| similarity.name == "translation 1e7");
+        similarities
+    };
+    let same_far: Vec<Surface> = [0, 2, 3].map(|k| others[k].clone()).into();
+    let whole = format!("{family} whole");
+    let mut mismatches = Vec::new();
+    for (name, firsts, seconds, similarities) in [
+        (family, &torus[..], &others[..], near()),
+        (family, &others[..], &torus[..], near()),
+        (&whole[..], &torus[..], &same_far[..], far()),
+        (&whole[..], &same_far[..], &torus[..], far()),
+    ] {
+        mismatches.extend(compare_pairs_moved_by(
+            name,
+            firsts,
+            seconds,
+            false,
+            similarities,
+            surface_surface,
+        ));
+    }
+    let tol = tolerance(1.0);
+    let same_place = Similarity {
+        name: "operand order".to_string(),
+        transform: Transform::IDENTITY,
+        inverse: Transform::IDENTITY,
+        scale: 1.0,
+    };
+    for (j, other) in others.iter().enumerate() {
+        let (forward_text, forward_points) = surface_surface(&torus[0], other, tol);
+        let (backward_text, backward_points) = surface_surface(other, &torus[0], tol);
+        let key = format!(
+            "{family} {} x {} | operand order",
+            label(0, &torus[0]),
+            label(j, other)
+        );
+        if forward_text != backward_text {
+            mismatches.push((key, format!("[{forward_text}] became [{backward_text}]")));
+        } else if !same_points(&forward_points, &backward_points, &same_place) {
+            mismatches.push((key, format!("[{forward_text}] points moved")));
+        }
+    }
+    report(family, mismatches);
 }
 
 /// Every pair of the samples, every pair of their trimmed pieces, and
