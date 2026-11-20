@@ -1,5 +1,6 @@
 //! Distance extrema: the local minima of the distance between two curves,
-//! a curve and a surface, or two surfaces.
+//! a curve and a surface, or two surfaces; between two curves in space
+//! or in the plane.
 
 use crate::Tolerance;
 
@@ -10,14 +11,20 @@ pub(crate) mod curve_curve;
 pub(crate) mod curve_curve_pieces;
 /// The local minima of the distance between a curve and a surface.
 pub(crate) mod curve_surface;
+/// The curves `curve_curve_extrema` takes, in either tier.
+mod operand;
 /// The samples, seeds and nested Newton minimisation that the
 /// curve–surface and surface–surface searches share.
 pub(crate) mod surface_search;
 /// The local minima of the distance between two surfaces.
 pub(crate) mod surface_surface;
 
-pub use curve_curve::{CurveCurveExtrema, CurveCurveExtremum, curve_curve_extrema};
+pub use curve_curve::{
+    CurveCurveExtrema, CurveCurveExtrema2D, CurveCurveExtremum, CurveCurveExtremum2D,
+    GenericCurveCurveExtrema, GenericCurveCurveExtremum, curve_curve_extrema,
+};
 pub use curve_surface::{CurveSurfaceExtrema, CurveSurfaceExtremum, curve_surface_extrema};
+pub use operand::CurveExtremaOperand;
 pub use surface_surface::{SurfaceSurfaceExtrema, SurfaceSurfaceExtremum, surface_surface_extrema};
 
 /// What the merge of minima on one valley of equal distance reads of an

@@ -63,6 +63,7 @@ def _results() -> list:
         Circle2D(Point2D(0, 0), 1.0).project_point(Point2D(3, 0)),
         sphere.project_point(Point(0, 0, 5)),
         curve_curve_extrema(circle, Line(Point(0, 0, 3), Vector(1, 0, 0))),
+        Circle2D(Point2D(0, 0), 1.0).extrema(Line2D(Point2D(0, 3), Vector2D(1, 0))),
         line.extrema(sphere),
         wave.extrema(curve.extract(0.2, 0.7)),
         Plane(Point(0, 0, 3), Vector(0, 0, 1)).extrema(sphere),

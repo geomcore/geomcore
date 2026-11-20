@@ -1,43 +1,74 @@
 //! The local minima of the distance between two curves
-//! ([`CurveCurveExtrema`]).
+//! ([`CurveCurveExtrema`] in space, [`CurveCurveExtrema2D`] in the plane).
 
 use crate::Direction;
+use crate::base::TierPoint;
 use crate::geometry::curves::ParametricCurve;
 use crate::math::numeric::{newton_min_1d, newton_min_2d};
 use crate::operations::extrema::curve_curve_pieces::curve_curve_seeds;
+use crate::operations::extrema::operand::CurveExtremaOperand;
 use crate::operations::extrema::{Extremum, parameters_apart};
 use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::{Completeness, CurveCurveRegion};
-use crate::{Point, Tolerance, Vector};
+use crate::{Point, Point2D, Tolerance, Vector};
 use std::ops::Deref;
 
-/// One local minimum of the distance between two 3D curves (see
-/// [`curve_curve_extrema`](crate::curve_curve_extrema)).
+/// One local minimum of the distance between two curves of one tier:
+/// [`CurveCurveExtremum`] in space, [`CurveCurveExtremum2D`] in the plane
+/// (see [`curve_curve_extrema`](crate::curve_curve_extrema)).
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct CurveCurveExtremum {
+pub struct GenericCurveCurveExtremum<P: TierPoint> {
     /// Parameter on the first curve.
     pub first_parameter: f64,
     /// Parameter on the second curve.
     pub second_parameter: f64,
     /// The point of the first curve at `first_parameter`.
-    pub first_point: Point,
+    pub first_point: P,
     /// The point of the second curve at `second_parameter`.
-    pub second_point: Point,
+    pub second_point: P,
     /// Distance between the two points.
     pub distance: f64,
 }
 
-impl CurveCurveExtremum {
+/// One local minimum of the distance between two 3D curves (see
+/// [`curve_curve_extrema`](crate::curve_curve_extrema)).
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::{Line, Point, Tolerance, Vector, curve_curve_extrema};
+/// let l1 = Line::new(Point::ORIGIN, Vector::X).unwrap();
+/// let l2 = Line::new(Point::new(0.0, 0.0, 1.0), Vector::Y).unwrap();
+/// let closest = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT)[0];
+/// assert_eq!(closest.second_point, Point::new(0.0, 0.0, 1.0));
+/// ```
+pub type CurveCurveExtremum = GenericCurveCurveExtremum<Point>;
+
+/// One local minimum of the distance between two 2D curves (see
+/// [`curve_curve_extrema`](crate::curve_curve_extrema)).
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::{Line2D, Point2D, Tolerance, Vector2D, curve_curve_extrema};
+/// let l1 = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
+/// let l2 = Line2D::new(Point2D::new(0.0, 1.0), Vector2D::X).unwrap();
+/// let closest = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT)[0];
+/// assert_eq!(closest.second_point, Point2D::new(0.0, 1.0));
+/// ```
+pub type CurveCurveExtremum2D = GenericCurveCurveExtremum<Point2D>;
+
+impl<P: TierPoint> GenericCurveCurveExtremum<P> {
     /// The extremum between `first_point`, at `first_parameter` on the
     /// first curve, and `second_point`, at `second_parameter` on the
     /// second.
     pub(crate) fn new(
         first_parameter: f64,
-        first_point: Point,
+        first_point: P,
         second_parameter: f64,
-        second_point: Point,
+        second_point: P,
     ) -> Self {
-        CurveCurveExtremum {
+        GenericCurveCurveExtremum {
             first_parameter,
             second_parameter,
             first_point,
@@ -48,7 +79,7 @@ impl CurveCurveExtremum {
 
     /// The same extremum with the curves' roles exchanged.
     pub(crate) fn swapped(self) -> Self {
-        CurveCurveExtremum::new(
+        GenericCurveCurveExtremum::new(
             self.second_parameter,
             self.second_point,
             self.first_parameter,
@@ -68,8 +99,20 @@ impl Extremum for CurveCurveExtremum {
     }
 }
 
-/// The local minima of the distance between two curves, closest first,
-/// and whether they are all of them (see
+/// The local minima of the distance between two curves of one tier,
+/// closest first, and whether they are all of them:
+/// [`CurveCurveExtrema`] in space, [`CurveCurveExtrema2D`] in the plane
+/// (see [`curve_curve_extrema`](crate::curve_curve_extrema)).
+///
+/// It reads as the slice of its minima.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GenericCurveCurveExtrema<P: TierPoint> {
+    minima: Vec<GenericCurveCurveExtremum<P>>,
+    completeness: Completeness<CurveCurveRegion>,
+}
+
+/// The local minima of the distance between two 3D curves, closest
+/// first, and whether they are all of them (see
 /// [`curve_curve_extrema`](crate::curve_curve_extrema)).
 ///
 /// It reads as the slice of its minima.
@@ -96,20 +139,37 @@ impl Extremum for CurveCurveExtremum {
 ///     assert!((minimum.first_parameter - 0.5).abs() < 1e-9);
 /// }
 /// ```
-#[derive(Debug, Clone, PartialEq)]
-pub struct CurveCurveExtrema {
-    minima: Vec<CurveCurveExtremum>,
-    completeness: Completeness<CurveCurveRegion>,
-}
+pub type CurveCurveExtrema = GenericCurveCurveExtrema<Point>;
 
-impl CurveCurveExtrema {
+/// The local minima of the distance between two 2D curves, closest
+/// first, and whether they are all of them (see
+/// [`curve_curve_extrema`](crate::curve_curve_extrema)).
+///
+/// It reads as the slice of its minima.
+///
+/// # Examples
+///
+/// ```
+/// use geomcore::{Circle2D, Point2D, Tolerance, curve_curve_extrema};
+/// // Two disjoint circles: the gap between them is the closest minimum.
+/// let first = Circle2D::new(Point2D::ORIGIN, 1.0).unwrap();
+/// let second = Circle2D::new(Point2D::new(5.0, 0.0), 2.0).unwrap();
+/// let minima = curve_curve_extrema(&first, &second, Tolerance::DEFAULT);
+/// let closest = minima.closest().unwrap();
+/// assert!((closest.distance - 2.0).abs() < 1e-12);
+/// assert!(closest.first_point.distance(Point2D::new(1.0, 0.0)) < 1e-9);
+/// assert!(closest.second_point.distance(Point2D::new(3.0, 0.0)) < 1e-9);
+/// ```
+pub type CurveCurveExtrema2D = GenericCurveCurveExtrema<Point2D>;
+
+impl<P: TierPoint> GenericCurveCurveExtrema<P> {
     /// `minima`, put in order of distance, with their completeness.
     pub(crate) fn new(
-        mut minima: Vec<CurveCurveExtremum>,
+        mut minima: Vec<GenericCurveCurveExtremum<P>>,
         completeness: Completeness<CurveCurveRegion>,
     ) -> Self {
         minima.sort_by(|x, y| x.distance.total_cmp(&y.distance));
-        CurveCurveExtrema {
+        GenericCurveCurveExtrema {
             minima,
             completeness,
         }
@@ -131,17 +191,40 @@ impl CurveCurveExtrema {
     /// assert_eq!(rebuilt, extrema);
     /// ```
     pub fn from_parts(
-        minima: Vec<CurveCurveExtremum>,
+        minima: Vec<GenericCurveCurveExtremum<P>>,
         completeness: Completeness<CurveCurveRegion>,
     ) -> Self {
-        CurveCurveExtrema {
+        GenericCurveCurveExtrema {
             minima,
             completeness,
         }
     }
 
+    /// The same extrema with each point mapped by `point`: the extrema of
+    /// two 2D curves read back from the search on them embedded in space.
+    pub(crate) fn map_points<Q: TierPoint>(
+        self,
+        point: impl Fn(P) -> Q,
+    ) -> GenericCurveCurveExtrema<Q> {
+        let minima = self
+            .minima
+            .into_iter()
+            .map(|minimum| GenericCurveCurveExtremum {
+                first_parameter: minimum.first_parameter,
+                second_parameter: minimum.second_parameter,
+                first_point: point(minimum.first_point),
+                second_point: point(minimum.second_point),
+                distance: minimum.distance,
+            })
+            .collect();
+        GenericCurveCurveExtrema {
+            minima,
+            completeness: self.completeness,
+        }
+    }
+
     /// Minima found from samples.
-    pub(crate) fn sampled(minima: Vec<CurveCurveExtremum>) -> Self {
+    pub(crate) fn sampled(minima: Vec<GenericCurveCurveExtremum<P>>) -> Self {
         Self::new(minima, Completeness::Sampled)
     }
 
@@ -156,7 +239,7 @@ impl CurveCurveExtrema {
     /// let minima = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT);
     /// assert_eq!(minima.minima()[0].distance, 1.0);
     /// ```
-    pub fn minima(&self) -> &[CurveCurveExtremum] {
+    pub fn minima(&self) -> &[GenericCurveCurveExtremum<P>] {
         &self.minima
     }
 
@@ -174,7 +257,7 @@ impl CurveCurveExtrema {
     /// assert_eq!(closest.second_point, Point::new(0.0, 0.0, 1.0));
     /// assert_eq!(closest.distance, 1.0);
     /// ```
-    pub fn closest(&self) -> Option<&CurveCurveExtremum> {
+    pub fn closest(&self) -> Option<&GenericCurveCurveExtremum<P>> {
         self.minima.first()
     }
 
@@ -189,7 +272,7 @@ impl CurveCurveExtrema {
     /// let minima: Vec<_> = curve_curve_extrema(&l1, &l2, Tolerance::DEFAULT).into_minima();
     /// assert_eq!(minima.len(), 1);
     /// ```
-    pub fn into_minima(self) -> Vec<CurveCurveExtremum> {
+    pub fn into_minima(self) -> Vec<GenericCurveCurveExtremum<P>> {
         self.minima
     }
 
@@ -225,28 +308,28 @@ impl CurveCurveExtrema {
     }
 }
 
-impl Deref for CurveCurveExtrema {
-    type Target = [CurveCurveExtremum];
+impl<P: TierPoint> Deref for GenericCurveCurveExtrema<P> {
+    type Target = [GenericCurveCurveExtremum<P>];
 
-    fn deref(&self) -> &[CurveCurveExtremum] {
+    fn deref(&self) -> &[GenericCurveCurveExtremum<P>] {
         &self.minima
     }
 }
 
-impl IntoIterator for CurveCurveExtrema {
-    type Item = CurveCurveExtremum;
-    type IntoIter = std::vec::IntoIter<CurveCurveExtremum>;
+impl<P: TierPoint> IntoIterator for GenericCurveCurveExtrema<P> {
+    type Item = GenericCurveCurveExtremum<P>;
+    type IntoIter = std::vec::IntoIter<GenericCurveCurveExtremum<P>>;
 
-    fn into_iter(self) -> std::vec::IntoIter<CurveCurveExtremum> {
+    fn into_iter(self) -> std::vec::IntoIter<GenericCurveCurveExtremum<P>> {
         self.minima.into_iter()
     }
 }
 
-impl<'a> IntoIterator for &'a CurveCurveExtrema {
-    type Item = &'a CurveCurveExtremum;
-    type IntoIter = std::slice::Iter<'a, CurveCurveExtremum>;
+impl<'a, P: TierPoint> IntoIterator for &'a GenericCurveCurveExtrema<P> {
+    type Item = &'a GenericCurveCurveExtremum<P>;
+    type IntoIter = std::slice::Iter<'a, GenericCurveCurveExtremum<P>>;
 
-    fn into_iter(self) -> std::slice::Iter<'a, CurveCurveExtremum> {
+    fn into_iter(self) -> std::slice::Iter<'a, GenericCurveCurveExtremum<P>> {
         self.minima.iter()
     }
 }
@@ -383,9 +466,16 @@ where
     CurveCurveExtremum::new(s, a.point_at(s), t, b.point_at(t))
 }
 
-/// Generic closest-point enumeration between two 3D curves: every local
-/// minimum of the distance `|C1(s) - C2(t)|` over the two parameter
-/// domains, ordered by distance.
+/// Generic closest-point enumeration between two curves of one tier,
+/// two 3D curves or two 2D curves: every local minimum of the distance
+/// `|C1(s) - C2(t)|` over the two parameter domains, ordered by distance.
+///
+/// Any 3D [`ParametricCurve`] is taken, a curve of the caller's own
+/// included. In the plane, the 2D curves of the crate are taken
+/// ([`Curve2D`](crate::Curve2D), each concrete 2D curve and
+/// [`TrimmedCurve2D`](crate::TrimmedCurve2D) over them); the search runs
+/// on them embedded in space at `z = 0`, with the same parameters, so
+/// everything below holds in the plane as in space.
 ///
 /// Bounded (trimmed) domains are honoured exactly: a minimum on a domain
 /// end or a corner of the parameter box is reported, and only true local
@@ -455,8 +545,26 @@ where
 /// let ext = curve_curve_extrema(&l1, &l3, Tolerance::DEFAULT);
 /// assert_eq!(ext.len(), 1);
 /// assert_eq!((ext[0].first_parameter, ext[0].distance), (0.0, 2.0));
+///
+/// // Two 2D curves: a circle above a line.
+/// use geomcore::{Circle2D, Line2D, Point2D, Vector2D};
+/// let line = Line2D::new(Point2D::ORIGIN, Vector2D::X).unwrap();
+/// let circle = Circle2D::new(Point2D::new(1.0, 3.0), 1.0).unwrap();
+/// let ext = curve_curve_extrema(&line, &circle, Tolerance::DEFAULT);
+/// assert_eq!(ext.len(), 1);
+/// assert!((ext[0].distance - 2.0).abs() < 1e-12);
+/// assert!(ext[0].first_point.distance(Point2D::new(1.0, 0.0)) < 1e-9);
 /// ```
-pub fn curve_curve_extrema<A, B>(a: &A, b: &B, tol: Tolerance) -> CurveCurveExtrema
+pub fn curve_curve_extrema<A, B>(a: &A, b: &B, tol: Tolerance) -> GenericCurveCurveExtrema<A::Point>
+where
+    A: CurveExtremaOperand,
+    B: CurveExtremaOperand<Point = A::Point>,
+{
+    A::extrema_from_space(space_curve_curve_extrema(&a.in_space(), &b.in_space(), tol))
+}
+
+/// [`curve_curve_extrema`] on two 3D curves: the search itself.
+pub(crate) fn space_curve_curve_extrema<A, B>(a: &A, b: &B, tol: Tolerance) -> CurveCurveExtrema
 where
     A: ParametricCurve,
     B: ParametricCurve,

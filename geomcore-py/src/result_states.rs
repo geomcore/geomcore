@@ -11,12 +11,12 @@
 
 use crate::arguments::{curve_2d_classes, curve_classes};
 use geomcore::{
-    Completeness, CurveCurveExtrema, CurveCurveExtremum, CurveCurveOverlap, CurveCurveRegion,
-    CurveProjection, CurveSurfaceExtrema, CurveSurfaceExtremum, CurveSurfaceHit,
-    CurveSurfaceIntersection, CurveSurfaceOverlap, CurveSurfaceRegion, Direction, Discretization,
-    Discretization2D, GenericCurveCurveHit, GenericCurveCurveIntersection, IncompleteReason,
-    IntersectionCurve, IntersectionMethod, Point, Point2D, SurfaceCurvatures, SurfaceProjection,
-    SurfaceSurfaceExtrema, SurfaceSurfaceExtremum, SurfaceSurfaceIntersection,
+    Completeness, CurveCurveOverlap, CurveCurveRegion, CurveProjection, CurveSurfaceExtrema,
+    CurveSurfaceExtremum, CurveSurfaceHit, CurveSurfaceIntersection, CurveSurfaceOverlap,
+    CurveSurfaceRegion, Direction, Discretization, Discretization2D, GenericCurveCurveExtrema,
+    GenericCurveCurveExtremum, GenericCurveCurveHit, GenericCurveCurveIntersection,
+    IncompleteReason, IntersectionCurve, IntersectionMethod, Point, Point2D, SurfaceCurvatures,
+    SurfaceProjection, SurfaceSurfaceExtrema, SurfaceSurfaceExtremum, SurfaceSurfaceIntersection,
     SurfaceSurfaceRegion, TierPoint, Vector,
 };
 use pyo3::IntoPyObjectExt;
@@ -323,8 +323,8 @@ impl Plain for IntersectionCurve {
     }
 }
 
-impl Plain for CurveCurveExtremum {
-    type State = (f64, f64, [f64; 3], [f64; 3], f64);
+impl<P: TierPoint + Plain> Plain for GenericCurveCurveExtremum<P> {
+    type State = (f64, f64, P::State, P::State, f64);
 
     fn state(&self, py: Python<'_>) -> PyResult<Self::State> {
         Ok((
@@ -340,11 +340,11 @@ impl Plain for CurveCurveExtremum {
         py: Python<'_>,
         (first, second, first_point, second_point, distance): Self::State,
     ) -> PyResult<Self> {
-        Ok(CurveCurveExtremum {
+        Ok(GenericCurveCurveExtremum {
             first_parameter: first,
             second_parameter: second,
-            first_point: Point::from_state(py, first_point)?,
-            second_point: Point::from_state(py, second_point)?,
+            first_point: P::from_state(py, first_point)?,
+            second_point: P::from_state(py, second_point)?,
             distance,
         })
     }
@@ -524,9 +524,9 @@ impl Plain for SurfaceSurfaceIntersection {
     }
 }
 
-impl Plain for CurveCurveExtrema {
+impl<P: TierPoint + Plain> Plain for GenericCurveCurveExtrema<P> {
     type State = (
-        Vec<<CurveCurveExtremum as Plain>::State>,
+        Vec<<GenericCurveCurveExtremum<P> as Plain>::State>,
         <Completeness<CurveCurveRegion> as Plain>::State,
     );
 
@@ -538,7 +538,7 @@ impl Plain for CurveCurveExtrema {
     }
 
     fn from_state(py: Python<'_>, (minima, completeness): Self::State) -> PyResult<Self> {
-        Ok(CurveCurveExtrema::from_parts(
+        Ok(GenericCurveCurveExtrema::from_parts(
             Vec::from_state(py, minima)?,
             Completeness::from_state(py, completeness)?,
         ))
