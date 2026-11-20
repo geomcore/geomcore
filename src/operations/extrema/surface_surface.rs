@@ -5,7 +5,7 @@ use std::ops::Deref;
 
 use crate::geometry::surfaces::{ElementarySurface, ParametricSurface};
 use crate::math::numeric::newton_min_2d;
-use crate::operations::extrema::curve_curve::{VALLEY_FLATNESS, is_box_minimum};
+use crate::operations::extrema::curve_curve::{flat_minimum, is_box_minimum};
 use crate::operations::extrema::curve_surface::whole_elementary_surface;
 use crate::operations::extrema::surface_search::{
     Carried, Foot, Objective, Samples, above_rounding, closed_gap, collapsed_minimum, foot,
@@ -819,22 +819,13 @@ impl<A: ParametricSurface, B: ParametricSurface> Search<'_, A, B> {
     }
 
     /// Whether the distance is flat in some direction of the first
-    /// surface at `e` to second order: the smallest eigenvalue of its
-    /// reduced Hessian, with each parameter read per unit length, is at
-    /// most `VALLEY_FLATNESS`, as on a valley. Only such a minimum is worth
+    /// surface at `e` to second order, read from its reduced Hessian by
+    /// `flat_minimum`, as on a valley. Only such a minimum is worth
     /// the candidates read from the second surface.
     fn is_flat(&self, e: &SurfaceSurfaceExtremum) -> bool {
-        let (_, (_, _, hessian), [speed_u, speed_v], _) =
+        let (_, (_, gradient, hessian), speed, _) =
             self.local(e.first_parameter_array(), e.second_parameter_array());
-        if !(speed_u > 0.0 && speed_v > 0.0) {
-            return true;
-        }
-        let first = hessian[0][0] / (speed_u * speed_u);
-        let mixed = 0.5 * (hessian[0][1] + hessian[1][0]) / (speed_u * speed_v);
-        let second = hessian[1][1] / (speed_v * speed_v);
-        let smallest = 0.5 * (first + second)
-            - (0.25 * (first - second) * (first - second) + mixed * mixed).sqrt();
-        !(smallest > VALLEY_FLATNESS)
+        flat_minimum(gradient, hessian, speed, self.tol)
     }
 
     /// The second surface at its reference parameters and its closest

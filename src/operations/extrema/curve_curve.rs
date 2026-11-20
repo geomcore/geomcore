@@ -1109,8 +1109,8 @@ where
     if flat_between(p.distance, q.distance, straight, tol) {
         return true;
     }
-    lies_flat(a, b, p)
-        && lies_flat(a, b, q)
+    lies_flat(a, b, p, tol)
+        && lies_flat(a, b, q, tol)
         && (walks_along_valley(a, b, db, along_first, p.distance, tol)
             || walks_along_valley(b, a, da, along_second, p.distance, tol))
 }
@@ -1119,32 +1119,57 @@ where
 /// at a point of a valley, read per unit length along each curve, is zero
 /// to rounding; at an isolated minimum where the curves cross at the angle
 /// `a` it is about `sin(a)^2`. Above this, a minimum is on no valley.
-pub(crate) const VALLEY_FLATNESS: f64 = 1e-4;
+const VALLEY_FLATNESS: f64 = 1e-4;
 
 /// Whether the distance is flat to second order in some direction at
-/// the minimum `e`: the smallest eigenvalue of the Hessian of half the
-/// squared distance, with each parameter read per unit length along its
-/// curve, is at most [`VALLEY_FLATNESS`]. A minimum on a valley of equal
-/// distance is; an isolated one, but for a tangent contact or a shallow
-/// crossing, is not, and needs no walk nor representative. The test is
-/// dimensionless, so it does not change with the size of the shapes.
-fn lies_flat<A, B>(a: &A, b: &B, e: &CurveCurveExtremum) -> bool
+/// the minimum `e`, read by [`flat_minimum`]. A minimum on a valley of
+/// equal distance is; an isolated one, but for a tangent contact or a
+/// shallow crossing, is not, and needs no walk nor representative.
+fn lies_flat<A, B>(a: &A, b: &B, e: &CurveCurveExtremum, tol: Tolerance) -> bool
 where
     A: ParametricCurve,
     B: ParametricCurve,
 {
     let (pa, a1, a2) = a.second_derivatives(e.first_parameter);
     let (pb, b1, b2) = b.second_derivatives(e.second_parameter);
-    let (speed_a, speed_b) = (a1.magnitude(), b1.magnitude());
-    if !(speed_a > 0.0 && speed_b > 0.0) {
+    let r = pa - pb;
+    let mixed = -a1.dot(b1);
+    flat_minimum(
+        [r.dot(a1), -r.dot(b1)],
+        [
+            [a1.dot(a1) + r.dot(a2), mixed],
+            [mixed, b1.dot(b1) - r.dot(b2)],
+        ],
+        [a1.magnitude(), b1.magnitude()],
+        tol,
+    )
+}
+
+/// Whether a box minimum of half the squared distance, with gradient `g`,
+/// Hessian `h` and parameter speeds `speed`, is flat to second order
+/// along some direction it is free to move in: the smallest eigenvalue of
+/// the Hessian over its stationary parameters (those not held at a bound,
+/// as [`is_box_minimum`] reads them), each read per unit length, is at
+/// most [`VALLEY_FLATNESS`]. A minimum held in both parameters is a
+/// corner of the box, on no valley. The test is dimensionless, so it does
+/// not change with the size of the shapes.
+pub(crate) fn flat_minimum(g: [f64; 2], h: [[f64; 2]; 2], speed: [f64; 2], tol: Tolerance) -> bool {
+    if !(speed[0] > 0.0 && speed[1] > 0.0) {
         return true;
     }
-    let r = pa - pb;
-    let first = (a1.dot(a1) + r.dot(a2)) / (speed_a * speed_a);
-    let mixed = -a1.dot(b1) / (speed_a * speed_b);
-    let second = (b1.dot(b1) - r.dot(b2)) / (speed_b * speed_b);
-    let smallest = 0.5 * (first + second)
-        - (0.25 * (first - second) * (first - second) + mixed * mixed).sqrt();
+    let free = [0, 1].map(|i| g[i].abs() <= tol.confusion * speed[i]);
+    let first = h[0][0] / (speed[0] * speed[0]);
+    let mixed = 0.5 * (h[0][1] + h[1][0]) / (speed[0] * speed[1]);
+    let second = h[1][1] / (speed[1] * speed[1]);
+    let smallest = match free {
+        [true, true] => {
+            0.5 * (first + second)
+                - (0.25 * (first - second) * (first - second) + mixed * mixed).sqrt()
+        }
+        [true, false] => first,
+        [false, true] => second,
+        [false, false] => return false,
+    };
     !(smallest > VALLEY_FLATNESS)
 }
 
@@ -1220,7 +1245,7 @@ where
     A: ParametricCurve,
     B: ParametricCurve,
 {
-    if !lies_flat(a, b, e) {
+    if !lies_flat(a, b, e, tol) {
         return *e;
     }
     let s = da.reference();
