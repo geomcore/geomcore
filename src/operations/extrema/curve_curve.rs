@@ -1357,20 +1357,30 @@ pub(crate) fn grid_minima(
             None
         }
     };
-    let neighbours = |k: usize| {
-        let (i, j) = (k / m, k % m);
-        (-1..=1).flat_map(move |di| {
-            (-1..=1).filter_map(move |dj| {
-                Some(neighbour(i, di, n, wrap[0])? * m + neighbour(j, dj, m, wrap[1])?)
-            })
-        })
+    // Whether some neighbour of node `(i, j)` passes `test`.
+    let any_neighbour = |i: usize, j: usize, test: &mut dyn FnMut(usize) -> bool| {
+        for di in -1..=1 {
+            let Some(x) = neighbour(i, di, n, wrap[0]) else {
+                continue;
+            };
+            for dj in -1..=1 {
+                if let Some(y) = neighbour(j, dj, m, wrap[1])
+                    && test(x * m + y)
+                {
+                    return true;
+                }
+            }
+        }
+        false
     };
-    let minimum: Vec<bool> = (0..n * m)
-        .map(|k| {
-            let v = values[k];
-            v.is_finite() && neighbours(k).all(|x| values[x] >= v - rounding || values[x].is_nan())
-        })
-        .collect();
+    let mut minimum = vec![false; n * m];
+    for i in 0..n {
+        for j in 0..m {
+            let v = values[i * m + j];
+            minimum[i * m + j] =
+                v.is_finite() && !any_neighbour(i, j, &mut |x| values[x] < v - rounding);
+        }
+    }
     let lower = |p: usize, q: usize| values[p] < values[q] || (values[p] == values[q] && p < q);
     let mut seen = vec![false; n * m];
     let mut plateau = Vec::new();
@@ -1386,12 +1396,13 @@ pub(crate) fn grid_minima(
             if lower(p, lowest) {
                 lowest = p;
             }
-            for x in neighbours(p) {
+            any_neighbour(p / m, p % m, &mut |x| {
                 if minimum[x] && !seen[x] && (values[x] - values[p]).abs() <= rounding {
                     seen[x] = true;
                     plateau.push(x);
                 }
-            }
+                false
+            });
         }
         out.push(lowest);
     }
