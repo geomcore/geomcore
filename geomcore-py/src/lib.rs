@@ -130,7 +130,9 @@ mod results;
 mod surfaces;
 mod values;
 
-use approximation::{PyCurveApproximation, PyCurveApproximation2D, PySurfaceApproximation};
+use approximation::{
+    PyCurveApproximation, PyCurveApproximation2D, PyCurveOffset2D, PySurfaceApproximation,
+};
 use arguments::{curve_2d_classes, curve_classes, surface_classes};
 use bounding_box::{PyBoundingBox, PyBoundingBox2D};
 use curves::{PyTrimmedCurve, PyTrimmedCurve2D};
@@ -204,6 +206,7 @@ fn geomcore_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PySurfaceCurvatures>()?;
     m.add_class::<PyCurveApproximation>()?;
     m.add_class::<PyCurveApproximation2D>()?;
+    m.add_class::<PyCurveOffset2D>()?;
     m.add_class::<PySurfaceApproximation>()?;
     m.add_class::<PyPlaneFit>()?;
     m.add_class::<PyCircleFit>()?;

@@ -63,6 +63,10 @@ _Avoid_: same-parameter error, SameParameter
 The surface at a signed distance along another surface's normal. It is an operation, not a stored shape: an elementary surface's offset is elementary, and other surfaces have none yet (ADR 0016).
 _Avoid_: shell, thickening
 
+**Offset curve**:
+The 2D curve at a signed distance along another 2D curve's left normal, `c(t) + d n(t)`, a positive distance on the side a positive curvature turns toward. A line's is a line and a circle's a circle, exactly; any other curve's is one B-spline within a deviation, at the same parameter, from `offset` (ADR 0056). Where `|d|` passes the radius of curvature on its side, the offset has a **cusp**, where it stops and turns back, and a loop between two cusps; the result reports the cusps' parameters and keeps the loops.
+_Avoid_: parallel curve, equidistant, tool-path compensation (one use of it)
+
 **Tier**:
 Space or the plane: where a curve lives. Each curve type is one generic type over its tier's point, `TierPoint` (`Point` in space, `Point2D` in the plane), named `GenericCircle`, `GenericBSplineCurve` and so on, and used through its two aliases: `Circle` in space, `Circle2D` in the plane (ADR 0014). Only the plane's name carries a suffix (ADR 0013).
 _Avoid_: dimension for the type parameter, `Circle3D`, 3D tier as a name

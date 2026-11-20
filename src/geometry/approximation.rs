@@ -2,6 +2,8 @@
 //! curve or a surface, how far it is from what it approximates, and
 //! whether that distance is proven.
 
+pub(crate) mod hermite_spans;
+
 use crate::base::tier::TierPoint;
 use crate::geometry::curves::GenericBSplineCurve;
 use crate::geometry::surfaces::BSplineSurface;

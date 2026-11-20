@@ -790,6 +790,33 @@ approximation_state!(geomcore::CurveApproximation, PyBSplineCurve, curve);
 approximation_state!(geomcore::CurveApproximation2D, PyBSplineCurve2D, curve);
 approximation_state!(geomcore::SurfaceApproximation, PyBSplineSurface, surface);
 
+/// An offset pickles its curve as itself, a whole curve or a trimmed one.
+impl Plain for geomcore::CurveOffset2D<crate::approximation::OffsetCurve2D> {
+    type State = (Py<PyAny>, f64, bool, Vec<f64>);
+
+    fn state(&self, py: Python<'_>) -> PyResult<Self::State> {
+        Ok((
+            crate::approximation::offset_curve_to_py(py, self.curve())?,
+            self.deviation(),
+            self.is_proven(),
+            self.cusp_parameters().to_vec(),
+        ))
+    }
+
+    fn from_state(
+        py: Python<'_>,
+        (curve, deviation, proven, cusp_parameters): Self::State,
+    ) -> PyResult<Self> {
+        use crate::approximation::OffsetCurve2D;
+        let curve = curve.bind(py);
+        let curve = match curve.cast::<crate::curves::PyTrimmedCurve2D>() {
+            Ok(trimmed) => OffsetCurve2D::Trimmed(trimmed.borrow().0.clone()),
+            Err(_) => OffsetCurve2D::Whole(curve_2d_classes::extract(curve)?),
+        };
+        Ok(Self::from_parts(curve, deviation, proven, cusp_parameters))
+    }
+}
+
 /// Implements [`Plain`] for a fit whose shape is held in Python as
 /// `$class`: the shape pickled as itself, with its two residuals.
 macro_rules! fit_state {

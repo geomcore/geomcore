@@ -70,7 +70,9 @@ src/
 │   │   │                            curve_3d_to_uv_within
 │   │   └── conversion.rs fitting.rs
 │   ├── approximation.rs         the results of the operations within a deviation:
-│   │                            CurveApproximation, SurfaceApproximation
+│   │                            CurveApproximation, SurfaceApproximation;
+│   │                            approximation/hermite_spans.rs the Hermite spans
+│   │                            they build their curves from (ADR 0035)
 │   ├── fit.rs                   the least-squares fits of planes, circles, spheres
 │   │                            and cylinders to points: Fit and FitError
 │   └── enum_variants.rs         the macros that expand a shape enum's variant list
@@ -137,6 +139,9 @@ src/
 │   │   │                    and the coincidence check (coincidence.rs) (ADR 0025)
 │   │   └── results/         the results Intersect returns, their regions (regions.rs),
 │   │                        Completeness, InlineOrHeapList
+│   ├── offset/          Offset2D: the offset of a 2D curve, exact for lines and
+│   │                    circles, within a deviation otherwise, with its cusps
+│   │                    (ADR 0056); offset/approximation.rs its Hermite spans
 │   └── projection.rs    results of point projection (CurveProjection, …)
 │
 ├── bounding_box/        HasBoundingBox and HasBoundingBox2D, the queries that ask a
@@ -333,7 +338,7 @@ files are:
 | `values.rs` | `Point`, `Vector`, `Axis`, `Frame` and their 2D forms, `Tolerance`, `Transform` |
 | `enums.rs` | the enumerations Python sees as `enum` classes: `Side`, `PointParametrization`, `IntersectionMethod`, `CompletenessStatus`, `IncompleteReason` |
 | `bounding_box.rs`, `discretization.rs` | the classes of those operations |
-| `approximation.rs` | `CurveApproximation`, `CurveApproximation2D`, `SurfaceApproximation`: what the operations within a deviation return |
+| `approximation.rs` | `CurveApproximation`, `CurveApproximation2D`, `SurfaceApproximation`: what the operations within a deviation return; `CurveOffset2D`, what `offset` returns |
 | `fit.rs` | `PlaneFit`, `CircleFit`, `CircleFit2D`, `SphereFit`, `CylinderFit`: what the least-squares fits return |
 | `arrays.rs` | the numpy bridge: the bulk queries that read and return float arrays |
 | `pickling.rs` | pickling and the coordinate protocols the value classes share |
