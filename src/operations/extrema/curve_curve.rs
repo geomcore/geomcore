@@ -1076,7 +1076,9 @@ const VALLEY_WALK_STEPS: usize = 16;
 /// centre) is walked along the circle. The walk follows the valley where
 /// it bends, which the straight way in the parameters does not. Copies of
 /// one minimum pass at once, and so do two minima joined by the straight
-/// way in both parameters, the valley of two copies of one curve.
+/// way in both parameters, the valley of two copies of one curve. Only
+/// minima where the distance is flat in some direction (see
+/// [`lies_flat`]) are walked.
 fn one_valley<A, B>(
     a: &A,
     da: ParameterDomain,
@@ -1104,9 +1106,46 @@ where
     };
     let along_first = (p.first_parameter, ds, p.second_parameter, q.second_point);
     let along_second = (p.second_parameter, dt, p.first_parameter, q.first_point);
-    flat_between(p.distance, q.distance, straight, tol)
-        || walks_along_valley(a, b, db, along_first, p.distance, tol)
-        || walks_along_valley(b, a, da, along_second, p.distance, tol)
+    if flat_between(p.distance, q.distance, straight, tol) {
+        return true;
+    }
+    lies_flat(a, b, p)
+        && lies_flat(a, b, q)
+        && (walks_along_valley(a, b, db, along_first, p.distance, tol)
+            || walks_along_valley(b, a, da, along_second, p.distance, tol))
+}
+
+/// The smallest eigenvalue of the Hessian of half the squared distance
+/// at a point of a valley, read per unit length along each curve, is zero
+/// to rounding; at an isolated minimum where the curves cross at the angle
+/// `a` it is about `sin(a)^2`. Above this, a minimum is on no valley.
+const VALLEY_FLATNESS: f64 = 1e-4;
+
+/// Whether the distance is flat to second order in some direction at
+/// the minimum `e`: the smallest eigenvalue of the Hessian of half the
+/// squared distance, with each parameter read per unit length along its
+/// curve, is at most [`VALLEY_FLATNESS`]. A minimum on a valley of equal
+/// distance is; an isolated one, but for a tangent contact or a shallow
+/// crossing, is not, and needs no walk nor representative. The test is
+/// dimensionless, so it does not change with the size of the shapes.
+fn lies_flat<A, B>(a: &A, b: &B, e: &CurveCurveExtremum) -> bool
+where
+    A: ParametricCurve,
+    B: ParametricCurve,
+{
+    let (pa, a1, a2) = a.second_derivatives(e.first_parameter);
+    let (pb, b1, b2) = b.second_derivatives(e.second_parameter);
+    let (speed_a, speed_b) = (a1.magnitude(), b1.magnitude());
+    if !(speed_a > 0.0 && speed_b > 0.0) {
+        return true;
+    }
+    let r = pa - pb;
+    let first = (a1.dot(a1) + r.dot(a2)) / (speed_a * speed_a);
+    let mixed = -a1.dot(b1) / (speed_a * speed_b);
+    let second = (b1.dot(b1) - r.dot(b2)) / (speed_b * speed_b);
+    let smallest = 0.5 * (first + second)
+        - (0.25 * (first - second) * (first - second) + mixed * mixed).sqrt();
+    !(smallest > VALLEY_FLATNESS)
 }
 
 /// Whether `leader`, walked from `start` by `step`, keeps its closest
@@ -1160,7 +1199,7 @@ pub(crate) fn closest_from<C: ParametricCurve>(
 }
 
 /// The representative of the valley of equal distance through `e`, or
-/// `e` itself when it lies on none: the first curve at its reference
+/// `e` itself when it lies on none (see [`lies_flat`]): the first curve at its reference
 /// parameter with its closest point on the second, when that pair is on
 /// the valley, else the second curve at its reference parameter with its
 /// closest point on the first. Both are read from the curves alone, so the
@@ -1181,6 +1220,9 @@ where
     A: ParametricCurve,
     B: ParametricCurve,
 {
+    if !lies_flat(a, b, e) {
+        return *e;
+    }
     let s = da.reference();
     let (t, on_second) = closest_from(b, db, a.point_at(s), e.second_parameter);
     let from_first = CurveCurveExtremum::new(s, a.point_at(s), t, on_second);

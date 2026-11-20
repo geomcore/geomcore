@@ -774,7 +774,7 @@ impl<A: ParametricSurface, B: ParametricSurface> Search<'_, A, B> {
         let second_side = || {
             let second = reference_parameters(self.second_domains);
             let [u, v] = e.second_parameter_array();
-            Some(self.second_reference_pair())
+            Some(self.second_reference_pair(e))
                 .filter(in_valley)
                 .or_else(|| {
                     [
@@ -818,14 +818,20 @@ impl<A: ParametricSurface, B: ParametricSurface> Search<'_, A, B> {
     }
 
     /// The second surface at its reference parameters and its closest
-    /// point on the first: a valley that starts where a piece of the
-    /// second surface starts (a whole cylinder against a piece of itself)
-    /// passes there and not through the first surface's reference.
-    fn second_reference_pair(&self) -> SurfaceSurfaceExtremum {
+    /// point on the first, found from `e`'s: a valley that starts where a
+    /// piece of the second surface starts (a whole cylinder against a piece
+    /// of itself) passes there and not through the first surface's
+    /// reference.
+    fn second_reference_pair(&self, e: &SurfaceSurfaceExtremum) -> SurfaceSurfaceExtremum {
         let [u, v] = reference_parameters(self.second_domains);
         let point = self.second.point_at(u, v);
-        let projection = self.first.project_point(point, self.tol);
-        self.local([projection.u, projection.v], [u, v]).0
+        let on_first = foot(
+            self.first,
+            self.first_domains,
+            point,
+            e.first_parameter_array(),
+        );
+        self.local(on_first.parameters, [u, v]).0
     }
 
     /// The pair at the first surface's parameters `to`, its foot on the

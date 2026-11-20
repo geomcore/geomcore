@@ -708,14 +708,15 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
         }
         let [u, v] = reference_parameters(self.surface_domains);
         let surface_reference = self.surface.point_at(u, v);
-        let (near, on_curve) = closest_from(
+        let (near, _) = closest_from(
             self.curve,
             self.curve_domain,
             surface_reference,
             e.curve_parameter,
         );
-        let projection = self.surface.project_point(on_curve, self.tol);
-        let from_surface = self.local(near, [projection.u, projection.v]).0;
+        // Its foot is found from the surface's reference parameters, where
+        // the valley starts.
+        let from_surface = self.local(near, [u, v]).0;
         if in_valley(&from_surface) {
             return from_surface;
         }
