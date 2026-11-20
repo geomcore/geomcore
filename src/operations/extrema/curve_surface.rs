@@ -7,7 +7,7 @@ use std::ops::Deref;
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve};
 use crate::geometry::surfaces::{ElementarySurface, ParametricSurface};
 use crate::math::numeric::newton_min_1d;
-use crate::operations::extrema::curve_curve::{curve_size, is_box_minimum};
+use crate::operations::extrema::curve_curve::{closest_from, curve_size, is_box_minimum};
 use crate::operations::extrema::surface_search::{
     Carried, Foot, Samples, above_rounding, closed_gap, foot, holds_off_focus, inside,
     merge_basins, one_basin, outer_window, pair_scale, probe_length, reference_parameters,
@@ -596,10 +596,46 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
     /// the other, each foot warm-started from the last, finds no ridge
     /// (see `one_basin`) and arrives on the other's surface point; either
     /// end may start the walk, as the feet follow one sheet of the surface.
-    /// Or, for a valley of the surface over one curve point, no ridge along
-    /// the straight way in the parameters of both shapes.
+    /// Or walking the surface along the straight way in its parameters,
+    /// each closest point on the curve found from the last, for a valley
+    /// along a piece of the surface that the shorter way round a closed
+    /// curve leaves (a whole circle against a piece of a coaxial
+    /// cylinder). Or, for a valley of the surface over one curve point, no
+    /// ridge along the straight way in the parameters of both shapes.
     fn same_basin(&self, p: &CurveSurfaceExtremum, q: &CurveSurfaceExtremum) -> bool {
-        self.walks_to(p, q) || self.walks_to(q, p) || self.straight_between(p, q)
+        self.walks_to(p, q)
+            || self.walks_to(q, p)
+            || self.walks_on_surface_to(p, q)
+            || self.straight_between(p, q)
+    }
+
+    /// Whether the walk on the surface from `p`'s surface point to `q`'s,
+    /// along the straight way in its parameters, keeps the closest point
+    /// on the curve in one basin and arrives on `q`'s curve point.
+    fn walks_on_surface_to(&self, p: &CurveSurfaceExtremum, q: &CurveSurfaceExtremum) -> bool {
+        let (from, to) = (p.surface_parameter_array(), q.surface_parameter_array());
+        let way = [0, 1].map(|i| self.surface_domains[i].step(from[i], to[i]));
+        let mut warm = p.curve_parameter;
+        let mut last = p.curve_point;
+        let no_ridge = one_basin(
+            p.distance,
+            q.distance,
+            |f| {
+                let on_surface = self
+                    .surface
+                    .point_at(from[0] + f * way[0], from[1] + f * way[1]);
+                let (t, on_curve) = closest_from(self.curve, self.curve_domain, on_surface, warm);
+                (warm, last) = (t, on_curve);
+                on_curve.distance(on_surface)
+            },
+            self.tol,
+        );
+        no_ridge && {
+            let end = self.surface.point_at(from[0] + way[0], from[1] + way[1]);
+            let (_, on_curve) = closest_from(self.curve, self.curve_domain, end, warm);
+            last = on_curve;
+            last.distance(q.curve_point) <= self.tol.confusion
+        }
     }
 
     /// Whether no ridge parts `p` from `q` along the straight way in the
@@ -648,16 +684,37 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
     }
 
     /// A valley's representative: the curve at its reference parameter and
-    /// its foot on the surface, when that pair lies in the valley, else the
-    /// minimum the search reaches from there: along a valley the gradient
-    /// is rounding alone, so the curve parameter stays at the reference.
+    /// its foot on the surface, when that pair lies in the valley; else the
+    /// curve's closest point to the surface at its reference parameters,
+    /// and its foot, for a valley that starts where a piece of the surface
+    /// starts (a whole circle against a piece of a coaxial cylinder); else
+    /// the minimum the search reaches from the curve's reference: along a
+    /// valley the gradient is rounding alone, so the curve parameter stays
+    /// there. Each is read from the shapes alone, not from where the search
+    /// entered the valley (ADR 0051).
     fn representative(&self, e: &CurveSurfaceExtremum) -> CurveSurfaceExtremum {
+        let in_valley = |pair: &CurveSurfaceExtremum| {
+            pair.distance <= e.distance + self.tol.confusion && self.same_basin(e, pair)
+        };
         let t = self.curve_domain.reference();
         let projection = self.surface.project_point(self.curve.point_at(t), self.tol);
         let start = [projection.u, projection.v];
         let pair = self.local(t, start).0;
-        if pair.distance <= e.distance + self.tol.confusion && self.same_basin(e, &pair) {
+        if in_valley(&pair) {
             return pair;
+        }
+        let [u, v] = reference_parameters(self.surface_domains);
+        let surface_reference = self.surface.point_at(u, v);
+        let (near, on_curve) = closest_from(
+            self.curve,
+            self.curve_domain,
+            surface_reference,
+            e.curve_parameter,
+        );
+        let projection = self.surface.project_point(on_curve, self.tol);
+        let from_surface = self.local(near, [projection.u, projection.v]).0;
+        if in_valley(&from_surface) {
+            return from_surface;
         }
         self.refine(t, start).unwrap_or(*e)
     }

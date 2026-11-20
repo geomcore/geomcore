@@ -735,7 +735,9 @@ impl<A: ParametricSurface, B: ParametricSurface> Search<'_, A, B> {
     /// parameters and its foot on the second, when that pair lies in the
     /// valley; else `e` with one parameter of the first surface moved to
     /// its reference, for a valley along that parameter, its foot carried
-    /// along from `e`'s; else the minimum the search reaches from the
+    /// along from `e`'s; else the same three read from the second surface,
+    /// for a valley that starts where a piece of the second starts; else the minimum the
+    /// search reaches from the
     /// reference. Along a valley the gradient is rounding alone, so where
     /// the search stops along it would hang on the rounding.
     fn representative(&self, e: &SurfaceSurfaceExtremum) -> SurfaceSurfaceExtremum {
@@ -743,18 +745,81 @@ impl<A: ParametricSurface, B: ParametricSurface> Search<'_, A, B> {
         let point = self.first.point_at(reference[0], reference[1]);
         let projection = self.second.project_point(point, self.tol);
         let start = [projection.u, projection.v];
-        let [u, v] = e.first_parameter_array();
         let in_valley = |pair: &SurfaceSurfaceExtremum| {
             pair.distance <= e.distance + self.tol.confusion && self.same_basin(e, pair)
         };
-        [
-            self.local(reference, start).0,
-            self.carried(e, [reference[0], v]),
-            self.carried(e, [u, reference[1]]),
-        ]
-        .into_iter()
-        .find(in_valley)
+        // A pair carried along a parameter that `e` already has at its
+        // reference is `e` again, not a point read from the shapes: the
+        // valley runs along the other parameter.
+        let carried_in_valley = |pair: &SurfaceSurfaceExtremum| {
+            let moved = pair.first_point.distance(e.first_point) > self.tol.confusion
+                || pair.second_point.distance(e.second_point) > self.tol.confusion;
+            moved && in_valley(pair)
+        };
+        let first_side = || {
+            let [u, v] = e.first_parameter_array();
+            Some(self.local(reference, start).0)
+                .filter(in_valley)
+                .or_else(|| {
+                    [
+                        self.carried(e, [reference[0], v]),
+                        self.carried(e, [u, reference[1]]),
+                    ]
+                    .into_iter()
+                    .find(carried_in_valley)
+                })
+        };
+        let second_side = || {
+            let second = reference_parameters(self.second_domains);
+            let [u, v] = e.second_parameter_array();
+            Some(self.from_second_reference())
+                .filter(in_valley)
+                .or_else(|| {
+                    [
+                        self.carried_on_second(e, [second[0], v]),
+                        self.carried_on_second(e, [u, second[1]]),
+                    ]
+                    .into_iter()
+                    .find(carried_in_valley)
+                })
+        };
+        first_side()
+            .or_else(second_side)
         .unwrap_or_else(|| self.refine(reference, start).unwrap_or(*e))
+    }
+
+    /// The pair at the second surface's parameters `to`, its closest point
+    /// on the first carried from `e`'s along the straight way there: the
+    /// counterpart of [`carried`](Self::carried) for a valley along a
+    /// parameter of the second surface.
+    fn carried_on_second(&self, e: &SurfaceSurfaceExtremum, to: [f64; 2]) -> SurfaceSurfaceExtremum {
+        let from = e.second_parameter_array();
+        let way = [0, 1].map(|i| self.second_domains[i].step(from[i], to[i]));
+        let chord = e.second_point.distance(self.second.point_at(to[0], to[1]));
+        let mut feet = Carried::new(
+            self.first,
+            self.first_domains,
+            |f| {
+                self.second
+                    .point_at(from[0] + f * way[0], from[1] + f * way[1])
+            },
+            e.first_parameter_array(),
+            chord,
+            self.scale,
+        );
+        let on_first = feet.foot_at(1.0).parameters;
+        self.local(on_first, to).0
+    }
+
+    /// The second surface at its reference parameters and its closest
+    /// point on the first: a valley that starts where a piece of the
+    /// second surface starts (a whole cylinder against a piece of itself)
+    /// passes there and not through the first surface's reference.
+    fn from_second_reference(&self) -> SurfaceSurfaceExtremum {
+        let [u, v] = reference_parameters(self.second_domains);
+        let point = self.second.point_at(u, v);
+        let projection = self.first.project_point(point, self.tol);
+        self.local([projection.u, projection.v], [u, v]).0
     }
 
     /// The pair at the first surface's parameters `to`, its foot on the

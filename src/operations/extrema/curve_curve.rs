@@ -744,7 +744,7 @@ where
         let r = extremum(dom.reference());
         if same_valley(e, &r) { r } else { *e }
     };
-    merge_valleys(found, same_valley, representative, tol)
+    merge_valleys(found, same_valley, representative)
 }
 
 /// Seeds for the local minima of the distance between two curves over
@@ -1057,7 +1057,7 @@ where
         one_valley(a, da, b, db, p, q, tol)
     };
     let representative = |e: &CurveCurveExtremum| valley_representative(a, da, b, db, e, tol);
-    merge_valleys(found, same_valley, representative, tol)
+    merge_valleys(found, same_valley, representative)
 }
 
 /// Steps of the walk along a valley in [`one_valley`].
@@ -1073,7 +1073,8 @@ const VALLEY_WALK_STEPS: usize = 16;
 /// a single point of the other (a circle about a line through its
 /// centre) is walked along the circle. The walk follows the valley where
 /// it bends, which the straight way in the parameters does not. Copies of
-/// one minimum pass at once.
+/// one minimum pass at once, and so do two minima joined by the straight
+/// way in both parameters, the valley of two copies of one curve.
 fn one_valley<A, B>(
     a: &A,
     da: ParameterDomain,
@@ -1105,7 +1106,14 @@ where
         p.first_parameter,
         q.first_point,
     );
-    walks_along_valley(a, b, db, along_first, p.distance, tol)
+    let ds = along_first.1;
+    let dt = along_second.1;
+    let straight = |f: f64| {
+        a.point_at(p.first_parameter + f * ds)
+            .distance(b.point_at(p.second_parameter + f * dt))
+    };
+    flat_between(p.distance, q.distance, straight, tol)
+        || walks_along_valley(a, b, db, along_first, p.distance, tol)
         || walks_along_valley(b, a, da, along_second, p.distance, tol)
 }
 
@@ -1140,7 +1148,7 @@ where
 
 /// The closest point of `curve` to `point` that Newton's method reaches
 /// from the parameter `start`, with its parameter.
-fn closest_from<C: ParametricCurve>(
+pub(crate) fn closest_from<C: ParametricCurve>(
     curve: &C,
     domain: ParameterDomain,
     point: Point,
@@ -1326,7 +1334,6 @@ pub(crate) fn merge_valleys<E: Extremum>(
     mut found: Vec<E>,
     same_valley: impl Fn(&E, &E) -> bool,
     representative: impl Fn(&E) -> E,
-    tol: Tolerance,
 ) -> Vec<E> {
     found.sort_by(|x, y| x.distance().total_cmp(&y.distance()));
     let mut kept: Vec<E> = Vec::new();
@@ -1337,7 +1344,7 @@ pub(crate) fn merge_valleys<E: Extremum>(
     }
     let mut represented: Vec<E> = Vec::with_capacity(kept.len());
     for r in kept.iter().map(representative) {
-        if represented.iter().all(|k| k.parameters_apart(&r, tol)) {
+        if !represented.iter().any(|k| same_valley(k, &r)) {
             represented.push(r);
         }
     }

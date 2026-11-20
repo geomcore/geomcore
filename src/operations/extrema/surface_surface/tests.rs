@@ -1,4 +1,5 @@
 use super::*;
+use crate::Transformable;
 use crate::{BSplineSurface, Torus, TrimmedSurface};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -208,4 +209,46 @@ fn a_bspline_patch_over_a_plane_and_its_trimmed_piece() {
         close(extrema.closest().unwrap().distance, corner),
         "{extrema:?}"
     );
+}
+
+/// A cylinder against a piece of itself: the valley of zero distance over
+/// the piece is reported at the piece's start, and the valley between the
+/// first's edge and the piece's edge across the gap of the first at the
+/// piece's lower end, wherever the pair is placed (#444). The edge valley
+/// is lost after a translation by 1e7 in this placement, as it was before
+/// (#448), so the translations stop at 1e3.
+#[test]
+fn test_a_cylinder_against_a_piece_of_itself_reads_its_valleys_from_the_piece() {
+    use crate::Transform;
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
+    let whole = TrimmedSurface::new(cylinder, (0.0, 6.2), (-2.0, 4.0)).unwrap();
+    let piece = TrimmedSurface::new(cylinder, (1.2566, 5.65), (-1.0, 3.0)).unwrap();
+    let mut reference: Option<Vec<Point>> = None;
+    for distance in [0.0, 1e3] {
+        let moved = Transform::translation(Vector::new(distance, -2.0 * distance, distance));
+        let (first, second) = (
+            whole.transformed(moved).unwrap(),
+            piece.transformed(moved).unwrap(),
+        );
+        let extrema = surface_surface_extrema(&first, &second, TOL);
+        assert_consistent(&first, &second, &extrema);
+        assert_eq!(extrema.len(), 2, "{extrema:?}");
+        let contact = extrema[0];
+        assert!(contact.distance <= TOL.confusion, "{contact:?}");
+        assert!(close(contact.second_parameters.0, 1.2566), "{contact:?}");
+        assert!(close(contact.second_parameters.1, -1.0), "{contact:?}");
+        let back = moved.inverse().unwrap();
+        let points: Vec<Point> = extrema
+            .iter()
+            .map(|minimum| back.apply_point(minimum.second_point))
+            .collect();
+        match &reference {
+            None => reference = Some(points),
+            Some(expected) => {
+                for (point, expected) in points.iter().zip(expected) {
+                    assert!(point.distance(*expected) < 1e-5, "{extrema:?}");
+                }
+            }
+        }
+    }
 }
