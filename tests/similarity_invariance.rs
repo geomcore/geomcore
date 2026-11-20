@@ -17,12 +17,15 @@ use std::collections::BTreeSet;
 use std::fmt::Debug;
 use std::path::PathBuf;
 
-use common::samples::{curves, parameters, surface_parameters, surfaces, tilted_frame};
+use common::samples::{
+    curves, curves_2d, parameters, surface_parameters, surfaces, tilted_frame, trimmed_2d,
+};
 use geomcore::prelude::*;
 use geomcore::{
     BSplineCurve, BezierCurve, Circle, Completeness, Curve, ExtrusionSurface, Frame,
-    IntersectionMethod, Line, Plane, Point, Surface, Tolerance, Transform, Vector,
-    curve_curve_extrema, curve_surface_extrema, surface_surface_extrema,
+    IntersectionMethod, Line, Plane, Point, Point2D, Surface, Tolerance, Transform, Transform2D,
+    TrimmedCurve2D, Vector, Vector2D, curve_curve_extrema, curve_surface_extrema,
+    surface_surface_extrema,
 };
 
 /// A similarity, its factor on lengths and its inverse.
@@ -568,4 +571,144 @@ fn projections_are_similarity_invariant() {
         mismatches.len()
     );
     report("projection", mismatches);
+}
+
+/// The 2D forms of the similarities: the same scales, and translations by
+/// the same distances in the plane.
+fn similarities_2d() -> Vec<(String, Transform2D, Transform2D, f64)> {
+    let mut list: Vec<(String, Transform2D, Transform2D, f64)> = [-20, 20]
+        .into_iter()
+        .map(|exponent| {
+            let scale = 2f64.powi(exponent);
+            (
+                format!("scale 2^{exponent}"),
+                Transform2D::scaling(Point2D::ORIGIN, scale),
+                Transform2D::scaling(Point2D::ORIGIN, 1.0 / scale),
+                scale,
+            )
+        })
+        .collect();
+    for distance in [1e3, 1e7] {
+        let offset = Vector2D::new(distance, -2.0 * distance);
+        list.push((
+            format!("translation {distance:e}"),
+            Transform2D::translation(offset),
+            Transform2D::translation(Vector2D::new(-offset.x, -offset.y)),
+            1.0,
+        ));
+    }
+    list
+}
+
+/// The offset of `curve` at `distance` within `max_deviation`, as text
+/// (refused and why, or exact, the degree and pole count of a B-spline and
+/// the cusp count) and points: the cusps on the curve, and the offset's
+/// points nearest each of `probes`.
+fn offset_2d<C>(
+    curve: &C,
+    distance: f64,
+    max_deviation: f64,
+    probes: &[Point2D],
+    tol: Tolerance,
+) -> (String, Vec<Point2D>)
+where
+    C: Offset2D,
+    C::Offset: PointExtrema2D,
+{
+    let offset = match curve.offset(distance, max_deviation, tol) {
+        Ok(offset) => offset,
+        Err(error) => {
+            let text = format!("{error:?}");
+            return (
+                text.split([' ', '{']).next().unwrap().to_string(),
+                Vec::new(),
+            );
+        }
+    };
+    let shape = match offset.curve().as_bspline() {
+        Some(spline) => format!("degree {} poles {}", spline.degree(), spline.poles().len()),
+        None => "exact".to_string(),
+    };
+    let text = format!("{shape} cusps {}", offset.cusp_parameters().len());
+    let mut points: Vec<Point2D> = offset
+        .cusp_parameters()
+        .iter()
+        .map(|&cusp| curve.point_at(cusp))
+        .collect();
+    points.extend(
+        probes
+            .iter()
+            .map(|&probe| offset.curve().project_point(probe, tol).point),
+    );
+    (text, points)
+}
+
+/// Compares the offsets of every curve of `samples` with those of its
+/// images, at two distances, one past the smallest radius of curvature of
+/// the sample ellipse.
+fn compare_offsets<C>(family: &str, samples: &[C], mismatches: &mut Vec<Mismatch>) -> usize
+where
+    C: Offset2D + Transformable<Transform = Transform2D> + Clone + Debug,
+    C::Offset: PointExtrema2D,
+{
+    let mut compared = 0;
+    for (index, curve) in samples.iter().enumerate() {
+        let probes: Vec<Point2D> = parameters(curve.bounds())
+            .iter()
+            .map(|&u| curve.point_at(u))
+            .collect();
+        for distance in [-0.3, 0.9] {
+            let max_deviation = 1e-4;
+            let (reference_text, reference_points) =
+                offset_2d(curve, distance, max_deviation, &probes, tolerance(1.0));
+            for (name, transform, inverse, scale) in similarities_2d() {
+                let image = curve.clone().transformed(transform).unwrap();
+                let image_probes: Vec<Point2D> = probes
+                    .iter()
+                    .map(|&probe| transform.apply_point(probe))
+                    .collect();
+                let (image_text, image_points) = offset_2d(
+                    &image,
+                    distance * scale,
+                    max_deviation * scale,
+                    &image_probes,
+                    tolerance(scale),
+                );
+                compared += 1;
+                let key = format!(
+                    "offset {family} {} at {distance} | {name}",
+                    label(index, curve)
+                );
+                let back: Vec<Point2D> = image_points
+                    .iter()
+                    .map(|&point| inverse.apply_point(point))
+                    .collect();
+                if image_text != reference_text {
+                    mismatches.push((key, format!("[{reference_text}] became [{image_text}]")));
+                } else if back.len() != reference_points.len()
+                    || reference_points
+                        .iter()
+                        .zip(&back)
+                        .any(|(a, b)| a.distance(*b) > POINT_SLACK)
+                {
+                    mismatches.push((key, format!("[{reference_text}] points moved")));
+                }
+            }
+        }
+    }
+    compared
+}
+
+#[test]
+fn offsets_of_2d_curves_are_similarity_invariant() {
+    let wholes = curves_2d();
+    let pieces: Vec<TrimmedCurve2D> = wholes.iter().map(trimmed_2d).collect();
+    let mut mismatches = Vec::new();
+    let compared = compare_offsets("whole", &wholes, &mut mismatches)
+        + compare_offsets("trimmed", &pieces, &mut mismatches);
+    println!(
+        "offset: {compared} comparisons, {} mismatches",
+        mismatches.len()
+    );
+    report("offset", mismatches);
 }

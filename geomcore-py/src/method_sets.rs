@@ -176,6 +176,39 @@ macro_rules! curve_2d {
                     Ok(Self(self.0.transformed(transform.0).map_err(python_error)?))
                 }
 
+                /// The offset of the curve at the signed `distance`: every
+                /// point moved along the curve's left normal, the tangent
+                /// turned a quarter counterclockwise, so a positive distance
+                /// goes to the side a positive curvature turns toward. A line
+                /// offsets exactly to a `Line2D` and a circle to a
+                /// `Circle2D`; every other curve to one `BSplineCurve2D`
+                /// within `max_deviation` of the true offset at the same
+                /// parameter, its deviation sampled. A `TrimmedCurve2D`
+                /// offsets to a `TrimmedCurve2D` over the same range. Where
+                /// the distance passes the radius of curvature, the offset
+                /// has cusps and loops, which are kept; the result reports
+                /// the cusps' parameters. Raises `CurveOffset2DError` for a
+                /// distance that is not finite, a `max_deviation` that is not
+                /// positive and finite, a whole parabola or hyperbola (offset
+                /// a trimmed piece), a circle whose offset radius would not
+                /// be positive, a curve that stops or turns a corner, or a
+                /// deviation not reached. `tol` is `Tolerance.default()` when
+                /// omitted.
+                #[pyo3(signature = (distance, max_deviation, tol = None))]
+                fn offset(
+                    &self,
+                    distance: f64,
+                    max_deviation: f64,
+                    tol: Option<ToleranceArgument>,
+                ) -> PyResult<$crate::approximation::PyCurveOffset2D> {
+                    use $crate::approximation::IntoPyCurveOffset2D;
+                    let offset = self
+                        .0
+                        .offset(distance, max_deviation, tolerance(tol))
+                        .map_err(python_error)?;
+                    Ok(offset.into_py_offset())
+                }
+
                 /// The local minima of the distance from `point` to the
                 /// curve, an end of a bounded curve among them where the
                 /// distance grows from it into the curve, as

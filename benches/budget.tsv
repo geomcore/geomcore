@@ -34,6 +34,8 @@ conic_quadric	conic_quadric/parabola/cone	9821955
 conic_quadric	conic_quadric/parabola/cylinder	7402134
 conic_quadric	conic_quadric/parabola/plane	691942
 conic_quadric	conic_quadric/parabola/sphere	7969589
+curve_offset_2d	curve_offset_2d/bspline	1
+curve_offset_2d	curve_offset_2d/ellipse	1
 discretization	discretization/1e-2/allocate	120061233
 discretization	discretization/1e-2/count	86824937
 discretization	discretization/1e-2/fill_reused_buffer	279697207

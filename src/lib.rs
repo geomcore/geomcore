@@ -153,7 +153,7 @@ mod geometry;
 /// formulas of the elementary shapes and the numerical toolbox.
 mod math;
 /// The operations on curves and surfaces: discretization, intersection, point
-/// projection and distance extrema.
+/// projection, distance extrema and the offset of 2D curves.
 mod operations;
 /// The shape and operation traits, for `use geomcore::prelude::*`.
 pub mod prelude;
@@ -229,4 +229,5 @@ pub use operations::intersect::{
 };
 pub use operations::intersect::{Intersect, IntersectExact};
 pub use operations::intersect::{intersect_curve_curve, intersect_curve_surface};
+pub use operations::offset::{CurveOffset2D, CurveOffset2DError, Offset2D};
 pub use operations::projection::{CurveProjection, CurveProjection2D, SurfaceProjection};

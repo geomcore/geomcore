@@ -112,7 +112,11 @@ so `p.coincides(q, 1e-3)` loosens the distance tolerance alone:
 - 2D curves: the same queries, `transformed` taking a `Transform2D`;
   `curvature(u)` is signed (positive where the tangent turns left). `bounding_box()` and
   `tight_bounding_box()` return a `BoundingBox2D`, or `None` when the
-  curve is unbounded.
+  curve is unbounded. `offset(distance, max_deviation, tol=None)` moves
+  the curve along its left normal and returns a `CurveOffset2D`: a line or
+  a circle (or a piece of one) exactly, any other curve as a
+  `BSplineCurve2D` within `max_deviation`, with the parameters of its
+  cusps in `cusp_parameters`; it raises `CurveOffset2DError`.
 - Surfaces: `normal(u, v)` (on a `Plane` the same at every point,
   with the normal axis also as `Plane.axis()`),
   `curvatures(u, v)` returning a `SurfaceCurvatures`, `is_u_closed()` /

@@ -42,6 +42,7 @@ and the text says so where it happens. For the current API, use the
 - [0004](0004-discretization-fills-caller-owned-buffers.md) — Discretization fills caller-owned buffers
 - [0036](0036-an-exact-quartic-is-fitted-within-confusion.md) — An exact quartic is fitted within confusion
 - [0055](0055-a-fit-refuses-points-the-confusion-tolerance-cannot-tell-from-a-lower-shape.md) — A fit refuses points the confusion tolerance cannot tell from a lower shape
+- [0056](0056-a-2d-curve-offsets-exactly-or-within-a-deviation.md) — A 2D curve offsets exactly or within a deviation, reporting its cusps
 
 ## Intersections
 

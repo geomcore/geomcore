@@ -21,6 +21,18 @@ the Python distribution are versioned in lockstep.
 
 ### Added
 
+- The offset of a 2D curve, `offset(distance, max_deviation, tol)` on
+  every 2D curve in Rust (the `Offset2D` trait, in the prelude) and Python
+  (#250, ADR 0056). Every point moves along the curve's left normal, so a
+  positive distance goes to the side a positive curvature turns toward. A
+  line offsets exactly to a line and a circle to a circle, and a segment
+  or an arc to a piece of one over the same range; every other curve to
+  one B-spline within `max_deviation` of the true offset at the same
+  parameter. The result, `CurveOffset2D`, gives the curve, its deviation,
+  whether it is proven or exact, and the parameters where the offset has
+  a cusp; loops are kept. `CurveOffset2DError` refuses a whole parabola or
+  hyperbola, a circle whose radius would not stay positive, and a curve
+  that stops or turns a corner.
 - `Transform2D`, the plane twin of `Transform`, in Rust and Python (#421):
   a similarity of the plane built by `translation`, `rotation(center,
   angle)` (counterclockwise), `scaling`, `mirror_point`, `mirror_axis`
