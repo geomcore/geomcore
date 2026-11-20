@@ -88,6 +88,18 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- Tori sharing a tube circle, as pipe bends joined end to end, read their
+  other contacts by the contact rule (#454, ADR 0057). A bend turning back
+  inside the torus of radii 4 and 1, its major radius `d` from touching
+  the torus's inner equator, from a tenth of a confusion to ten thousand
+  either way, was `NotAnalytic` in either order: the point where the rest
+  of the curve came nearest to touching, within the quotient's loose
+  bound, was taken for a crossing, and the sweep gave up. It now gives the two loops through or the one
+  loop apart, exact and complete, `√(2d)` and `√(48 |d|)` from where they
+  would touch. The shared circle is now found where the pair is moved far
+  from the origin: moved by `1e7`, even the pipe bends that touch exactly
+  were `NotAnalytic`, their normals compared to the angular tolerance from
+  points that carried the rounding of the far coordinates.
 - A torus against a cylinder, a cone or a second torus off its axis, and
   a sphere holding a tube circle of a torus, read a contact only where
   their curve stays within confusion of it (#441, ADR 0057), as the other
