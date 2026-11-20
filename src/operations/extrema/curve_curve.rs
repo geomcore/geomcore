@@ -745,7 +745,7 @@ where
     };
     let representative = |e: &CurveCurveExtremum| {
         let r = extremum(dom.reference());
-        if same_valley(e, &r) { r } else { *e }
+        same_valley(e, &r).then_some(r)
     };
     merge_valleys(found, same_valley, representative)
 }
@@ -1224,7 +1224,7 @@ pub(crate) fn closest_from<C: ParametricCurve>(
 }
 
 /// The representative of the valley of equal distance through `e`, or
-/// `e` itself when it lies on none (see [`lies_flat`]): the first curve at its reference
+/// `None` when it lies on none (see [`lies_flat`]): the first curve at its reference
 /// parameter with its closest point on the second, when that pair is on
 /// the valley, else the second curve at its reference parameter with its
 /// closest point on the first. Both are read from the curves alone, so the
@@ -1240,27 +1240,24 @@ fn valley_representative<A, B>(
     db: ParameterDomain,
     e: &CurveCurveExtremum,
     tol: Tolerance,
-) -> CurveCurveExtremum
+) -> Option<CurveCurveExtremum>
 where
     A: ParametricCurve,
     B: ParametricCurve,
 {
     if !lies_flat(a, b, e, tol) {
-        return *e;
+        return None;
     }
     let s = da.reference();
     let (t, on_second) = closest_from(b, db, a.point_at(s), e.second_parameter);
     let from_first = CurveCurveExtremum::new(s, a.point_at(s), t, on_second);
     if one_valley(a, da, b, db, e, &from_first, tol) {
-        return from_first;
+        return Some(from_first);
     }
     let t = db.reference();
     let (s, on_first) = closest_from(a, da, b.point_at(t), e.first_parameter);
     let from_second = CurveCurveExtremum::new(s, on_first, t, b.point_at(t));
-    if one_valley(a, da, b, db, e, &from_second, tol) {
-        return from_second;
-    }
-    *e
+    one_valley(a, da, b, db, e, &from_second, tol).then_some(from_second)
 }
 
 /// Length scale of a configuration: the gap between the curves'
@@ -1388,15 +1385,16 @@ pub(crate) fn flat_between(d0: f64, d1: f64, along: impl Fn(f64) -> f64, tol: To
 /// Collapses minima on one valley of equal distance (and copies of one
 /// minimum) into a single entry, lowest distance first, each reported at
 /// its `representative`: the valley's own pair, read from the shapes
-/// rather than from the member the search reached, or the minimum itself
-/// when it lies on no valley. A minimum the search reached alone on its
-/// valley is replaced too, so that the pair does not depend on how many
-/// of the valley's points the search met. Two entries the merge kept apart
-/// but that share a representative are reported once.
+/// rather than from the member the search reached, or `None` to keep the
+/// minimum, which lies on no valley. A minimum the search reached alone on
+/// its valley is replaced too, so that the pair does not depend on how
+/// many of the valley's points the search met. A representative that
+/// falls on the valley of another entry the merge kept apart is reported
+/// once.
 pub(crate) fn merge_valleys<E: Extremum>(
     mut found: Vec<E>,
     same_valley: impl Fn(&E, &E) -> bool,
-    representative: impl Fn(&E) -> E,
+    representative: impl Fn(&E) -> Option<E>,
 ) -> Vec<E> {
     found.sort_by(|x, y| x.distance().total_cmp(&y.distance()));
     let mut kept: Vec<E> = Vec::new();
@@ -1405,12 +1403,19 @@ pub(crate) fn merge_valleys<E: Extremum>(
             kept.push(e);
         }
     }
-    let mut represented: Vec<E> = Vec::with_capacity(kept.len());
-    for r in kept.iter().map(representative) {
+    let (mut represented, mut moved) = (Vec::with_capacity(kept.len()), Vec::new());
+    for e in &kept {
+        match representative(e) {
+            Some(r) => moved.push(r),
+            None => represented.push(*e),
+        }
+    }
+    for r in moved {
         if !represented.iter().any(|k| same_valley(k, &r)) {
             represented.push(r);
         }
     }
+    represented.sort_by(|x, y| x.distance().total_cmp(&y.distance()));
     represented
 }
 

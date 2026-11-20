@@ -601,17 +601,20 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
     /// the other, each foot warm-started from the last, finds no ridge
     /// (see `one_basin`) and arrives on the other's surface point; either
     /// end may start the walk, as the feet follow one sheet of the surface.
-    /// Or walking the surface along the straight way in its parameters,
-    /// each closest point on the curve found from the last, for a valley
-    /// along a piece of the surface that the shorter way round a closed
-    /// curve leaves (a whole circle against a piece of a coaxial
-    /// cylinder). Or, for a valley of the surface over one curve point, no
-    /// ridge along the straight way in the parameters of both shapes.
+    /// Or, for a valley of the surface over one curve point, no ridge along
+    /// the straight way in the parameters of both shapes. Or, at two
+    /// minima flat along the curve, walking the surface along the straight
+    /// way in its parameters, each closest point on the curve found from
+    /// the last, for a valley along a piece of the surface that the shorter
+    /// way round a closed curve leaves (a whole circle against a piece of a
+    /// coaxial cylinder).
     fn same_basin(&self, p: &CurveSurfaceExtremum, q: &CurveSurfaceExtremum) -> bool {
         self.walks_to(p, q)
             || self.walks_to(q, p)
-            || self.walks_on_surface_to(p, q)
             || self.straight_between(p, q)
+            || (self.flat_along_curve(p)
+                && self.flat_along_curve(q)
+                && self.walks_on_surface_to(p, q))
     }
 
     /// Whether the walk on the surface from `p`'s surface point to `q`'s,

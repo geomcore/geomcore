@@ -562,7 +562,7 @@ pub(crate) fn merge_basins<E: Extremum>(
     representative: impl Fn(&E) -> E,
     tol: Tolerance,
 ) -> Vec<E> {
-    let represented = merge_valleys(found, &same_basin, |e| *e)
+    let represented = merge_valleys(found, &same_basin, |_| None)
         .into_iter()
         .map(|e| {
             let r = representative(&e);
@@ -574,7 +574,7 @@ pub(crate) fn merge_basins<E: Extremum>(
         })
         .collect();
     // Two minima the merge kept apart may share a representative.
-    merge_valleys(represented, &same_basin, |e| *e)
+    merge_valleys(represented, &same_basin, |_| None)
 }
 
 /// Gauss–Newton steps closing the gap `r(x)` between two shapes from a
