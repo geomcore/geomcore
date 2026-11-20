@@ -192,6 +192,30 @@ fn test_parameters_of_round_trip() {
     assert_eq!((u, v), (0.0, 0.0));
 }
 
+#[test]
+fn test_parameters_of_near_the_apex_round_trip_at_every_size() {
+    // #456: the axis's reach was an absolute 1e-9, so a point a few
+    // confusions from the apex snapped to `u = 0` once the cone was small.
+    let (sine, cosine) = 0.5f64.sin_cos();
+    for scale in [1.0, 2f64.powi(-10), 2f64.powi(-20), 2f64.powi(10)] {
+        let cone = Cone::from_apex(Point::ORIGIN, Vector::Z, 0.5)
+            .unwrap()
+            .transformed(crate::Transform::scaling(Point::ORIGIN, scale))
+            .unwrap();
+        let p = Point::new(0.0, 2e-7 * scale * sine, 2e-7 * scale * cosine);
+        let tol = Tolerance {
+            confusion: 1e-7 * scale,
+            ..Tolerance::DEFAULT
+        };
+        let (u, v) = cone.parameters_of(p, tol);
+        assert!((u - FRAC_PI_2).abs() < 1e-9, "scale {scale}: u = {u}");
+        assert!(cone.point_at(u, v).distance(p) <= 1e-9 * 2e-7 * scale);
+    }
+    // The apex itself still reads `u = 0`.
+    let cone = Cone::from_apex(Point::ORIGIN, Vector::Z, 0.5).unwrap();
+    assert_eq!(cone.parameters_of(Point::ORIGIN, Tolerance::DEFAULT).0, 0.0);
+}
+
 // ---- ConeConstructionError ----
 
 #[test]
