@@ -110,8 +110,16 @@ fn test_planes_parallel_to_the_axis_cut_two_ovals_one_loop_or_a_point() {
     let curve = spiric(&torus, &parallel_plane(4.2), 1e-12);
     assert_eq!(curve.component_count(), 1);
     assert_routed_on_both(&torus, &parallel_plane(4.2), 1, 0);
-    // Touching the outer equator: a point.
-    for gap in [0.0, 0.5, -0.5] {
+    // Touching the outer equator, or within confusion outside it: a point.
+    // Half a confusion inside, a small loop around it (#438).
+    let curve = spiric(
+        &torus,
+        &parallel_plane(5.0 - 0.5 * TOL.confusion),
+        TOL.confusion,
+    );
+    assert_eq!(curve.component_count(), 1);
+    assert_eq!(curve.contact_point(), None);
+    for gap in [0.0, 0.5] {
         let touching = parallel_plane(5.0 + gap * TOL.confusion);
         let TorusPlaneIntersection::TangentPoint(p) = torus.intersect_exact(&touching, TOL) else {
             panic!("expected the point where they touch");
@@ -134,7 +142,7 @@ fn test_a_plane_touching_the_inner_equator_crosses_itself_there() {
     // `x = R − r`: the two ovals meet at the point where the plane touches
     // the inside of the tube.
     let torus = torus();
-    for gap in [0.0, 0.5, -0.5] {
+    for gap in [0.0, 1e-9, -1e-9] {
         let plane = parallel_plane(3.0 + gap * TOL.confusion);
         let curve = spiric(&torus, &plane, TOL.confusion);
         assert_eq!(curve.component_count(), 1);
@@ -145,6 +153,17 @@ fn test_a_plane_touching_the_inner_equator_crosses_itself_there() {
         assert_eq!(result.method(), IntersectionMethod::Exact);
         assert_eq!(result.curves().len(), 1);
         assert_eq!(result.contact_points(), [node]);
+        assert_fitted_within(&torus, &plane, result.curves(), 0.75 * TOL.confusion);
+    }
+    // Half a confusion from it, the ovals parted or joined, some `1e-3`
+    // from where they would cross (#438).
+    for (gap, count) in [(0.5, 1), (-0.5, 2)] {
+        let plane = parallel_plane(3.0 + gap * TOL.confusion);
+        let curve = spiric(&torus, &plane, TOL.confusion);
+        assert_eq!(curve.component_count(), count);
+        assert_eq!(curve.contact_point(), None);
+        let result = torus.intersect(&plane, TOL);
+        assert_eq!(result.curves().len(), count);
         assert_fitted_within(&torus, &plane, result.curves(), 0.75 * TOL.confusion);
     }
     // The marcher splits the loop where it crosses itself.
@@ -204,7 +223,12 @@ fn test_a_wide_sphere_off_the_axis_meets_the_torus_in_two_loops_around() {
 #[test]
 fn test_a_sphere_touching_the_torus_from_outside_meets_it_at_a_point() {
     let torus = torus();
-    for gap in [0.0, 0.5, -0.5] {
+    // Half a confusion through, a small loop around the point (#438).
+    let sphere = Sphere::new(Point::new(7.0, 0.0, 0.0), 2.0 + 0.5 * TOL.confusion).unwrap();
+    let curve = sphere_quartic(&torus, &sphere, TOL.confusion);
+    assert_eq!(curve.component_count(), 1);
+    assert_eq!(curve.contact_point(), None);
+    for gap in [0.0, -0.5] {
         let sphere = Sphere::new(Point::new(7.0, 0.0, 0.0), 2.0 + gap * TOL.confusion).unwrap();
         let TorusSphereIntersection::TangentPoint(p) = torus.intersect_exact(&sphere, TOL) else {
             panic!("expected the point where they touch");

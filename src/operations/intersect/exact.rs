@@ -18,6 +18,7 @@
 
 pub(crate) mod conic;
 pub(crate) mod conic_2d;
+pub(crate) mod contact;
 pub(crate) mod curve_curve;
 pub(crate) mod curve_surface;
 pub(crate) mod quartic;

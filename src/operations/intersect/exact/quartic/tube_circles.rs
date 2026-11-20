@@ -467,10 +467,16 @@ enum TubeCut {
     Bitangent,
 }
 
-/// How the other surface of `coefficients` cuts the tube circles; `None`
-/// where two roots of `Δ` nearly meet at a point the curve all but
+/// How `other`, of `coefficients`, cuts the tube circles of `torus`;
+/// `None` where two roots of `Δ` nearly meet at a point the curve all but
 /// passes through.
-fn tube_loops(coefficients: Coefficients, tol: Tolerance) -> Option<TubeCut> {
+#[inline(never)]
+fn tube_loops(
+    (torus, tubes): (&Torus, &Tubes),
+    other: &impl ContactSurface,
+    coefficients: Coefficients,
+    tol: Tolerance,
+) -> Option<TubeCut> {
     let Coefficients {
         alpha: [alpha_constant, alpha_cos],
         beta,
@@ -486,7 +492,31 @@ fn tube_loops(coefficients: Coefficients, tol: Tolerance) -> Option<TubeCut> {
             gamma.signum(),
         )
     };
-    let touching = [1.0, -1.0].map(|side| reach(side).0.abs() <= tol.confusion);
+    // `Δ = L x² + 2 B x + K`, `x = cos τ`, and its roots.
+    let leading = alpha_cos * alpha_cos - gamma_cos * gamma_cos;
+    let roots = |gamma_constant: f64| {
+        let half_linear = alpha_constant * alpha_cos - gamma_constant * gamma_cos;
+        let constant =
+            alpha_constant * alpha_constant + beta * beta - gamma_constant * gamma_constant;
+        let discriminant = half_linear * half_linear - leading * constant;
+        let q = -(half_linear + discriminant.sqrt().copysign(half_linear));
+        (discriminant >= 0.0 && q != 0.0).then(|| (q / leading, constant / q))
+    };
+    let gaps = [reach(1.0).0, reach(-1.0).0];
+    let touching = if gaps.iter().all(|gap| gap.abs() > tol.confusion) {
+        [false, false]
+    } else {
+        let graze = Graze {
+            torus,
+            tubes: *tubes,
+            coefficients,
+            roots: roots(gamma_constant),
+        };
+        [
+            graze.reads_as_touching(other, 1.0, gaps[0], tol),
+            graze.reads_as_touching(other, -1.0, gaps[1], tol),
+        ]
+    };
     let (mut gamma_constant, mut shift) = (gamma_constant, 0.0);
     let touching_side = match touching {
         [true, true] => return Some(TubeCut::Bitangent),
@@ -499,27 +529,18 @@ fn tube_loops(coefficients: Coefficients, tol: Tolerance) -> Option<TubeCut> {
         shift = sign * gap;
         gamma_constant += shift;
     }
-    // `Δ = L x² + 2 B x + K`, `x = cos τ`.
-    let leading = alpha_cos * alpha_cos - gamma_cos * gamma_cos;
-    let half_linear = alpha_constant * alpha_cos - gamma_constant * gamma_cos;
-    let constant = alpha_constant * alpha_constant + beta * beta - gamma_constant * gamma_constant;
-    let empty = Some(TubeCut::Loops(0.0, Loops::Empty));
     let (lower, upper) = match touching_side {
         Some(side) => {
             // The roots multiply to `K / L`.
+            let constant =
+                alpha_constant * alpha_constant + beta * beta - gamma_constant * gamma_constant;
             let other = constant / (leading * side);
             (side.min(other), side.max(other))
         }
         None => {
-            let discriminant = half_linear * half_linear - leading * constant;
-            if discriminant < 0.0 {
-                return empty;
-            }
-            let q = -(half_linear + discriminant.sqrt().copysign(half_linear));
-            if q == 0.0 {
-                return empty;
-            }
-            let (first, second) = (q / leading, constant / q);
+            let Some((first, second)) = roots(gamma_constant) else {
+                return Some(TubeCut::Loops(0.0, Loops::Empty));
+            };
             (first.min(second), first.max(second))
         }
     };
@@ -544,6 +565,54 @@ fn tube_loops(coefficients: Coefficients, tol: Tolerance) -> Option<TubeCut> {
     };
     let loops = factored_loops(factors, factor_touching, None)?;
     Some(TubeCut::Loops(shift, loops))
+}
+
+/// A torus whose tube circle towards or across from another surface comes
+/// within confusion of grazing it, with the roots of `Δ` for the surfaces
+/// as given.
+struct Graze<'a> {
+    torus: &'a Torus,
+    tubes: Tubes,
+    coefficients: Coefficients,
+    roots: Option<(f64, f64)>,
+}
+
+impl Graze<'_> {
+    /// Whether the tube circle at `cos τ = side`, which reaches `gap` past
+    /// `other`, is read as grazing it: where the curve stays within
+    /// confusion of the point where it would (see `reads_as_touching`).
+    /// The curve runs around or through that point where the circle
+    /// crosses the other surface, or where the root of `Δ` nearest the
+    /// circle is within the turn: the circles beside it cross the surface.
+    /// Otherwise the surfaces stand apart there.
+    #[cold]
+    #[inline(never)]
+    fn reads_as_touching(
+        &self,
+        other: &impl ContactSurface,
+        side: f64,
+        gap: f64,
+        tol: Tolerance,
+    ) -> bool {
+        if gap.abs() > tol.confusion {
+            return false;
+        }
+        let nearest_root = self.roots.map(|(first, second)| {
+            if (first - side).abs() <= (second - side).abs() {
+                first
+            } else {
+                second
+            }
+        });
+        let crossing = gap > 0.0 || nearest_root.is_some_and(|root| root.abs() < 1.0);
+        let overlap = if crossing { gap.abs() } else { -gap.abs() };
+        let [sin_theta, cos_theta] = self.coefficients.toward;
+        let size = self.tubes.major + self.tubes.minor + self.coefficients.gamma[0].abs();
+        let angle = sin_theta.atan2(cos_theta) + if side > 0.0 { 0.0 } else { PI };
+        let (sin, cos) = angle.sin_cos();
+        let contact = on_circle(&self.tubes, &self.coefficients, (angle, sin, cos), 0.0).point;
+        reads_as_touching(self.torus, other, contact, overlap, size, tol)
+    }
 }
 
 /// The two circles where the other surface of `coefficients` touches the
@@ -599,7 +668,7 @@ pub(in crate::operations::intersect::exact) fn torus_plane(
     let tubes = Tubes::of_ring(torus, tol)?;
     let cut = OtherPlane::new(plane);
     let coefficients = cut.coefficients(&tubes);
-    let (shift, loops) = match tube_loops(coefficients, tol)? {
+    let (shift, loops) = match tube_loops((torus, &tubes), plane, coefficients, tol)? {
         TubeCut::Loops(shift, loops) => (shift, loops),
         TubeCut::Bitangent => {
             let [first, second] = bitangent_circles(&tubes, &coefficients, tol)?;
@@ -663,7 +732,7 @@ pub(in crate::operations::intersect::exact) fn torus_sphere(
     }
     let cut = OtherSphere::new(sphere);
     let coefficients = cut.coefficients(&tubes);
-    let (shift, loops) = match tube_loops(coefficients, tol)? {
+    let (shift, loops) = match tube_loops((torus, &tubes), sphere, coefficients, tol)? {
         TubeCut::Loops(shift, loops) => (shift, loops),
         TubeCut::Bitangent => {
             let [first, second] = bitangent_circles(&tubes, &coefficients, tol)?;

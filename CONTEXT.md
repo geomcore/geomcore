@@ -182,7 +182,7 @@ _Avoid_: converged, exact (reserved for exact intersections), fallback
 The outcome when two shapes overlap entirely, so their intersection is a whole shape rather than curves or points.
 
 **Contact point**:
-An isolated point where two surfaces meet, either tangentially or at a singular point such as a cone apex. It has a position but no surface parameters, which a singular point does not define.
+An isolated point where two surfaces meet, either tangentially or at a singular point such as a cone apex. It has a position but no surface parameters, which a singular point does not define. Two surfaces within confusion of touching are read as touching there only where the curve of the surfaces as given stays within confusion of the point, `|ε| ≤ κ confusion² / 2` for an offset `ε` and a relative curvature `κ`; otherwise the result is that curve (ADR 0057).
 
 **Hit**:
 A point where a curve meets another curve or a surface, with its multiplicity (1 for a crossing, 2 or more for a tangency) and its parameters on both operands (each curve's parameter, the surface's `(u, v)`). The point is always present. A parameter is stored only when the solver computed it on its way to the point, and is otherwise absent (`None`): recover it with the operand's `parameter_of(hit.point, tol)` or `parameters_of(hit.point, tol)`.

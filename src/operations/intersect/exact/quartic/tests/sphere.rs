@@ -119,7 +119,8 @@ fn test_vivianis_curve_crosses_itself_where_the_sphere_touches_the_cylinder() {
 
 #[test]
 fn test_a_sphere_within_confusion_of_touching_crosses_itself_where_it_touches() {
-    for gap in [-0.5, 0.5] {
+    // Within the rounding of touching, the loop that crosses itself.
+    for gap in [-1e-9, 0.0, 1e-9] {
         let radius = 2.0 + gap * TOL.confusion;
         let sphere = Sphere::new(Point::new(0.3, -0.2, 0.1), radius).unwrap();
         let axis = Vector::new(0.2, 0.1, 1.0).normalized().unwrap();
@@ -142,8 +143,32 @@ fn test_a_sphere_within_confusion_of_touching_crosses_itself_where_it_touches() 
 }
 
 #[test]
+fn test_a_sphere_half_a_confusion_from_touching_keeps_its_loops() {
+    // Half a confusion wider, two loops around; narrower, one over an arc.
+    // Either way their curve is `√(2ε / κ)`, some `4e-4`, from where they
+    // would cross (#439).
+    for (gap, count) in [(0.5, 2), (-0.5, 1)] {
+        let radius = 2.0 + gap * TOL.confusion;
+        let sphere = Sphere::new(Point::new(0.3, -0.2, 0.1), radius).unwrap();
+        let axis = Vector::new(0.2, 0.1, 1.0).normalized().unwrap();
+        let across = Vector::X.cross(axis).normalized().unwrap();
+        let cylinder = Cylinder::new(sphere.center() + across * 0.9, axis, 1.1).unwrap();
+        let curve = cylinder_quartic(&sphere, &cylinder, TOL.confusion);
+        assert_eq!(curve.component_count(), count);
+        assert_eq!(curve.contact_point(), None);
+        let result = sphere.intersect(&cylinder, TOL);
+        assert_eq!(result.method(), IntersectionMethod::Exact);
+        assert_eq!(result.curves().len(), count);
+        assert!(result.contact_points().is_empty());
+        assert_fitted_within(&sphere, &cylinder, result.curves(), 0.75 * TOL.confusion);
+    }
+}
+
+#[test]
 fn test_a_sphere_touching_the_cylinder_from_inside_or_outside_meets_it_at_a_point() {
-    for (across, radius) in [(0.5, 0.5), (3.0, 2.0), (3.0, 2.0 + 0.5 * TOL.confusion)] {
+    // Half a confusion apart, the point too; half a confusion through, a
+    // small loop around it (see below).
+    for (across, radius) in [(0.5, 0.5), (3.0, 2.0), (3.0, 2.0 - 0.5 * TOL.confusion)] {
         let (sphere, cylinder) = sphere_by_cylinder(across, 0.7, radius);
         let SphereCylinderIntersection::TangentPoint(p) = sphere.intersect_exact(&cylinder, TOL)
         else {
@@ -155,6 +180,10 @@ fn test_a_sphere_touching_the_cylinder_from_inside_or_outside_meets_it_at_a_poin
         assert!(result.curves().is_empty());
         assert_eq!(result.contact_points(), [p]);
     }
+    let (sphere, cylinder) = sphere_by_cylinder(3.0, 0.7, 2.0 + 0.5 * TOL.confusion);
+    let curve = cylinder_quartic(&sphere, &cylinder, TOL.confusion);
+    assert_eq!(curve.component_count(), 1);
+    assert_eq!(curve.contact_point(), None);
 }
 
 #[test]
@@ -220,7 +249,8 @@ fn test_a_sphere_touching_the_far_generator_from_inside_crosses_itself_there() {
     let far = Vector::new(-0.5, 0.0, 3.0_f64.sqrt() / 2.0);
     let center = Point::new(0.3, 0.0, 10.0);
     let touching = from_line(center, far);
-    for gap in [0.0, -0.5, 0.5] {
+    // At the contact, and within its rounding.
+    for gap in [0.0, -1e-9, 1e-9] {
         let sphere = Sphere::new(center, touching + gap * TOL.confusion).unwrap();
         let cone = cone(FRAC_PI_6, 0.0);
         let within = if gap == 0.0 { 1e-12 } else { TOL.confusion };
@@ -233,6 +263,18 @@ fn test_a_sphere_touching_the_far_generator_from_inside_crosses_itself_there() {
         assert_eq!(result.method(), IntersectionMethod::Exact);
         assert_eq!(result.curves().len(), 1);
         assert_eq!(result.contact_points(), [node]);
+        assert_fitted_within(&sphere, &cone, result.curves(), 0.75 * TOL.confusion);
+    }
+    // Half a confusion wider, every generator crosses twice: two loops;
+    // narrower, one over an arc (#439).
+    for (gap, count) in [(0.5, 2), (-0.5, 1)] {
+        let sphere = Sphere::new(center, touching + gap * TOL.confusion).unwrap();
+        let cone = cone(FRAC_PI_6, 0.0);
+        let curve = cone_quartic(&sphere, &cone, TOL.confusion);
+        assert_eq!(curve.component_count(), count);
+        assert_eq!(curve.contact_point(), None);
+        let result = sphere.intersect(&cone, TOL);
+        assert_eq!(result.curves().len(), count);
         assert_fitted_within(&sphere, &cone, result.curves(), 0.75 * TOL.confusion);
     }
 }
