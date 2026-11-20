@@ -88,6 +88,25 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- A torus against a cylinder, a cone or a second torus off its axis, and
+  a sphere holding a tube circle of a torus, read a contact only where
+  their curve stays within confusion of it (#441, ADR 0057), as the other
+  closed forms do since #438. They used to read any pair within
+  confusion of touching as touching: a cylinder of radius 0.5 a tenth of
+  a confusion into the outer equator of the torus of radii 4 and 1 was a
+  tangent point, its loop `1e-4` from it; a cylinder `1e-8` wider than
+  touching both equators crossed itself at both, its one loop `1.4e-4`
+  from each; a sphere of radius `1 + 1e-8` centred on the centre circle
+  was a tangent circle, its two loops `1.2e-4` from it; a sphere holding
+  the two tube circles a hair apart was one tangent circle. They now give
+  the small loop, the loops joined, the two circles, or, where the curve
+  is a band of tube circles too thin to read in closed form, hand the
+  pair to the marcher. Two tube circles a sphere nearly holds are read
+  only where the gap over the sine of the angle they cross at stays within
+  confusion. Points where a tube circle turns back, a hair from a contact,
+  are no longer lost where the subdivision's boxes split at them or where
+  rounding keeps Newton's steps above their bound, and an exact contact
+  with a cylinder placed far along its axis reads as one.
 - Distance extrema report a valley of equal minima once, at the same pair
   wherever the shapes are placed, when the valley runs along a piece of a
   shape (#444, ADR 0051). A whole curve against a piece of itself, a

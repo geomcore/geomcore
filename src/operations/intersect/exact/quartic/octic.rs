@@ -151,6 +151,38 @@ impl OtherSurface {
         }
     }
 
+    /// The largest of the surface's own lengths: a cylinder's radius, a
+    /// cone's reference radius, a torus's radii together.
+    fn size(&self) -> f64 {
+        match self {
+            OtherSurface::Cylinder(cylinder) => cylinder.radius(),
+            OtherSurface::Cone(cone) => cone.reference_radius(),
+            OtherSurface::Torus(torus) => torus.major_radius() + torus.minor_radius(),
+        }
+    }
+
+    /// Whether `torus` and the surface, which come within `tol.confusion`
+    /// of touching at `contact`, are read as touching there (see
+    /// `reads_as_touching`).
+    fn reads_as_touching(
+        &self,
+        torus: &Torus,
+        contact: Point,
+        overlap: f64,
+        size: f64,
+        tol: Tolerance,
+    ) -> bool {
+        match self {
+            OtherSurface::Cylinder(cylinder) => {
+                reads_as_touching(torus, cylinder, contact, overlap, size, tol)
+            }
+            OtherSurface::Cone(cone) => reads_as_touching(torus, cone, contact, overlap, size, tol),
+            OtherSurface::Torus(other) => {
+                reads_as_touching(torus, other, contact, overlap, size, tol)
+            }
+        }
+    }
+
     /// The signed distance from `point`, and the unit normal along which
     /// it grows.
     fn offset(&self, point: Point) -> (f64, Vector) {
@@ -168,7 +200,7 @@ impl OtherSurface {
     /// `G` over the torus.
     fn within(&self, tubes: &Tubes, confusion: f64) -> f64 {
         let centre = match self {
-            OtherSurface::Cylinder(cylinder) => cylinder.frame().origin(),
+            OtherSurface::Cylinder(cylinder) => axis_point_nearest(cylinder, tubes.origin),
             OtherSurface::Cone(cone) => cone.apex(),
             OtherSurface::Torus(torus) => torus.center(),
         };
@@ -194,11 +226,10 @@ fn equation(tubes: &Tubes, surface: &OtherSurface) -> Equation {
     // and a cone's `((P − V)·a)² − cos² φ |P − V|²`, both nappes.
     let (centre, axis, along, across, constant) = match surface {
         OtherSurface::Cylinder(cylinder) => {
-            let frame = cylinder.frame();
             let radius = cylinder.radius();
             (
-                frame.origin(),
-                frame.z_direction(),
+                axis_point_nearest(cylinder, tubes.origin),
+                cylinder.frame().z_direction(),
                 -1.0,
                 1.0,
                 -radius * radius,
@@ -268,6 +299,15 @@ fn equation(tubes: &Tubes, surface: &OtherSurface) -> Equation {
         }
     }
     TrigonometricPolynomial { c }
+}
+
+/// The point of `cylinder`'s axis nearest `point`. `F` is read from it:
+/// the products of `P − Q` cancel along the axis, and from a point placed
+/// far along it they would leave the rounding of its distance.
+fn axis_point_nearest(cylinder: &Cylinder, point: Point) -> Point {
+    let frame = cylinder.frame();
+    let axis = frame.z_direction();
+    frame.origin() + axis * (point - frame.origin()).dot(axis)
 }
 
 /// `F(u, v)` for the tube circles against a second torus, `w = P − C₂`:
@@ -789,11 +829,11 @@ fn torus_against(torus: &Torus, mut surface: OtherSurface, tol: Tolerance) -> Op
             if holds_a_tube_circle(&tubes, &surface, &equation, tol) {
                 return None;
             }
-            let mut touching = touching_points(&tubes, &surface, &equation, within, tol)?;
+            let mut touching = contacts(torus, &tubes, &surface, &equation, within, tol)?;
             if let Some(snapped) = touching_exactly(&tubes, &surface, &touching, tol) {
                 surface = snapped?;
                 equation = self::equation(&tubes, &surface);
-                touching = touching_points(&tubes, &surface, &equation, within, tol)?;
+                touching = contacts(torus, &tubes, &surface, &equation, within, tol)?;
             }
             (equation, touching)
         }
@@ -940,20 +980,21 @@ fn without_tube_circle(equation: &Equation, at: f64) -> Equation {
     TrigonometricPolynomial { c }
 }
 
-/// The other surface moved to touch the torus exactly where it touches it
-/// within confusion: by the one translation that closes every gap, or for
-/// a cylinder or a torus by the one change of its radius or minor radius.
-/// `None` when nothing needs moving, `Some(None)` when no single move
-/// closes every gap.
+/// The other surface moved to touch the torus exactly at `touching`, the
+/// points read as touching (see [`contacts`]): by the one translation that
+/// closes every gap, or for a cylinder or a torus by the one change of its
+/// radius or minor radius. `None` when nothing needs moving, `Some(None)`
+/// when no single move closes every gap.
 fn touching_exactly(
     tubes: &Tubes,
     surface: &OtherSurface,
     touching: &[[f64; 2]],
     tol: Tolerance,
 ) -> Option<Option<OtherSurface>> {
+    let (local_tubes, local) = centred(tubes, surface);
     let gaps: Vec<(f64, Vector)> = touching
         .iter()
-        .map(|&[u, v]| surface.offset(tubes.point(Point2D::new(u, v))))
+        .map(|&[u, v]| local.offset(local_tubes.point(Point2D::new(u, v))))
         .collect();
     if gaps.iter().all(|(gap, _)| *gap == 0.0) {
         return None;
@@ -979,6 +1020,73 @@ fn touching_exactly(
 /// the surfaces touch must be to be one move: farther, the points would
 /// stay that far from touching, read as touching.
 const SNAPS_AGREE: f64 = 1e-3;
+
+/// The angles of the points where the surfaces are read as touching: of
+/// those within confusion of touching, where their curve stays within
+/// confusion of the point (see `reads_as_touching`). `F` is stationary
+/// there, the normals along each other, and the curve runs around or
+/// through the point where `F` vanishes near it: at a crossing, where
+/// `F`'s Hessian is indefinite, always; at a point alone, where `F` and
+/// its Hessian are of opposite signs. Elsewhere the surfaces stand apart
+/// there. A point not read as touching is left to the curve as given: its
+/// branches turn, part or join near it like any others. `None` as for
+/// [`touching_points`].
+fn contacts(
+    torus: &Torus,
+    tubes: &Tubes,
+    surface: &OtherSurface,
+    equation: &Equation,
+    within: f64,
+    tol: Tolerance,
+) -> Option<Vec<[f64; 2]>> {
+    let mut touching = touching_points(tubes, surface, equation, within, tol)?;
+    if !touching.is_empty() {
+        let size = tubes.major + tubes.minor + surface.size();
+        let (local_tubes, local) = centred(tubes, surface);
+        let local_torus = torus
+            .transformed(Transform::translation(local_tubes.origin - tubes.origin))
+            .expect("a translation keeps a torus");
+        touching.retain(|&[u, v]| {
+            let contact = local_tubes.point(Point2D::new(u, v));
+            let gap = local.offset(contact).0.abs();
+            let overlap = if passes_through(equation, [u, v]) {
+                gap
+            } else {
+                -gap
+            };
+            local.reads_as_touching(&local_torus, contact, overlap, size, tol)
+        });
+    }
+    Some(touching)
+}
+
+/// The torus's tube circles and `surface` moved together to put the
+/// torus's centre at the origin. A gap is read there: from points placed
+/// far from the origin it would carry the rounding of their coordinates,
+/// and the answer would depend on where the pair sits (ADR 0051). Moved,
+/// each place rounds with its distance from the torus's centre only.
+fn centred(tubes: &Tubes, surface: &OtherSurface) -> (Tubes, OtherSurface) {
+    let local_tubes = Tubes {
+        origin: Point::ORIGIN,
+        ..*tubes
+    };
+    (local_tubes, surface.moved(Point::ORIGIN - tubes.origin))
+}
+
+/// Whether the curve where `F`, `equation`, vanishes runs around or
+/// through its stationary point at `angles`: `F`'s Hessian there
+/// indefinite, or of the sign opposite to `F`'s. Singular, the surfaces
+/// touching to a higher order, it is read as running through: the gap
+/// then counts by its size.
+fn passes_through(equation: &Equation, [u, v]: [f64; 2]) -> bool {
+    let (along_u, along_v) = (equation.derivative_u(), equation.derivative_v());
+    let (a, b, c) = (
+        along_u.derivative_u().value(u, v),
+        along_u.derivative_v().value(u, v),
+        along_v.derivative_v().value(u, v),
+    );
+    a * c - b * b <= 0.0 || equation.value(u, v) * a <= 0.0
+}
 
 /// The angles of the points where the surfaces are within confusion of
 /// touching: where `F` is stationary and the torus's point within

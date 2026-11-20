@@ -13,73 +13,141 @@ use std::f64::consts::{FRAC_PI_6, TAU};
 
 use geomcore::prelude::*;
 use geomcore::{
-    Axis, Cone, ConeCylinderIntersection, Cylinder, CylinderCylinderIntersection, Plane,
-    PlaneSphereIntersection, Point, QuarticCurve, Sphere, SphereConeIntersection,
-    SphereCylinderIntersection, Surface, Tolerance, Torus, TorusPlaneIntersection, Transform,
-    Vector,
+    Axis, Cone, ConeCylinderIntersection, Cylinder, CylinderCylinderIntersection, OcticCurve,
+    Plane, PlaneSphereIntersection, Point, QuarticCurve, Sphere, SphereConeIntersection,
+    SphereCylinderIntersection, Surface, Tolerance, Torus, TorusConeIntersection,
+    TorusCylinderIntersection, TorusPlaneIntersection, TorusSphereIntersection,
+    TorusTorusIntersection, Transform, Vector,
 };
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 
-/// What an exact result holds: its quartic, if any, and the variant's name.
+/// The loops of an exact result: a quartic, or the octic of a torus off
+/// another surface's axis.
+enum Loops {
+    Quartic(QuarticCurve),
+    Octic(Box<OcticCurve>),
+}
+
+impl Loops {
+    fn component_count(&self) -> usize {
+        match self {
+            Loops::Quartic(curve) => curve.component_count(),
+            Loops::Octic(curve) => curve.component_count(),
+        }
+    }
+
+    fn point_at(&self, component: usize, parameter: f64) -> Point {
+        match self {
+            Loops::Quartic(curve) => curve.point_at(component, parameter),
+            Loops::Octic(curve) => curve.point_at(component, parameter),
+        }
+    }
+
+    /// The points where the loops cross themselves, the surfaces touching.
+    fn contact_points(&self) -> Vec<Point> {
+        match self {
+            Loops::Quartic(curve) => curve.contact_point().into_iter().collect(),
+            Loops::Octic(curve) => curve.contact_points().to_vec(),
+        }
+    }
+}
+
+/// What an exact result holds: its loops, if any, and the variant's name.
 struct Answer {
-    quartic: Option<QuarticCurve>,
+    curve: Option<Loops>,
     name: String,
 }
 
-fn answer(quartic: Option<QuarticCurve>, debug: &impl std::fmt::Debug) -> Answer {
+fn answer(curve: Option<Loops>, debug: &impl std::fmt::Debug) -> Answer {
     let text = format!("{debug:?}");
     let name = text
         .split(|c: char| !c.is_alphanumeric())
         .next()
         .unwrap()
         .to_string();
-    Answer { quartic, name }
+    Answer { curve, name }
 }
 
 fn cylinders(first: &Cylinder, second: &Cylinder, tol: Tolerance) -> Answer {
     let result = first.intersect_exact(second, tol);
-    let quartic = match &result {
-        CylinderCylinderIntersection::Quartic(curve) => Some(*curve),
+    let curve = match &result {
+        CylinderCylinderIntersection::Quartic(curve) => Some(Loops::Quartic(*curve)),
         _ => None,
     };
-    answer(quartic, &result)
+    answer(curve, &result)
 }
 
 fn sphere_cylinder(sphere: &Sphere, cylinder: &Cylinder, tol: Tolerance) -> Answer {
     let result = sphere.intersect_exact(cylinder, tol);
-    let quartic = match &result {
-        SphereCylinderIntersection::Quartic(curve) => Some(*curve),
+    let curve = match &result {
+        SphereCylinderIntersection::Quartic(curve) => Some(Loops::Quartic(*curve)),
         _ => None,
     };
-    answer(quartic, &result)
+    answer(curve, &result)
 }
 
 fn sphere_cone(sphere: &Sphere, cone: &Cone, tol: Tolerance) -> Answer {
     let result = sphere.intersect_exact(cone, tol);
-    let quartic = match &result {
-        SphereConeIntersection::Quartic(curve) => Some(*curve),
+    let curve = match &result {
+        SphereConeIntersection::Quartic(curve) => Some(Loops::Quartic(*curve)),
         _ => None,
     };
-    answer(quartic, &result)
+    answer(curve, &result)
 }
 
 fn cone_cylinder(cone: &Cone, cylinder: &Cylinder, tol: Tolerance) -> Answer {
     let result = cone.intersect_exact(cylinder, tol);
-    let quartic = match &result {
-        ConeCylinderIntersection::Quartic(curve) => Some(*curve),
+    let curve = match &result {
+        ConeCylinderIntersection::Quartic(curve) => Some(Loops::Quartic(*curve)),
         _ => None,
     };
-    answer(quartic, &result)
+    answer(curve, &result)
 }
 
 fn torus_plane(torus: &Torus, plane: &Plane, tol: Tolerance) -> Answer {
     let result = torus.intersect_exact(plane, tol);
-    let quartic = match &result {
-        TorusPlaneIntersection::Quartic(curve) => Some(*curve),
+    let curve = match &result {
+        TorusPlaneIntersection::Quartic(curve) => Some(Loops::Quartic(*curve)),
         _ => None,
     };
-    answer(quartic, &result)
+    answer(curve, &result)
+}
+
+fn torus_cylinder(torus: &Torus, cylinder: &Cylinder, tol: Tolerance) -> Answer {
+    let result = torus.intersect_exact(cylinder, tol);
+    let curve = match &result {
+        TorusCylinderIntersection::Octic(curve) => Some(Loops::Octic(curve.clone())),
+        _ => None,
+    };
+    answer(curve, &result)
+}
+
+fn torus_cone(torus: &Torus, cone: &Cone, tol: Tolerance) -> Answer {
+    let result = torus.intersect_exact(cone, tol);
+    let curve = match &result {
+        TorusConeIntersection::Octic(curve) => Some(Loops::Octic(curve.clone())),
+        _ => None,
+    };
+    answer(curve, &result)
+}
+
+fn tori(first: &Torus, second: &Torus, tol: Tolerance) -> Answer {
+    let result = first.intersect_exact(second, tol);
+    let curve = match &result {
+        TorusTorusIntersection::Octic(curve) => Some(Loops::Octic(curve.clone())),
+        _ => None,
+    };
+    answer(curve, &result)
+}
+
+fn torus_sphere(torus: &Torus, sphere: &Sphere, tol: Tolerance) -> Answer {
+    let result = torus.intersect_exact(sphere, tol);
+    let curve = match &result {
+        TorusSphereIntersection::Quartic(curve) => Some(Loops::Quartic(*curve)),
+        _ => None,
+    };
+    answer(curve, &result)
 }
 
 /// How far `point` is from `surface`.
@@ -91,7 +159,7 @@ fn off(surface: &impl ParametricSurface, point: Point, tol: Tolerance) -> f64 {
 /// The closest approach of `curve` to `point`: the nearest of a few
 /// thousand samples on each component, refined by golden sections between
 /// its neighbours.
-fn closest_approach(curve: &QuarticCurve, point: Point) -> f64 {
+fn closest_approach(curve: &Loops, point: Point) -> f64 {
     const SAMPLES: usize = 8_192;
     let step = TAU / SAMPLES as f64;
     let mut best = f64::INFINITY;
@@ -123,7 +191,7 @@ fn closest_approach(curve: &QuarticCurve, point: Point) -> f64 {
 /// The points of every component lie within `tol.confusion` of both
 /// surfaces.
 fn assert_on_both(
-    curve: &QuarticCurve,
+    curve: &Loops,
     first: &impl ParametricSurface,
     second: &impl ParametricSurface,
     tol: Tolerance,
@@ -150,6 +218,8 @@ enum Exact {
     Loops { count: usize, distance: f64 },
     /// Nothing near the contact: the surfaces stand apart there.
     Apart,
+    /// Not read in closed form: a curve the closed form cannot resolve.
+    NotAnalytic,
 }
 
 /// Checks the answer against the exact curve near `contact`: its
@@ -165,11 +235,11 @@ fn check(
 ) {
     match exact {
         Exact::Loops { count, distance } => {
-            let Some(curve) = &answer.quartic else {
+            let Some(curve) = &answer.curve else {
                 panic!("{case}: {} for {count} loops", answer.name);
             };
             assert_eq!(curve.component_count(), count, "{case}: loops");
-            assert_eq!(curve.contact_point(), None, "{case}: a contact point");
+            assert!(curve.contact_points().is_empty(), "{case}: a contact point");
             let approach = closest_approach(curve, contact);
             assert!(
                 approach >= 0.5 * distance && approach <= 2.0 * distance,
@@ -178,16 +248,20 @@ fn check(
             assert_on_both(curve, surfaces.0, surfaces.1, tol, case);
         }
         Exact::Touching => {
-            let touches = match &answer.quartic {
+            let touches = match &answer.curve {
                 Some(curve) => curve
-                    .contact_point()
-                    .is_some_and(|point| point.distance(contact) <= tol.confusion),
+                    .contact_points()
+                    .iter()
+                    .any(|point| point.distance(contact) <= tol.confusion),
                 None => answer.name.starts_with("Tangent"),
             };
             assert!(touches, "{case}: {} for a contact", answer.name);
         }
+        Exact::NotAnalytic => {
+            assert_eq!(answer.name, "NotAnalytic", "{case}");
+        }
         Exact::Apart => {
-            let near = match &answer.quartic {
+            let near = match &answer.curve {
                 Some(curve) => closest_approach(curve, contact) <= tol.confusion,
                 None => false,
             };
@@ -322,11 +396,11 @@ fn test_a_cylinder_a_hair_wider_than_a_cone_around_their_common_sphere_meets_it_
     let radius = 2.0 * 0.5f64.sin() + 1e-8;
     let cylinder = Cylinder::new(Point::new(0.0, 0.0, 2.0), direction, radius).unwrap();
     let answer = cone_cylinder(&cone, &cylinder, TOL);
-    let Some(curve) = &answer.quartic else {
+    let Some(curve) = &answer.curve else {
         panic!("R5: {} for two loops", answer.name);
     };
     assert_eq!(curve.component_count(), 2, "R5: loops");
-    assert_eq!(curve.contact_point(), None, "R5: a contact point");
+    assert!(curve.contact_points().is_empty(), "R5: a contact point");
     assert_on_both(curve, &cone, &cylinder, TOL, "R5");
 }
 
@@ -377,7 +451,7 @@ fn test_a_sphere_a_hair_past_touching_a_cone_meets_it_in_a_small_loop() {
     // The generator at `y = 0` leaning towards the centre.
     let generator = Vector::new(0.5f64.sin(), 0.0, 0.5f64.cos());
     let contact = Point::ORIGIN + generator * (centre - Point::ORIGIN).dot(generator);
-    let Some(curve) = &answer.quartic else {
+    let Some(curve) = &answer.curve else {
         panic!("R8: {} for a loop", answer.name);
     };
     assert_eq!(curve.component_count(), 1, "R8: loops");
@@ -1058,13 +1132,13 @@ fn test_conics_of_spheres_a_hair_apart_that_do_not_cross_are_not_read() {
     let cone = cone_around_a_sphere();
     let cylinder = cylinder_crossing_at(radius + 2.0 * TOL.confusion, radius + 0.9 * TOL.confusion);
     let answer = cone_cylinder(&cone, &cylinder, TOL);
-    let Some(curve) = &answer.quartic else {
+    let Some(curve) = &answer.curve else {
         panic!("{} for the quartic", answer.name);
     };
     println!(
         "{} components, contact {:?}",
         curve.component_count(),
-        curve.contact_point()
+        curve.contact_points()
     );
     assert_on_both(curve, &cone, &cylinder, TOL, "spheres a hair apart");
 }
@@ -1119,5 +1193,262 @@ fn test_cylinders_a_rounding_of_data_past_touching_meet_in_a_small_loop() {
         (&thick, &thin),
         TOL,
         "rounded crossing",
+    );
+}
+
+// The octic curves of a torus against a cylinder, a cone or a second torus
+// off its axis, and a sphere holding a tube circle of a torus (#441): the
+// same sweep, each pair `d` past touching, positive where the surfaces
+// pass through each other.
+
+/// Reads `pair`, built `d` past touching at `contact`, at every offset of
+/// the sweep and every placement, against what `exact` says its curve is.
+fn sweep_offsets<A, B>(
+    offsets: &[f64],
+    pair: impl Fn(f64) -> (A, B),
+    contact: Point,
+    exact: impl Fn(f64) -> Exact,
+    intersect: impl Fn(&A, &B, Tolerance) -> Answer,
+    what: &str,
+) where
+    A: ParametricSurface + Transformable<Transform = Transform>,
+    B: ParametricSurface + Transformable<Transform = Transform>,
+{
+    for (name, transform, scale) in placements() {
+        let tol = scaled(scale);
+        for &offset in offsets {
+            let d = offset * TOL.confusion;
+            let (first, second) = pair(d);
+            let first = first.transformed(transform).unwrap();
+            let second = second.transformed(transform).unwrap();
+            let exact = match exact(d) {
+                _ if d == 0.0 => Exact::Touching,
+                Exact::Loops { count, distance } => Exact::Loops {
+                    count,
+                    distance: distance * scale,
+                },
+                other => other,
+            };
+            let case = format!("{what}, {name}, {offset} confusions");
+            let answer = intersect(&first, &second, tol);
+            check(
+                &answer,
+                exact,
+                transform.apply_point(contact),
+                (&first, &second),
+                tol,
+                &case,
+            );
+        }
+    }
+}
+
+/// The torus of radii 4 and 1 about `Z`.
+fn small_torus() -> Torus {
+    Torus::new(Point::ORIGIN, Vector::Z, 4.0, 1.0).unwrap()
+}
+
+/// What a contact of two surfaces bending apart gives, `d` past touching:
+/// nothing near it apart, a small loop through, `√(2d / κ)` from the
+/// contact, `κ` the larger relative curvature.
+fn small_loop(d: f64, curvature: f64) -> Exact {
+    if d < 0.0 {
+        Exact::Apart
+    } else {
+        Exact::Loops {
+            count: 1,
+            distance: (2.0 * d / curvature).sqrt(),
+        }
+    }
+}
+
+/// A cylinder of radius `1/2` along `Z` outside the outer equator, `d`
+/// into it: relative curvatures `1 + 0` along the axis and `1/5 + 2`
+/// across it.
+#[test]
+fn test_a_cylinder_near_touching_a_torus_outside_reads_its_offset() {
+    sweep_offsets(
+        &OFFSETS,
+        |d| {
+            let cylinder = Cylinder::new(Point::new(5.5 - d, 0.0, 0.0), Vector::Z, 0.5).unwrap();
+            (small_torus(), cylinder)
+        },
+        Point::new(5.0, 0.0, 0.0),
+        |d| small_loop(d, 2.2),
+        torus_cylinder,
+        "torus and cylinder",
+    );
+}
+
+/// A cylinder of radius `4 + d` about `(−1, 0)` touches the inner equator
+/// at `(3, 0, 0)` and the outer one at `(−5, 0, 0)`, the curve crossing
+/// itself at both. At the inner one the torus bends `1` across the tube
+/// and `−1/3` around the axis, the cylinder `0` and `−1/4`: a saddle of
+/// relative curvatures `1` and `1/12`. Wider, the cylinder leaves the
+/// curve `√(2d)` from it, narrower `√(24 |d|)`; the loops above and below
+/// join into one either way.
+#[test]
+fn test_a_cylinder_near_touching_both_equators_of_a_torus_reads_its_offset() {
+    sweep_offsets(
+        &OFFSETS,
+        |d| {
+            let cylinder = Cylinder::new(Point::new(-1.0, 0.0, 0.0), Vector::Z, 4.0 + d).unwrap();
+            (small_torus(), cylinder)
+        },
+        Point::new(3.0, 0.0, 0.0),
+        |d| Exact::Loops {
+            count: 1,
+            distance: if d > 0.0 {
+                (2.0 * d).sqrt()
+            } else {
+                (24.0 * -d).sqrt()
+            },
+        },
+        torus_cylinder,
+        "torus and cylinder at both equators",
+    );
+}
+
+/// A cone of half-angle `0.3`, apex `3` below the outer equator, whose
+/// generator along `Z` touches it at `(5, 0, 0)`, `d` into it: relative
+/// curvatures `1 + 0` along the generator and `1/5 + cos 0.3 / (3 sin
+/// 0.3)` across it.
+#[test]
+fn test_a_cone_near_touching_a_torus_outside_reads_its_offset() {
+    let (sin, cos) = 0.3f64.sin_cos();
+    sweep_offsets(
+        &OFFSETS,
+        |d| {
+            let cone = Cone::from_apex(Point::new(5.0 - d, 0.0, -3.0), Vector::new(sin, 0.0, cos), 0.3)
+                .unwrap();
+            (small_torus(), cone)
+        },
+        Point::new(5.0, 0.0, 0.0),
+        |d| small_loop(d, 0.2 + cos / (3.0 * sin)),
+        torus_cone,
+        "torus and cone",
+    );
+}
+
+/// A second torus standing across the first, outer equators `d` into
+/// each other at `(5, 0, 0)`: relative curvatures `1 + 1/5` both ways.
+#[test]
+fn test_a_torus_near_touching_another_reads_its_offset() {
+    sweep_offsets(
+        &OFFSETS,
+        |d| {
+            let standing = Torus::new(Point::new(10.0 - d, 0.0, 0.0), Vector::Y, 4.0, 1.0).unwrap();
+            (small_torus(), standing)
+        },
+        Point::new(5.0, 0.0, 0.0),
+        |d| small_loop(d, 1.2),
+        tori,
+        "tori",
+    );
+}
+
+/// The offsets of the sweep but one confusion through, the edge of
+/// holding the tube circle, which rounding decides either way.
+fn holding_offsets() -> Vec<f64> {
+    OFFSETS.into_iter().filter(|&offset| offset != 1.0).collect()
+}
+
+/// A sphere centred on the centre circle, of the tube's radius `1 + d`:
+/// wider, it passes `d` through the torus all along the tube circle, which
+/// bends alike, and the curve is two loops around the tube, `√(2d / κ)`
+/// from it, `κ = R / (r (R + r cos v))` across it, nearest at the inner
+/// equator where `κ = 4/3`; narrower, it stands apart. Within confusion
+/// of holding the tube circle, the loops are a band of tube circles too
+/// thin for the closed form to read, and it gives up.
+#[test]
+fn test_a_sphere_near_holding_a_tube_circle_of_its_radius_reads_its_offset() {
+    sweep_offsets(
+        &holding_offsets(),
+        |d| {
+            let sphere = Sphere::new(Point::new(4.0, 0.0, 0.0), 1.0 + d).unwrap();
+            (small_torus(), sphere)
+        },
+        Point::new(3.0, 0.0, 0.0),
+        |d| {
+            if d < 0.0 {
+                Exact::Apart
+            } else if d <= TOL.confusion {
+                Exact::NotAnalytic
+            } else {
+                Exact::Loops {
+                    count: 2,
+                    distance: (1.5 * d).sqrt(),
+                }
+            }
+        },
+        torus_sphere,
+        "torus and sphere in its tube",
+    );
+}
+
+/// A sphere of the tube's radius centred `d` inside the centre circle:
+/// its centre `d` nearer the inner equator, it passes through the torus
+/// on the inner half of the tube circle and stands apart on the outer,
+/// one loop `√(2d / κ)` from the inner equator, which the closed form
+/// gives up on within confusion of holding the tube circle.
+#[test]
+fn test_a_sphere_near_holding_a_tube_circle_off_centre_reads_its_offset() {
+    for (name, transform, scale) in placements() {
+        let tol = scaled(scale);
+        // Ten confusions inside, the general quartic reads its thin band of
+        // tube circles at the edge of its precision (#452).
+        for offset in holding_offsets().into_iter().filter(|&offset| offset != -10.0) {
+            let d = offset * TOL.confusion;
+            let torus = small_torus().transformed(transform).unwrap();
+            let case = format!("{name}, {offset} confusions");
+            let contact = transform.apply_point(Point::new(3.0, 0.0, 0.0));
+            if d <= 0.0 {
+                let sphere = Sphere::new(Point::new(4.0 + d, 0.0, 0.0), 1.0)
+                    .unwrap()
+                    .transformed(transform)
+                    .unwrap();
+                let exact = if d == 0.0 {
+                    Exact::Touching
+                } else if -d <= TOL.confusion {
+                    Exact::NotAnalytic
+                } else {
+                    Exact::Loops {
+                        count: 1,
+                        distance: (1.5 * -d).sqrt() * scale,
+                    }
+                };
+                let answer = torus_sphere(&torus, &sphere, tol);
+                check(&answer, exact, contact, (&torus, &sphere), tol, &case);
+            } else {
+                // Outside the centre circle, of the radius that holds the
+                // two tube circles whose planes pass through its centre,
+                // `(R + r cos v) √(2d / R)` apart around the axis.
+                let q: f64 = 4.0 + d;
+                let radius = (q * q - 16.0 + 1.0).sqrt();
+                let sphere = Sphere::new(Point::new(q, 0.0, 0.0), radius)
+                    .unwrap()
+                    .transformed(transform)
+                    .unwrap();
+                let got = torus_sphere(&torus, &sphere, tol).name;
+                assert_eq!(got, "TwoCircles", "{case}");
+            }
+        }
+    }
+}
+
+#[test]
+fn test_a_cylinder_touching_a_torus_placed_far_away_touches_it_turned() {
+    let torus = small_torus();
+    let cylinder = Cylinder::new(Point::new(5.5, 0.0, 1000.0), Vector::Z, 0.5).unwrap();
+    assert_touching_turned(
+        |turn| {
+            (
+                torus.transformed(turn).unwrap(),
+                cylinder.transformed(turn).unwrap(),
+            )
+        },
+        Point::new(5.0, 0.0, 0.0),
+        |torus, cylinder| torus_cylinder(torus, cylinder, TOL),
+        "torus and far cylinder",
     );
 }
