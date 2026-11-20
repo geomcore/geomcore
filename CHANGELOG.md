@@ -120,6 +120,23 @@ the Python distribution are versioned in lockstep.
   valley passes there, else the second shape at its own, where a valley
   along a piece starts. A minimum the search reached alone on its valley
   is moved to the representative too.
+- Curve–surface and surface–surface extrema find a minimum held on the
+  edges of two pieces wherever the shapes are placed (#448, ADR 0051). A
+  cylinder trimmed to `u` in `(0, 6.2)` against a piece of itself trimmed
+  to `(1.2566, 5.65)`, or an arc of a circle on it against that piece,
+  lost the minimum between the first's edge at `u = 0` and the piece's at
+  `5.65` after a translation by 1e7. The contact over the piece is a
+  valley along a direction of the sample grid, and every sample along it
+  counted as a seed, the nearest first: they took all 64 seeds ahead of
+  the edge's, and how many there were depended on how the coordinates
+  rounded. A plateau of samples equal within the rounding of their
+  coordinates is now one seed, for curve–curve extrema too.
+- A saddle of the distance between two shapes is no longer reported as a
+  minimum on small shapes. The test for a minimum weighed the curvature
+  along an angle, which shrinks with the square of the size, against the
+  curvature along a length, which does not; it now reads both per unit
+  length. A circle against a parabola whose vertex is its centre had a
+  third minimum, a saddle, once scaled by 2^-20.
 - Two tori sharing a circle that is not a tube circle of both are read in
   closed form in either order (#348, ADR 0050). A tube circle of the
   first torus lying on the second, as a latitude circle of it, ran the

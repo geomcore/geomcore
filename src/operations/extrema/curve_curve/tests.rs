@@ -463,3 +463,57 @@ fn test_a_bspline_against_a_piece_of_itself_is_one_valley_at_the_piece_start() {
         assert!(back.distance(piece.point_at(0.2)) < 1e-5, "{valley:?}");
     }
 }
+
+/// A plateau of equal values along a grid row is one discrete minimum, at
+/// its first node, and rounding within the floor does not split it; a
+/// separate minimum beyond it is still there (#448).
+#[test]
+fn test_a_plateau_of_the_grid_is_one_minimum_whatever_its_rounding() {
+    let rounding = 1e-9;
+    // Rows of 4: the first row is a plateau with rounding noise, the
+    // second rises, the third has a lone dip at its end.
+    let values = [
+        1.0,
+        1.0 + 0.5e-9,
+        1.0,
+        1.0 + 0.3e-9,
+        2.0,
+        2.0,
+        2.0,
+        2.0,
+        3.0,
+        3.0,
+        3.0,
+        1.5,
+    ];
+    assert_eq!(
+        grid_minima(&values, [3, 4], [false, false], rounding),
+        vec![(0, 0), (2, 3)]
+    );
+    // Without the floor the noise splits the plateau.
+    assert_eq!(
+        grid_minima(&values, [3, 4], [false, false], 0.0),
+        vec![(0, 0), (0, 2), (2, 3)]
+    );
+}
+
+/// A saddle of the distance between a circle and a parabola whose vertex
+/// is the circle's centre, at the circle's point opposite the parabola's
+/// opening, is no minimum at any size: the angle's curvature shrinks with
+/// the square of the size and the length's does not (ADR 0051, rule 4).
+#[test]
+fn test_a_saddle_is_no_box_minimum_at_any_size() {
+    use std::f64::consts::PI;
+    for size in [1.0, 2f64.powi(-20), 2f64.powi(20)] {
+        // Radius 2 and focal length 0.8, scaled: the angle `s` at `pi`,
+        // the parabola's length parameter `t` at its vertex.
+        let hessian = [[0.0, 2.0 * size], [2.0 * size, 2.25]];
+        let speeds = [2.0 * size, 1.0];
+        let bounds = [None, None];
+        let tol = Tolerance::new(1e-7 * size, 1e-12, 1e-9).unwrap();
+        assert!(
+            !is_box_minimum([PI, 0.0], [0.0, 0.0], hessian, speeds, bounds, tol),
+            "size {size}"
+        );
+    }
+}

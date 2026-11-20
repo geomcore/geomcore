@@ -900,11 +900,34 @@ fn valley_wholes() -> Vec<TrimmedSurface<Surface>> {
     ]
 }
 
+/// The cylinder pair of [`valley_wholes`] and [`valley_surfaces`] about the
+/// z axis instead of [`tilted_frame`], and an arc of a circle on that
+/// cylinder: the arc and the larger piece each have a minimum held on
+/// their end or edge at the angle 0 and the piece's edge at 5.65, across
+/// their own gap. Along a grid direction the contact's valley ties its
+/// samples, and rounding, so the placement, decided how many of them were
+/// seeds ahead of the edge's (#448).
+fn axis_aligned_edge_pieces() -> (
+    TrimmedCurve<Curve>,
+    TrimmedSurface<Surface>,
+    TrimmedSurface<Surface>,
+) {
+    let cylinder: Surface = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0).unwrap().into();
+    let circle: Curve = Circle::new(Point::new(0.0, 0.0, 0.5), Vector::Z, 2.0)
+        .unwrap()
+        .into();
+    (
+        TrimmedCurve::new(circle, 0.0, 6.2).unwrap(),
+        TrimmedSurface::new(cylinder.clone(), (0.0, 6.2), (-2.0, 4.0)).unwrap(),
+        TrimmedSurface::new(cylinder, (1.2566, 5.65), (-1.0, 3.0)).unwrap(),
+    )
+}
+
 /// The count and completeness of the minima, and all their points: on the
 /// valleys of [`valley_curves`] and [`valley_surfaces`] the representative
 /// of each valley is read from the shapes (#444).
-fn curve_surface_valleys(
-    a: &Curve,
+fn curve_surface_valleys<C: ParametricCurve>(
+    a: &C,
     b: &TrimmedSurface<Surface>,
     tol: Tolerance,
 ) -> (String, Vec<Point>) {
@@ -965,6 +988,21 @@ fn valley_extrema_are_similarity_invariant() {
             surface_surface_valleys,
         ));
     }
+    let (arc, whole, piece) = axis_aligned_edge_pieces();
+    mismatches.extend(compare_pairs(
+        "valley-extrema axis-aligned curve-surface",
+        std::slice::from_ref(&arc),
+        std::slice::from_ref(&piece),
+        false,
+        curve_surface_valleys,
+    ));
+    mismatches.extend(compare_pairs(
+        "valley-extrema axis-aligned surface-surface",
+        std::slice::from_ref(&whole),
+        std::slice::from_ref(&piece),
+        false,
+        surface_surface_valleys,
+    ));
     report("valley-extrema", mismatches);
 }
 

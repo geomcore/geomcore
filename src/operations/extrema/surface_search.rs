@@ -22,7 +22,8 @@ use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::{newton_min_2d, solve_3x3};
 use crate::operations::extrema::Extremum;
 use crate::operations::extrema::curve_curve::{
-    SEED_REACH, configuration_scale, curve_size, grid_minima, is_box_minimum, merge_valleys,
+    SEED_REACH, configuration_scale, coordinate_size, curve_size, distance_rounding, grid_minima,
+    is_box_minimum, merge_valleys,
 };
 use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::{Point, Tolerance, Vector};
@@ -223,23 +224,26 @@ impl Samples {
     /// a discrete local minimum over this grid, nearest first, at most
     /// `MAX_SEEDS`: each as its index and the index of that nearest sample.
     fn closest_to(&self, other: &Samples) -> Vec<(usize, usize)> {
-        self.discrete_minima(|point| {
+        self.discrete_minima(other, |point| {
             let (nearest, distance) = other.nearest(point);
             (distance, nearest)
         })
     }
 
-    /// The samples where `measure`, a distance from the sample's point
-    /// with what it was measured to, has a discrete local minimum over
-    /// this grid, nearest first, at most `MAX_SEEDS` (see `grid_minima`):
-    /// each as its index and what the distance was measured to.
+    /// The samples where `measure`, a distance from the sample's point to
+    /// a point of `other` with what it was measured to, has a discrete
+    /// local minimum over this grid, one per plateau of equal distance,
+    /// nearest first, at most `MAX_SEEDS` (see `grid_minima`): each as its
+    /// index and what the distance was measured to.
     pub(crate) fn discrete_minima<T: Copy>(
         &self,
+        other: &Samples,
         measure: impl Fn(Point) -> (f64, T),
     ) -> Vec<(usize, T)> {
         let measured: Vec<(f64, T)> = self.points.iter().map(|&p| measure(p)).collect();
         let distances: Vec<f64> = measured.iter().map(|&(distance, _)| distance).collect();
-        grid_minima(&distances, self.shape, self.wrap)
+        let rounding = distance_rounding(coordinate_size(self.points.iter().chain(&other.points)));
+        grid_minima(&distances, self.shape, self.wrap, rounding)
             .into_iter()
             .map(|(i, j)| {
                 let k = i * self.shape[1] + j;
