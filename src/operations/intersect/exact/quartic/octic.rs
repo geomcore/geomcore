@@ -884,20 +884,17 @@ fn holds_tube_circle(tubes: &Tubes, other: &Tubes, u: f64, tol: Tolerance) -> bo
 /// tube circle a cylinder holds: `F`, `equation`, then vanishes on the
 /// line `u = u₀`, where the search for the points the surfaces touch
 /// meets a line of common zeros and subdivides it to its depth, seconds
-/// of work before it gives up. Every coefficient of `v` vanishes at `u₀`,
-/// so `u₀` is a zero of each, a trigonometric polynomial of degree two in
-/// `u`; the zeros of all five are the candidates, each checked by sixteen
-/// points of its tube circle.
+/// of work before it gives up. `u₀` is then a zero of `F` along every
+/// circle `v = v*`, a trigonometric polynomial of degree two in `u`, and
+/// a simple one where `∂F/∂u` does not vanish there; at the angle
+/// [`OFF_SYMMETRY`], off those a symmetric pair turns on, its zeros are
+/// the candidates, each checked by sixteen points of its tube circle.
 fn holds_a_tube_circle(
     tubes: &Tubes,
     surface: &OtherSurface,
     equation: &Equation,
     tol: Tolerance,
 ) -> bool {
-    let exact = Tolerance {
-        confusion: 0.0,
-        ..Tolerance::DEFAULT
-    };
     let on_surface = |u: f64| {
         let (sin_u, cos_u) = u.sin_cos();
         let radial = tubes.radial(sin_u, cos_u);
@@ -906,13 +903,15 @@ fn holds_a_tube_circle(
             surface.offset(tubes.point_on(radial, cos_v, sin_v)).0.abs() <= tol.confusion
         })
     };
-    (0..5).any(|b| {
-        let [e, c1, d1, a2, b2] = std::array::from_fn(|a| equation.c[a][b]);
-        solve_trig(a2, b2, c1, d1, e, exact, |_| false)
-            .iter()
-            .any(|&(u, _)| on_surface(u))
-    })
+    roots_along(equation, OFF_SYMMETRY)
+        .iter()
+        .any(|&(u, _)| on_surface(u))
 }
+
+/// The angle around the tube [`holds_a_tube_circle`] reads `F` along:
+/// a golden section of the turn, off the multiples of a quarter turn a
+/// symmetric pair touches or turns at.
+const OFF_SYMMETRY: f64 = CUT_IN_A_GAP * TAU;
 
 /// `F` divided by `1 − cos(u − u₀)`, where the tube circle at `u₀` lies on
 /// the other surface and touches it: there `F` vanishes to second order
