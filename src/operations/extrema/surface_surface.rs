@@ -9,8 +9,8 @@ use crate::operations::extrema::curve_curve::{flat_minimum, is_box_minimum};
 use crate::operations::extrema::curve_surface::whole_elementary_surface;
 use crate::operations::extrema::surface_search::{
     Carried, Foot, Objective, Samples, above_rounding, closed_gap, collapsed_minimum, foot,
-    holds_off_focus, inside, merge_basins, one_basin, outer_window, pair_scale, probe_length,
-    reference_parameters, seeds, surface_domains, surface_size,
+    foot_at_parameters, holds_off_focus, inside, merge_basins, one_basin, outer_window, pair_scale,
+    probe_length, reference_parameters, seeds, surface_domains, surface_size,
 };
 use crate::operations::extrema::{Extremum, parameters_apart};
 use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
@@ -529,11 +529,23 @@ impl<A: ParametricSurface, B: ParametricSurface> Search<'_, A, B> {
     /// parameters, the first surface's speeds and the foot itself.
     fn local(
         &self,
-        [u, v]: [f64; 2],
+        parameters: [f64; 2],
         start: [f64; 2],
     ) -> (SurfaceSurfaceExtremum, Objective, [f64; 2], Foot) {
+        self.local_from(parameters, |point| {
+            foot(self.second, self.second_domains, point, start)
+        })
+    }
+
+    /// [`local`](Self::local) with the foot given by `find_foot` from the
+    /// first surface's point.
+    fn local_from(
+        &self,
+        [u, v]: [f64; 2],
+        find_foot: impl FnOnce(Point) -> Foot,
+    ) -> (SurfaceSurfaceExtremum, Objective, [f64; 2], Foot) {
         let (point, [pu, pv], [puu, puv, pvv]) = self.first.second_derivatives(u, v);
-        let foot = foot(self.second, self.second_domains, point, start);
+        let foot = find_foot(point);
         let r = point - foot.point;
         let mixed = pu.dot(pv) + r.dot(puv);
         let [su, sv] = foot.first;
@@ -824,7 +836,14 @@ impl<A: ParametricSurface, B: ParametricSurface> Search<'_, A, B> {
     /// the candidates read from the second surface.
     fn is_flat(&self, e: &SurfaceSurfaceExtremum) -> bool {
         let (_, (_, gradient, hessian), speed, _) =
-            self.local(e.first_parameter_array(), e.second_parameter_array());
+            self.local_from(e.first_parameter_array(), |point| {
+                foot_at_parameters(
+                    self.second,
+                    self.second_domains,
+                    point,
+                    e.second_parameter_array(),
+                )
+            });
         flat_minimum(gradient, hessian, speed, self.tol)
     }
 

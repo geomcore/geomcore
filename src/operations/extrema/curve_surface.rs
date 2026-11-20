@@ -11,8 +11,8 @@ use crate::operations::extrema::curve_curve::{
     closest_from, curve_size, flat_minimum, is_box_minimum,
 };
 use crate::operations::extrema::surface_search::{
-    Carried, Foot, Samples, above_rounding, closed_gap, foot, holds_off_focus, inside,
-    merge_basins, one_basin, outer_window, pair_scale, probe_length, reference_parameters,
+    Carried, Foot, Samples, above_rounding, closed_gap, foot, foot_at_parameters, holds_off_focus,
+    inside, merge_basins, one_basin, outer_window, pair_scale, probe_length, reference_parameters,
     surface_domains, surface_size,
 };
 use crate::operations::extrema::{Extremum, parameters_apart};
@@ -498,8 +498,20 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
     /// reduced second derivatives along `t`, the curve's speed and the
     /// foot itself.
     fn local(&self, t: f64, start: [f64; 2]) -> (CurveSurfaceExtremum, (f64, f64, f64), f64, Foot) {
+        self.local_from(t, |point| {
+            foot(self.surface, self.surface_domains, point, start)
+        })
+    }
+
+    /// [`local`](Self::local) with the foot given by `find_foot` from the
+    /// curve point.
+    fn local_from(
+        &self,
+        t: f64,
+        find_foot: impl FnOnce(Point) -> Foot,
+    ) -> (CurveSurfaceExtremum, (f64, f64, f64), f64, Foot) {
         let (point, first, second) = self.curve.second_derivatives(t);
-        let foot = foot(self.surface, self.surface_domains, point, start);
+        let foot = find_foot(point);
         let r = point - foot.point;
         let [[reduced]] = foot.reduced(
             [[first.dot(first) + r.dot(second)]],
@@ -603,7 +615,7 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
     /// end may start the walk, as the feet follow one sheet of the surface.
     /// Or, for a valley of the surface over one curve point, no ridge along
     /// the straight way in the parameters of both shapes. Or, at two
-    /// minima flat along the curve, walking the surface along the straight
+    /// minima at one distance and flat along the curve, walking the surface along the straight
     /// way in its parameters, each closest point on the curve found from
     /// the last, for a valley along a piece of the surface that the shorter
     /// way round a closed curve leaves (a whole circle against a piece of a
@@ -612,7 +624,8 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
         self.walks_to(p, q)
             || self.walks_to(q, p)
             || self.straight_between(p, q)
-            || (self.flat_along_curve(p)
+            || ((p.distance - q.distance).abs() <= self.tol.confusion
+                && self.flat_along_curve(p)
                 && self.flat_along_curve(q)
                 && self.walks_on_surface_to(p, q))
     }
@@ -698,8 +711,14 @@ impl<C: ParametricCurve, S: ParametricSurface> Search<'_, C, S> {
     /// the curve. Only such a minimum is worth the candidate read from the
     /// surface's reference.
     fn flat_along_curve(&self, e: &CurveSurfaceExtremum) -> bool {
-        let (_, (_, gradient, reduced), speed, _) =
-            self.local(e.curve_parameter, e.surface_parameter_array());
+        let (_, (_, gradient, reduced), speed, _) = self.local_from(e.curve_parameter, |point| {
+            foot_at_parameters(
+                self.surface,
+                self.surface_domains,
+                point,
+                e.surface_parameter_array(),
+            )
+        });
         flat_minimum(
             [gradient, 0.0],
             [[reduced, 0.0], [0.0, 0.0]],

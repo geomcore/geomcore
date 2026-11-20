@@ -320,7 +320,6 @@ pub(crate) fn foot<S: ParametricSurface>(
     point: Point,
     start: [f64; 2],
 ) -> Foot {
-    let bounds = domains.map(ParameterDomain::bounds);
     let [u, v] = newton_min_2d(
         |u, v| point_objective(surface, point, u, v).0,
         start,
@@ -328,6 +327,18 @@ pub(crate) fn foot<S: ParametricSurface>(
         1e-14,
         100,
     );
+    foot_at_parameters(surface, domains, point, [u, v])
+}
+
+/// The surface's point at `parameters`, wrapped into a period, read as the
+/// foot of `point` without searching: for a foot already found.
+pub(crate) fn foot_at_parameters<S: ParametricSurface>(
+    surface: &S,
+    domains: [ParameterDomain; 2],
+    point: Point,
+    [u, v]: [f64; 2],
+) -> Foot {
+    let bounds = domains.map(ParameterDomain::bounds);
     let parameters = [domains[0].wrap(u), domains[1].wrap(v)];
     let ((_, gradient, hessian), surface_point, first) =
         point_objective(surface, point, parameters[0], parameters[1]);
