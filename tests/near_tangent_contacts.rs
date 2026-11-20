@@ -1361,6 +1361,60 @@ fn test_a_torus_near_touching_another_reads_its_offset() {
     );
 }
 
+/// A pipe bend turning back inside the torus, joined to it end to end:
+/// the torus about `(1 − d, 0, 0)` and `Z` of radii `3 + d` and `1` shares
+/// the tube circle at `(4, 0, 0)` with the first, touching it all along
+/// it, and its outer equator reaches `(−3 − 2d, 0, 0)`, `2d` into the
+/// first's inner equator. The tubes bend `1` each across, apart, and
+/// around the axis the first bends `1/3` and the second `1/4` the same
+/// way: a saddle of relative curvatures `2` and `1/12`. Touching, the rest
+/// of the curve is one loop crossing itself there; through, it parts into
+/// two loops `√(2 · 2d / 2)` from the contact, and apart it joins into one
+/// `√(24 · 2|d|)` from it (#454).
+fn bend_turning_back(d: f64) -> (Torus, Torus) {
+    let bend = Torus::new(Point::new(1.0 - d, 0.0, 0.0), Vector::Z, 3.0 + d, 1.0).unwrap();
+    (small_torus(), bend)
+}
+
+/// What the bend turning back gives `d` past touching.
+fn bend_turning_back_curve(d: f64) -> Exact {
+    if d > 0.0 {
+        Exact::Loops {
+            count: 2,
+            distance: (2.0 * d).sqrt(),
+        }
+    } else {
+        Exact::Loops {
+            count: 1,
+            distance: (48.0 * -d).sqrt(),
+        }
+    }
+}
+
+#[test]
+fn test_tori_sharing_a_tube_circle_read_their_other_contact_by_its_offset() {
+    let contact = Point::new(-3.0, 0.0, 0.0);
+    sweep_offsets(
+        &OFFSETS,
+        bend_turning_back,
+        contact,
+        bend_turning_back_curve,
+        tori,
+        "tori sharing a tube circle",
+    );
+    sweep_offsets(
+        &OFFSETS,
+        |d| {
+            let (first, second) = bend_turning_back(d);
+            (second, first)
+        },
+        contact,
+        bend_turning_back_curve,
+        tori,
+        "tori sharing a tube circle, swapped",
+    );
+}
+
 /// The offsets of the sweep but one confusion through, the edge of
 /// holding the tube circle, which rounding decides either way, and a few
 /// confusions either way just beyond it, where the band of tube circles

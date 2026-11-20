@@ -95,6 +95,18 @@ the Python distribution are versioned in lockstep.
   confusions away; it is now `1e-9` times the point's distance from the
   apex, as the sphere's pole reach became in #452.
 
+- Tori sharing a tube circle, as pipe bends joined end to end, read their
+  other contacts by the contact rule (#454, ADR 0057). A bend turning back
+  inside the torus of radii 4 and 1, its major radius `d` from touching
+  the torus's inner equator, from a tenth of a confusion to ten thousand
+  either way, was `NotAnalytic` in either order: the point where the rest
+  of the curve came nearest to touching, within the quotient's loose
+  bound, was taken for a crossing, and the sweep gave up. It now gives the two loops through or the one
+  loop apart, exact and complete, `√(2d)` and `√(48 |d|)` from where they
+  would touch. The shared circle is now found where the pair is moved far
+  from the origin: moved by `1e7`, even the pipe bends that touch exactly
+  were `NotAnalytic`, their normals compared to the angular tolerance from
+  points that carried the rounding of the far coordinates.
 - A sphere a few confusions from holding a tube circle of a torus is read
   with its loops (#452, ADR 0057). Centred on the centre circle of the
   torus of radii 4 and 1, of radius `1 + 1.5e-7` or `1 + 3e-7`, it was
