@@ -9,6 +9,18 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-11-23
+
+Near a contact, every closed form now follows one rule (ADR 0057): two
+surfaces within confusion of touching are read as touching only where
+their curve stays within confusion of the contact. Tori sharing a circle,
+spheres nearly holding a tube circle of a torus, and small cones and
+spheres give the same answer at any size, placement and operand order.
+Distances reach surfaces: curve–surface and surface–surface extrema, and
+the minimum distance of a pair. The plane catches up with space:
+`Transform2D`, `transformed` on every 2D shape, the offset of a 2D curve
+and 2D curve–curve extrema fill the 2D ↔ 3D parity list.
+
 ### Breaking
 
 - `Transformable` is generic over the tier (#421, ADR 0024): it has an
@@ -4134,7 +4146,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.49.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.50.0...HEAD
+[0.50.0]: https://github.com/geomcore/geomcore/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/geomcore/geomcore/compare/v0.48.0...v0.49.0
 [0.48.0]: https://github.com/geomcore/geomcore/compare/v0.47.0...v0.48.0
 [0.47.0]: https://github.com/geomcore/geomcore/compare/v0.46.0...v0.47.0
