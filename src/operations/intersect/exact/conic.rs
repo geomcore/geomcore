@@ -191,6 +191,20 @@ pub(crate) trait Quadric: ParametricSurface + Sized {
         matches!(shape, ConicShape::Ellipse { .. })
             && conic_lies_on(conic, self, shape.samples(), tol)
     }
+
+    /// The whole answer for a conic that lies within a few tolerances of
+    /// the surface all along, where the substituted equation is too flat
+    /// for its roots to say where the conic is within the tolerance (see
+    /// [`near_section`]); `None` for any other conic, or a quadric
+    /// without the analysis.
+    #[inline]
+    fn near_section<C: Conic>(
+        &self,
+        _conic: &C,
+        _tol: Tolerance,
+    ) -> Option<ConicSurfaceIntersection> {
+        None
+    }
 }
 
 impl Quadric for Plane {
@@ -286,30 +300,64 @@ impl Quadric for Cone {
     /// and the half-angle `φ`: both nappes.
     #[inline]
     fn section(&self, origin: Point, x: Vector, y: Vector) -> ImplicitConic {
-        let d = self.frame().z_direction();
         let cos = self.half_angle().cos();
-        let c2 = cos * cos;
-        let w = origin - self.apex();
-        let (xd, yd, wd) = (x.dot(d), y.dot(d), w.dot(d));
-        ImplicitConic {
-            a2: xd * xd - c2,
-            b2: yd * yd - c2,
-            c2: 2.0 * xd * yd,
-            d1: 2.0 * (wd * xd - c2 * x.dot(w)),
-            e1: 2.0 * (wd * yd - c2 * y.dot(w)),
-            f0: wd * wd - c2 * w.dot(w),
-        }
+        cone_section(
+            self.apex(),
+            self.frame().z_direction().vector(),
+            cos * cos,
+            origin,
+            x,
+            y,
+        )
     }
 
     /// A cone holds the circles and ellipses that are its plane sections,
-    /// and also parabolas and hyperbolas.
+    /// and also parabolas and hyperbolas. A circle or an ellipse reaches
+    /// this only when [`near_section`](Quadric::near_section) declined it,
+    /// a sample more than a few tolerances from the cone: it does not lie
+    /// on it.
     // Left to the compiler, whether it is inlined into
     // `intersect_conic_quadric` turns on changes elsewhere in the crate:
     // 2% of a hyperbola against a cone, its points' `sinh` and `cosh`
     // computed again when it is not.
     #[inline(always)]
     fn holds<C: Conic>(&self, conic: &C, tol: Tolerance) -> bool {
-        conic_lies_on(conic, self, conic.shape().samples(), tol)
+        let shape = conic.shape();
+        !matches!(shape, ConicShape::Ellipse { .. })
+            && conic_lies_on(conic, self, shape.samples(), tol)
+    }
+
+    #[inline]
+    fn near_section<C: Conic>(
+        &self,
+        conic: &C,
+        tol: Tolerance,
+    ) -> Option<ConicSurfaceIntersection> {
+        near_section::closed_conic_near_cone(conic, self, tol)
+    }
+}
+
+/// The section of the double cone of `apex`, unit `axis` and squared
+/// half-angle cosine `c2`, `((p − apex)·axis)² − c2 |p − apex|²`, by the
+/// plane through `origin` spanned by the orthonormal `x` and `y`.
+#[inline]
+fn cone_section(
+    apex: Point,
+    axis: Vector,
+    c2: f64,
+    origin: Point,
+    x: Vector,
+    y: Vector,
+) -> ImplicitConic {
+    let w = origin - apex;
+    let (xd, yd, wd) = (x.dot(axis), y.dot(axis), w.dot(axis));
+    ImplicitConic {
+        a2: xd * xd - c2,
+        b2: yd * yd - c2,
+        c2: 2.0 * xd * yd,
+        d1: 2.0 * (wd * xd - c2 * x.dot(w)),
+        e1: 2.0 * (wd * yd - c2 * y.dot(w)),
+        f0: wd * wd - c2 * w.dot(w),
     }
 }
 
@@ -384,6 +432,9 @@ pub(crate) fn intersect_conic_quadric<C: Conic, S: Quadric>(
     quadric: &S,
     tol: Tolerance,
 ) -> ConicSurfaceIntersection {
+    if let Some(near) = quadric.near_section(conic, tol) {
+        return near;
+    }
     if quadric.holds(conic, tol) {
         return ConicSurfaceIntersection::Coincident;
     }
@@ -887,6 +938,8 @@ pub(crate) struct PlacedConic {
     /// or a hyperbola.
     pub extent: f64,
 }
+
+mod near_section;
 
 #[cfg(test)]
 mod tests;
