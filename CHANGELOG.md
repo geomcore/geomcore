@@ -9,6 +9,18 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-11-24
+
+A performance release. The elementary surfaces read their normals and
+projection feet in closed form, an ellipse solves for its nearest point
+alone, a B-spline curve's tight box is solved for rather than bounded,
+and point projection onto a B-spline surface keeps each patch's net and
+distance bound once used; second derivatives and discretization of
+B-spline curves take far fewer instructions. Results are unchanged or
+closer. Constructors that judge degeneracy take the caller's tolerance,
+and a parameter wrapped into its period no longer lands on the period's
+end.
+
 ### Breaking
 
 - `ParametricSurface` has a required method,
@@ -4243,7 +4255,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.50.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.51.0...HEAD
+[0.51.0]: https://github.com/geomcore/geomcore/compare/v0.50.0...v0.51.0
 [0.50.0]: https://github.com/geomcore/geomcore/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/geomcore/geomcore/compare/v0.48.0...v0.49.0
 [0.48.0]: https://github.com/geomcore/geomcore/compare/v0.47.0...v0.48.0
