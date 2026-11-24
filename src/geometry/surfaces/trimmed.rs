@@ -6,6 +6,7 @@
 //! belong to the topology (faces) of a kernel built on top of geomcore.
 
 use crate::geometry::curves::{Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
+use crate::math::parameter_range::{ParameterRange, RangeError};
 
 use crate::Continuity;
 use crate::geometry::curves::RangeOperations;
@@ -69,30 +70,18 @@ impl fmt::Display for TrimmedSurfaceConstructionError {
 
 impl std::error::Error for TrimmedSurfaceConstructionError {}
 
-/// Validates `(first, last)` against a basis parameter with the given
-/// bounds and period. A periodic parameter accepts any start, so a range
-/// may cross its seam, but no more than one period.
+/// [`ParameterRange::checked`] with a trimmed surface's error.
 fn check_range(
-    (first, last): (f64, f64),
+    range: (f64, f64),
     bounds: (f64, f64),
     period: Option<f64>,
-) -> Result<(), TrimmedSurfaceConstructionError> {
-    if !first.is_finite() || !last.is_finite() {
-        return Err(TrimmedSurfaceConstructionError::NonFinite);
-    }
-    if first >= last {
-        return Err(TrimmedSurfaceConstructionError::EmptyRange);
-    }
-    match period {
-        Some(period) if last - first > period * (1.0 + 1e-12) => {
-            Err(TrimmedSurfaceConstructionError::ExceedsPeriod)
-        }
-        Some(_) => Ok(()),
-        None if first < bounds.0 || last > bounds.1 => {
-            Err(TrimmedSurfaceConstructionError::OutsideBasis)
-        }
-        None => Ok(()),
-    }
+) -> Result<ParameterRange, TrimmedSurfaceConstructionError> {
+    ParameterRange::checked(range, bounds, period).map_err(|error| match error {
+        RangeError::NotANumber | RangeError::Infinite => TrimmedSurfaceConstructionError::NonFinite,
+        RangeError::Empty => TrimmedSurfaceConstructionError::EmptyRange,
+        RangeError::ExceedsPeriod => TrimmedSurfaceConstructionError::ExceedsPeriod,
+        RangeError::OutsideBounds => TrimmedSurfaceConstructionError::OutsideBasis,
+    })
 }
 
 /// The part of `face_range`, a range of a trimmed surface, that
@@ -116,7 +105,12 @@ fn intersected_range(
     let Some(period) = period else {
         return overlap(0.0).ok_or(TrimmedSurfaceConstructionError::DisjointRanges);
     };
-    if requested.1 - requested.0 >= period * (1.0 - 1e-12) {
+    let requested_range = ParameterRange {
+        first: requested.0,
+        last: requested.1,
+        period: Some(period),
+    };
+    if requested_range.spans_whole_period() {
         return Ok(face_range);
     }
     // Both ranges span at most a period, so at most two of the copies

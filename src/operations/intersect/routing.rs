@@ -29,6 +29,7 @@ use crate::geometry::surfaces::{
     BSplineSurface, BezierSurface, ElementarySurface, ExtrusionSurface, ParametricSurface,
     RevolutionSurface, Surface, TrimmedSurface,
 };
+use crate::math::parameter_range::ParameterRange;
 use crate::math::parameter_range::{in_range, nearest_end};
 use crate::operations::intersect::numeric::embedding_2d::{Embed, intersect_numeric_2d};
 use crate::operations::intersect::numeric::marching::marching_intersection;
@@ -1016,8 +1017,14 @@ fn mapped_range<P: CurveTier, C: CurveBasis<P>>(
         let (start, finish) = (end(range.0), end(range.1));
         return (start.min(finish), start.max(finish));
     };
-    let full_period = from.cycle_length().unwrap_or(period);
-    if range.1 - range.0 >= full_period - tol.parametric {
+    // The range comes from images on the other curve, so its ends carry
+    // errors of the size of the tolerance: a whole turn within it is whole.
+    let full_range = ParameterRange {
+        first: range.0,
+        last: range.1,
+        period: Some(from.cycle_length().unwrap_or(period)),
+    };
+    if full_range.spans_whole_period_within(tol) {
         let start = image(range.0);
         return (start, start + period);
     }

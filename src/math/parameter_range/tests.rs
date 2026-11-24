@@ -135,3 +135,86 @@ fn test_wrap_into_period_keeps_every_other_value() {
     assert!(wrap_into_period(f64::NAN, 0.0, TAU).is_nan());
     assert!(wrap_angle(f64::INFINITY).is_nan());
 }
+
+#[test]
+fn test_checked_refuses_in_order() {
+    let open = (f64::NEG_INFINITY, f64::INFINITY);
+    let check = |range, bounds, period| ParameterRange::checked(range, bounds, period);
+    assert_eq!(
+        check((f64::NAN, f64::INFINITY), open, None),
+        Err(RangeError::NotANumber)
+    );
+    assert_eq!(
+        check((0.0, f64::INFINITY), open, None),
+        Err(RangeError::Infinite)
+    );
+    assert_eq!(check((1.0, 1.0), open, None), Err(RangeError::Empty));
+    assert_eq!(check((2.0, 1.0), open, Some(TAU)), Err(RangeError::Empty));
+    assert_eq!(
+        check((0.0, 1.5), (0.0, 1.0), None),
+        Err(RangeError::OutsideBounds)
+    );
+    assert_eq!(
+        check((-0.5, 0.5), (0.0, 1.0), None),
+        Err(RangeError::OutsideBounds)
+    );
+    assert_eq!(
+        check((0.0, TAU + 1e-9), (0.0, TAU), Some(TAU)),
+        Err(RangeError::ExceedsPeriod)
+    );
+}
+
+#[test]
+fn test_checked_accepts_a_period_from_any_start() {
+    let bounds = (0.0, TAU);
+    // A periodic range ignores the bounds and may cross the seam.
+    for (first, last) in [
+        (-1.0, 1.0),
+        (5.0, 7.0),
+        (-PI, PI),
+        (0.0, TAU),
+        (10.0, 10.0 + TAU),
+    ] {
+        let range = ParameterRange::checked((first, last), bounds, Some(TAU)).unwrap();
+        assert_eq!(
+            (range.first, range.last, range.period),
+            (first, last, Some(TAU))
+        );
+    }
+    // A whole turn computed with rounding errors is still within one period.
+    assert!(ParameterRange::checked((0.1, 0.1 + TAU * (1.0 + 5e-13)), bounds, Some(TAU)).is_ok());
+    assert!(ParameterRange::checked((0.2, 0.7), (0.0, 1.0), None).is_ok());
+}
+
+#[test]
+fn test_spans_whole_period_at_the_boundary() {
+    // (length, by the rounding band, within the default `parametric = 1e-9`)
+    let rows = [
+        (TAU, true, true),
+        (TAU * (1.0 - 2e-12), false, true),
+        (TAU - 5e-10, false, true),
+        (TAU - 2e-9, false, false),
+    ];
+    for start in [0.0, -PI, 2.5] {
+        for (length, rounding, within) in rows {
+            let range = ParameterRange {
+                first: start,
+                last: start + length,
+                period: Some(TAU),
+            };
+            assert_eq!(range.spans_whole_period(), rounding, "{start} {length}");
+            assert_eq!(
+                range.spans_whole_period_within(TOL),
+                within,
+                "{start} {length}"
+            );
+        }
+    }
+    let open = ParameterRange {
+        first: 0.0,
+        last: 1e9,
+        period: None,
+    };
+    assert!(!open.spans_whole_period());
+    assert!(!open.spans_whole_period_within(TOL));
+}
