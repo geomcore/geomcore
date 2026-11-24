@@ -17,6 +17,7 @@
 //! zero, which Newton's method finds. A box shrinking to nothing without
 //! either is a cluster, where the zero is not simple.
 
+use crate::math::parameter_range::wrap_angle;
 use std::f64::consts::PI;
 
 /// A trigonometric polynomial in `u` and `v`: `c[j][k]` multiplies
@@ -209,19 +210,13 @@ pub(crate) fn common_zeros<const N: usize>(
 
 /// Adds `zero` to `zeros` unless one of them is within [`SAME_ZERO`].
 fn push_distinct(zeros: &mut Vec<Angles>, zero: Angles) {
-    let zero = [wrap(zero[0]), wrap(zero[1])];
+    let zero = [wrap_angle(zero[0]), wrap_angle(zero[1])];
     if !zeros
         .iter()
         .any(|other| angular_distance(*other, zero) <= SAME_ZERO)
     {
         zeros.push(zero);
     }
-}
-
-/// `angle` in `[0, 2π)`.
-#[inline]
-pub(crate) fn wrap(angle: f64) -> f64 {
-    angle.rem_euclid(2.0 * PI)
 }
 
 /// The larger of the two angles' distances around their circles.
