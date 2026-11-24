@@ -202,8 +202,14 @@ handle.
 === "Rust"
 
     ```rust
-    use geomcore_viewer::{Geom, Opts};
+    use geomcore::prelude::*;
+    use geomcore::{Circle, Cylinder, Point, Tolerance, Vector};
+    use geomcore_viewer::{Geom, Opts, Viewer};
 
+    let mut view = Viewer::new("A circle on a cylinder")?;
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0)?;
+    let circle = Circle::new(Point::new(0.0, 0.0, 1.0), Vector::Z, 2.0)?;
+    let tol = Tolerance::DEFAULT;
     let s = view.add(Geom::from(&cylinder), Opts::new().label("S"))?;
     view.add(&circle, Opts::new().label("C"))?;
     view.pcurve(&cylinder.curve_3d_to_uv(&circle.into(), tol)?, &s, Opts::new().label("C in (u, v)"))?;
