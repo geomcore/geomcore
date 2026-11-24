@@ -7,6 +7,81 @@
 
 use crate::Tolerance;
 
+/// A range `[first, last]` of a curve or of a surface direction, with the
+/// period the parameter wraps by, if any. A periodic range may start
+/// anywhere and cross the seam, but spans at most one period.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct ParameterRange {
+    pub(crate) first: f64,
+    pub(crate) last: f64,
+    pub(crate) period: Option<f64>,
+}
+
+/// Why [`ParameterRange::checked`] refuses a range, in the order the
+/// checks run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RangeError {
+    /// An end is NaN.
+    NotANumber,
+    /// An end is infinite.
+    Infinite,
+    /// `first >= last`.
+    Empty,
+    /// The range spans more than one period, beyond rounding.
+    ExceedsPeriod,
+    /// A non-periodic range leaves the bounds.
+    OutsideBounds,
+}
+
+impl ParameterRange {
+    /// `[first, last]` on a parameter with `bounds` and `period`, checked:
+    /// both ends finite, `first < last`, and either at most one period
+    /// long (`period × (1 + 1e-12)`, the rounding of a whole turn) or,
+    /// on a non-periodic parameter, inside `bounds`.
+    pub(crate) fn checked(
+        (first, last): (f64, f64),
+        bounds: (f64, f64),
+        period: Option<f64>,
+    ) -> Result<ParameterRange, RangeError> {
+        if first.is_nan() || last.is_nan() {
+            return Err(RangeError::NotANumber);
+        }
+        if first.is_infinite() || last.is_infinite() {
+            return Err(RangeError::Infinite);
+        }
+        if first >= last {
+            return Err(RangeError::Empty);
+        }
+        match period {
+            Some(period) if last - first > period * (1.0 + 1e-12) => Err(RangeError::ExceedsPeriod),
+            None if first < bounds.0 || last > bounds.1 => Err(RangeError::OutsideBounds),
+            _ => Ok(ParameterRange {
+                first,
+                last,
+                period,
+            }),
+        }
+    }
+
+    /// Whether the range spans a whole period, up to rounding: at least
+    /// `period × (1 − 1e-12)` long. The rule for a range a caller built,
+    /// where a whole turn arrives as `2π` or a few ulps short of it. A
+    /// range without a period never spans one.
+    pub(crate) fn spans_whole_period(self) -> bool {
+        self.period
+            .is_some_and(|period| self.last - self.first >= period * (1.0 - 1e-12))
+    }
+
+    /// Whether the range spans a whole period within `tol.parametric`: at
+    /// least `period − tol.parametric` long. The rule for a range computed
+    /// from images on another curve or surface, whose ends carry errors of
+    /// the size of the tolerance. A range without a period never spans one.
+    pub(crate) fn spans_whole_period_within(self, tol: Tolerance) -> bool {
+        self.period
+            .is_some_and(|period| self.last - self.first >= period - tol.parametric)
+    }
+}
+
 /// `u` shifted by whole periods into `[start, start + period)`.
 ///
 /// `start + (u − start).rem_euclid(period)` alone can return
