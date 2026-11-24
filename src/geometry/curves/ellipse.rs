@@ -683,7 +683,7 @@ impl_for_both_tiers! {
         }
 
         /// The nearest point alone, from the monotone equation of its
-        /// Lagrange multiplier ([`elementary::ellipse_nearest`]) rather than
+        /// Lagrange multiplier (`ellipse_nearest`) rather than
         /// every stationary point of [`extrema`](Self::extrema).
         fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
             if !point.is_finite() {
