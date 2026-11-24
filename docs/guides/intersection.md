@@ -1,53 +1,17 @@
 # Intersection
 
-One entry point, two methods. `a.intersect(b)` (in Rust,
-`a.intersect(&b, tol)`) works for any two
-curves or surfaces, B-splines, Bézier types and trimmed curves
-included, in either order. It solves the pair exactly whenever a closed form exists, and
-runs a numeric search (curve–curve, curve–surface, marching
-surface–surface) otherwise. The result says which method ran and
-whether every hit was found, so a switch from nanoseconds to
-milliseconds is never hidden. Adapted from
-[Intersection](https://avenirgeometry.com/articles/intersection/).
+Call `a.intersect(b)` in Python or `a.intersect(&b, tol)` in Rust.
+Either operand order works for the supported pairs. Read `method` to
+see how the kernel found the result and `completeness` to see whether the
+search may have missed intersections.
 
-## What an intersection returns
+| Operands | Support |
+|---|---|
+| Two curves | Use two 2D curves or two 3D curves. Trimmed curves are supported. |
+| Curve and surface | Use a 3D curve and a surface. A trimmed surface clips the result to its parameter ranges. |
+| Two surfaces | Both operands can be trimmed. |
 
-One result per family: `CurveCurveIntersection` (and
-`CurveCurveIntersection2D`, the plane's instance of the same
-`GenericCurveCurveIntersection`), `CurveSurfaceIntersection` and
-`SurfaceSurfaceIntersection`. Each one carries:
-
-- the **hits**: the point, the multiplicity (1 for a crossing, 2+ for a
-  tangency) and the parameters on both operands, always filled: where a
-  closed form solves for one operand's parameter only, the other's is
-  recovered in closed form from the point. Hits are sorted by the first
-  operand's parameter;
-- the **overlaps**, where a curve lies on the other shape: a parameter
-  range on each curve plus `same_direction`, or the curve's ranges on a
-  surface;
-- for two surfaces, the **curves** (each with a `tangent` flag and its
-  curve in the parameters of each surface, see below), the **contact
-  points** and whether the surfaces are **coincident**;
-- the **method** (`EXACT` or `NUMERIC`; `Exact` or `Numeric` in Rust)
-  and the **completeness**: an exact result is always complete; a
-  numeric one is complete, incomplete (with the regions where hits may
-  be missing) or sampled. The method
-  says how the result was found, not what type its curves are: an exact
-  `Circle` can come out of a numeric search, as on the swept surfaces
-  below. Nor does `EXACT` mean that every curve is the closed form
-  itself: a loop of two quadrics that is no conic, as two cylinders
-  crossing, is a B-spline fitted through the closed form, within the
-  confusion of both surfaces. Each curve's `deviation` tells them apart:
-  `0.0` for a closed-form curve, the largest distance found from the
-  surfaces for a fitted one.
-
-Hits on circles and ellipses keep their parameters inside `bounds()`,
-and a tangency is decided by distance, not by root separation:
-
-<figure class="geom-fig">
-<img src="../../assets/figures/intersection/01-a-tangency-is-a-distance.svg" alt="Tangency decided by distance">
-<figcaption>A tangency is a distance: a closest approach within confusion is one tangent hit, not two hits or none.</figcaption>
-</figure>
+Adapted from [Intersection](https://avenirgeometry.com/articles/intersection/).
 
 ## Exact: one call, either order
 
@@ -82,6 +46,7 @@ surface_b = Plane(Point(0.0, 0.0, 0.25), Vector(0.0, 0.2, 1.0))
 
     ```python
     result = plane.intersect(sphere)    # SurfaceSurfaceIntersection
+    assert result.is_complete()
     circle = result.curves[0].curve     # Circle
     hits = line.intersect(sphere).hits  # [CurveSurfaceHit], in either order
     ```
@@ -90,13 +55,43 @@ surface_b = Plane(Point(0.0, 0.0, 0.25), Vector(0.0, 0.2, 1.0))
 
     ```rust
     use geomcore::prelude::*;
-    use geomcore::{IntersectionMethod, Tolerance};
+    use geomcore::{IntersectionMethod, Plane, Point, Sphere, Tolerance, Vector};
 
+    let plane = Plane::new(Point::ORIGIN, Vector::Z).unwrap();
+    let sphere = Sphere::new(Point::new(0.0, 0.0, 0.5), 1.0).unwrap();
     let tol = Tolerance::DEFAULT;
     let result = plane.intersect(&sphere, tol);
     assert_eq!(result.method(), IntersectionMethod::Exact);
-    assert_eq!(sphere.intersect(&plane, tol), result);
+    assert!(result.is_complete());
+    assert_eq!(result.curves().len(), 1);
     ```
+
+## What an intersection returns
+
+The result type depends on the operands. Curve results give isolated
+hits with coordinates, parameters and multiplicity. A simple crossing
+has multiplicity 1. A tangency has multiplicity 2 or higher. Overlaps
+carry parameter ranges. Surface–surface results give curves, contact
+points and coincidence information. Each intersection curve also has a
+tangency flag and its UV curve on each surface where available.
+
+Read these fields before using the result:
+
+| Field | Meaning |
+|---|---|
+| `method` | The route used to solve the pair, exact or numeric. An exact route can fit a closed-form loop as a B-spline. A numeric route can return a circle. |
+| `completeness` | Complete, incomplete with unresolved regions, or sampled. Use `is_complete()` before relying on the search to have found every hit. |
+| `deviation` | Per surface–surface intersection curve. Zero for a closed-form curve. For a fitted curve, the reported distance from the surfaces. |
+
+Hits on circles and ellipses keep their parameters inside `bounds()`.
+The kernel uses distance to classify tangencies within tolerance.
+
+<figure class="geom-fig">
+<img src="../../assets/figures/intersection/01-a-tangency-is-a-distance.svg" alt="Tangency decided by distance">
+<figcaption>A tangency is a distance: a closest approach within confusion is one tangent hit, not two hits or none.</figcaption>
+</figure>
+
+## Pair-specific exact solvers
 
 In Rust, a pair of concrete types calls its exact solver directly, with
 no run-time dispatch; only `Curve`, `Surface`, `ElementaryCurve` or
@@ -106,100 +101,10 @@ trait, Rust only) returns the pair's own enum, such as `PlaneSphereIntersection`
 on the stack, recovers no parameter it does not need, and reports
 `NotAnalytic` where no closed form exists instead of searching.
 
-Covered pairs include plane/quadric/torus surfaces against each other
-in their symmetric configurations — among them the tee of two equal
-cylinders whose axes meet, two ellipses that cross at the two points
-where the cylinders touch, both listed in `contact_points` — and any two
-cylinders whose axes cross, a sphere and a cylinder or a cone whose
-axis misses its centre, a cone and a cylinder off its axis, or two
-cones in general position. Those meet in a quartic, in one loop or two:
-the bicylindric curve of two cylinders, or, for a sphere, Viviani's
-curve among others. Where a generator of one cone runs along one of the
-other's, the curve runs off to infinity there: each piece between two
-such generators comes back whole as an exact `QuarticBranch`, unbounded
-both ways, the loops that stay bounded fitted as usual. A cylinder whose
-axis runs along a generator of a cone meets it once on each of its own
-generators, on one loop that is bounded, or runs off to infinity in
-branches like those. A cone and a cylinder, or two cones, that touch
-at a point meet in a curve crossing itself there, one loop through the
-point twice, or at that point alone; so does a cone whose apex lies on
-the other surface, at its apex. Where each apex of two cones lies on
-the other, the line through both lies on both, and the rest is a cubic
-through both apexes: `intersect` returns the line and the cubic's
-pieces between its points at infinity as `QuarticBranch` curves, with
-both apexes as contact points. So does a cylinder along a generator of
-a cone through its apex: that generator and a cubic through the apex,
-in one branch, the apex the contact point. Surfaces that touch twice
-and meet nowhere else, such as a pipe beside a cone's apex touching
-both nappes, give those two points as `contact_points`.
-`intersect_exact` returns its closed form
-(`QuarticCurve`, exact points on both surfaces), and `intersect` fits
-each loop within confusion and reports the result exact and complete,
-with the point where the surfaces touch, if any, in `contact_points`:
-two cylinders with axes `|r1 − r2|` apart meet in one loop that crosses
-itself there. Two cones with one apex and axes apart split into lines
-instead: up to four through the apex, the generators they share, with the apex in
-`contact_points`. A cone and a cylinder, or two cones, whose axes meet
-at a point as far from both, so that both touch one sphere centred
-there, split into two plane conics (the ellipses of a reducer), with the
-points where they touch in `contact_points`. Two cones with parallel
-axes and equal half-angles, each the other moved sideways, meet in one
-plane conic: the hyperbola of two neighbouring chamfers.
-A torus meets a plane or a sphere in any position in closed form too,
-read along its tube circles instead of a quadric's generators. A plane
-cuts a spiric section: two loops around the axis, one loop or two
-(Cassini's ovals, parallel to the axis at the minor radius from it), or
-one crossing itself where the plane touches the inside of the tube, that
-point in `contact_points`. A sphere off the axis meets it in a quartic of the
-same shapes. A sphere touching it twice meets it in two circles through
-both points, and one centred in the torus's plane can hold two tube
-circles. A plane or a sphere that touches the torus and meets it nowhere
-else gives that point. A horn or spindle torus, whose tube circles cross
-on its axis, runs the numeric search away from the special positions.
-A cylinder or a cone off the torus's axis meets it in a curve of degree
-eight, an `OcticCurve`, read along the same tube circles: each holds up
-to four of its points, the roots of a quartic. A pipe through the tube
-cuts two loops, one along a diameter four, and one touching the torus
-crosses itself there, that point in `contact_points`, as does a cone
-whose apex lies on the torus. One touching it and meeting it nowhere
-else gives that point. A horn or spindle torus, or a cylinder or a cone
-holding a tube circle, runs the numeric search.
-Two tori off one axis meet in an `OcticCurve` too, read along the first
-one's tube circles: two loops for rings linked like a chain, loops
-crossing where tori side by side touch, a point where they touch and
-part. Pipe bends joined end to end share a tube circle and touch all
-along it: it comes back as a tangent curve (`OcticCurve::shared_circle`),
-with the loops of the rest of the curve. A circle of one torus lying on
-the other otherwise, a latitude or Villarceau circle, comes back as one
-of the loops, the rest of the curve crossing it, in either order: where
-a tube circle of the first torus lies on the second, the pair is read
-along the second's tube circles instead.
-Lines/circles/conics against each
-other and against the elementary surfaces, except an ellipse, a
-parabola or a hyperbola against a torus: substituted into the torus they
-give an equation of degree 8, and that pair runs the numeric search. A
-circle against a torus gives one of degree 4, the torus being
-bicircular: up to four hits, or the whole circle where it lies on the
-torus (a tube, latitude or Villarceau circle). Any two conics —
-coplanar (up to four hits) or in crossing planes (met on the shared
-line). The 2D pairs are exact too: any two of `Line2D`, `Circle2D`,
-`Ellipse2D`, `Parabola2D` and `Hyperbola2D`, whole or trimmed, solved
-by the coplanar solvers with the same tangency multiplicities and
-overlaps; only a pair holding a `BSplineCurve2D` or a `BezierCurve2D`
-runs the numeric search. A Bézier curve or surface is searched as the
-B-spline it is.
+See the [closed-form pair reference](../geometry/intersection-pairs.md)
+for quadric and torus sections, conics, and plane cuts of swept surfaces.
 
-A plane meets an extrusion or a revolution in closed form in four
-positions: generator lines where it holds the extrusion's direction, the
-profile carried onto it otherwise, circles where it is perpendicular to
-the revolution's axis, and the profile turned into it where it holds the
-axis. The curves are exact types, a `Line`, a `Circle` or a curve of the
-profile's kind. They sit where the profile crosses the plane, though,
-and that crossing is exact only for an elementary profile. On a
-B-spline or Bézier profile it comes from the numeric curve–plane search,
-so a horizontal cut of a spline revolution is a list of `Circle`s with
-`method` `Numeric` and completeness `Complete`. A sphere cut by a coaxial cylinder, computed live below —
-two exact rings in ~0.4 µs on a Linux x86-64 desktop, single thread:
+A coaxial cylinder cuts a sphere in two rings.
 
 ```viewer
 scene: assets/scenes/intersect-exact.json

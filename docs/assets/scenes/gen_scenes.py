@@ -116,8 +116,8 @@ def marching_scene() -> None:
 
 
 def projection_scene() -> None:
-    """Ellipse with all four feet of one query point."""
-    view = gv.Viewer("Four feet on an ellipse", spawn=False, open_browser=False)
+    """Ellipse with the two distance minima of one query point."""
+    view = gv.Viewer("Two distance minima on an ellipse", spawn=False, open_browser=False)
     e = Ellipse(Point.origin(), Vector.unit_z(), Vector.unit_x(), 3.0, 2.0)
     q = Point(0.5, 0.2, 0)
     feet = e.extrema(q)

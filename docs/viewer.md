@@ -122,7 +122,7 @@ in one place:
 ````markdown
 ```viewer
 scene: assets/scenes/projection-feet.json
-title: Ellipse with the four projection feet of one query point
+title: Two distance minima on an ellipse for one query point
 height: 480
 ```
 ````

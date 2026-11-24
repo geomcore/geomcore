@@ -50,6 +50,7 @@ nav:
     - Map a curve onto a surface: guides/parametrization.md
   - Reference:
     - Elementary curves & surfaces: geometry/elementary.md
+    - Closed-form intersection pairs: geometry/intersection-pairs.md
     - NURBS:
       - Curves: nurbs/curves.md
       - Surfaces: nurbs/surfaces.md
