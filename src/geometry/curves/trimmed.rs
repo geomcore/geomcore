@@ -705,9 +705,12 @@ impl_for_both_tiers_over_basis! {
         /// period of a periodic basis, or whose start and end points coincide
         /// within `tol.confusion`.
         fn is_closed(&self, tol: Tolerance) -> bool {
-            if let Some(period) = self.basis.period()
-                && self.last - self.first >= period - tol.parametric
-            {
+            let range = ParameterRange {
+                first: self.first,
+                last: self.last,
+                period: self.basis.period(),
+            };
+            if range.spans_whole_period_within(tol) {
                 return true;
             }
             let (start, end) = (self.basis.point_at(self.first), self.basis.point_at(self.last));

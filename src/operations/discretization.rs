@@ -18,6 +18,7 @@ use crate::Tolerance;
 use crate::geometry::curves::{
     ParametricCurve, ParametricCurve2D, RangeOperations, TrimmedCurve, TrimmedCurve2D,
 };
+use crate::math::parameter_range::ParameterRange;
 use crate::{
     BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D, Circle, Circle2D, Ellipse, Ellipse2D,
     Point, Point2D,
@@ -687,7 +688,12 @@ macro_rules! discretize_trimmed {
 
 /// Whether `[first, last]` spans a whole `period`.
 fn spans_period((first, last): (f64, f64), period: Option<f64>) -> bool {
-    period.is_some_and(|period| last - first >= period * (1.0 - 1e-12))
+    ParameterRange {
+        first,
+        last,
+        period,
+    }
+    .spans_whole_period()
 }
 
 discretize_trimmed!(
