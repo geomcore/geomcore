@@ -275,6 +275,99 @@ pub(crate) fn in_period(u: f64, first: f64, last: f64) -> f64 {
     f64::max(first, u + period * ((first - u) / period).ceil())
 }
 
+/// The parameter of the point of the ellipse `(a cos t, b sin t)`,
+/// `a >= b > 0`, nearest the point `(x, y)` of its plane, in `(-π, π]`
+/// (D. Eberly, *Distance from a Point to an Ellipse, an Ellipsoid, or a
+/// Hyperellipsoid*, 2013).
+///
+/// The point is folded into the first quadrant. Off the axes the foot is
+/// `(a² x / (λ + a²), b² y / (λ + b²))` for the one root `λ` of
+/// `(a x / (λ + a²))² + (b y / (λ + b²))² = 1` above `-b²`, where that
+/// function is decreasing and convex; it is solved for `λ / b² + 1`
+/// between Eberly's bounds, by Newton steps kept inside the bracket and
+/// bisection where a step would leave it. On the minor axis the foot is the end of
+/// that axis; on the major axis it is the end of the major axis outside
+/// the evolute's cusp, `a² x / (a² - b²)`, and on the upper half of the
+/// ellipse inside it. Of two equally near feet, the one with `y >= 0`
+/// (folded) is returned.
+pub(crate) fn ellipse_nearest(a: f64, b: f64, x: f64, y: f64) -> f64 {
+    let (x0, y0) = (x.abs(), y.abs());
+    let (foot_x, foot_y) = if y0 > 0.0 {
+        if x0 > 0.0 {
+            let (z0, z1) = (x0 / a, y0 / b);
+            let ratio = (a / b) * (a / b);
+            // `ratio - 1`, from the difference of the radii: exact for a
+            // circle, and no cancellation for a nearly circular ellipse.
+            let excess = (a - b) * (a + b) / (b * b);
+            let numerator = ratio * z0;
+            // The function of `w = λ / b² + 1`, solved for `w` rather than
+            // `λ`: near the major axis inside the evolute the root is
+            // about `z1`, which `λ / b²` would lose against the `-1`.
+            let value = |w: f64| {
+                let (n0, n1) = (numerator / (w + excess), z1 / w);
+                (n0 * n0 + n1 * n1 - 1.0, n0, n1)
+            };
+            let (start, _, _) = value(1.0);
+            // Eberly's bracket: the function is >= 0 at `z1` and <= 0 at
+            // `|(ratio z0, z1)|`, the root on the side of 1 the sign at 1
+            // gives.
+            let (mut low, mut high) = if start < 0.0 {
+                (z1, 1.0)
+            } else {
+                (1.0, numerator.hypot(z1))
+            };
+            let mut w = low;
+            if start != 0.0 {
+                for _ in 0..256 {
+                    let (f, n0, n1) = value(w);
+                    if f == 0.0 {
+                        break;
+                    }
+                    if f > 0.0 {
+                        low = w;
+                    } else {
+                        high = w;
+                    }
+                    if high - low <= 2.0 * f64::EPSILON * high {
+                        break;
+                    }
+                    let slope = -2.0 * (n0 * n0 / (w + excess) + n1 * n1 / w);
+                    let newton = w - f / slope;
+                    // A Newton step inside the bracket, a halving otherwise.
+                    let next = if newton > low && newton < high {
+                        newton
+                    } else {
+                        0.5 * (low + high)
+                    };
+                    if next == w {
+                        break;
+                    }
+                    w = next;
+                }
+            } else {
+                w = 1.0;
+            }
+            (ratio * x0 / (w + excess), y0 / w)
+        } else {
+            (0.0, b)
+        }
+    } else {
+        let (numerator, denominator) = (a * x0, a * a - b * b);
+        if numerator < denominator {
+            let fraction = numerator / denominator;
+            (
+                a * fraction,
+                b * (1.0 - fraction * fraction).max(0.0).sqrt(),
+            )
+        } else {
+            (a, 0.0)
+        }
+    };
+    let signed_x = if x < 0.0 { -foot_x } else { foot_x };
+    let signed_y = if y < 0.0 { -foot_y } else { foot_y };
+    (signed_y / b).atan2(signed_x / a)
+}
+
 /// The parameter to report for a hit or projection at `u` on a closed
 /// curve whose bounds are `[first, first + period)`: `u` wrapped into
 /// them, and `first` when it falls within `tol` of the seam along the

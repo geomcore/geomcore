@@ -36,6 +36,12 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- Point projection on an ellipse is about ten times faster (#462):
+  `project_point` solves for the nearest point alone, from the monotone
+  equation of its Lagrange multiplier (Eberly), instead of finding every
+  stationary point and keeping the nearest. About 95% fewer
+  instructions, also in the projections onto ellipse extrusions. The
+  nearest point is never farther than before; `extrema` is unchanged.
 - Point projection on cylinders, cones, spheres and tori is faster
   (#463): the nearest point is read from the point's local coordinates
   instead of by evaluating its parameters, which saves the trigonometry.

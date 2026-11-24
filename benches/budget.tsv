@@ -17,6 +17,9 @@ bspline_curve_operations	bspline_curve_operations/rational_refine_knots	7260
 bspline_curve_operations	bspline_curve_operations/rational_remove_knots	21657
 bspline_curve_operations	bspline_curve_operations/rational_split_at	10484
 bspline_curve_operations	bspline_curve_operations/rational_to_bezier_pieces	28222
+conic_projection	conic_projection/circle_1k	444996
+conic_projection	conic_projection/eccentric_ellipse_1k	1423274
+conic_projection	conic_projection/ellipse_1k	1047479
 conic_quadric	conic_quadric/circle/cone	11263635
 conic_quadric	conic_quadric/circle/cylinder	8840188
 conic_quadric	conic_quadric/circle/plane	1135655
@@ -202,7 +205,7 @@ marching_intersection	marching_intersection/sphere_bspline_torus	206460359
 marching_intersection	marching_intersection/trimmed_bspline_pair	63676247
 shape_fitting	shape_fitting/circle	71840
 shape_fitting	shape_fitting/circle_2d	17849
-shape_fitting	shape_fitting/cylinder	582150
+shape_fitting	shape_fitting/cylinder	582292
 shape_fitting	shape_fitting/plane	8488
 shape_fitting	shape_fitting/sphere	27193
 surface_extrema	curve_surface_extrema/bspline_curve_bspline_surface	71455102
@@ -231,7 +234,7 @@ swept_plane_cut	swept_plane_cut/torus_through_axis/swept	6415
 swept_projection	swept_projection/extrusion_bspline/bspline_patch	18789681
 swept_projection	swept_projection/extrusion_bspline/swept	3300281
 swept_projection	swept_projection/extrusion_ellipse/bspline_patch	42415238
-swept_projection	swept_projection/extrusion_ellipse/swept	6599694
+swept_projection	swept_projection/extrusion_ellipse/swept	328765
 swept_projection	swept_projection/revolution_circle/bspline_patch	59916645
 swept_projection	swept_projection/revolution_circle/swept	414446
 swept_projection	swept_projection/revolution_planar_bspline/bspline_patch	43489566
