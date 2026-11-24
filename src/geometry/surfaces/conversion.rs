@@ -18,6 +18,7 @@
 //! parameter; along a circular one it matches the angle only at the range
 //! ends, the knots between pieces and the middle of each piece.
 
+use crate::math::parameter_range::{ParameterRange, RangeError};
 use std::f64::consts::TAU;
 
 use crate::geometry::curves::{BSplineConversionError, BSplineCurve, ParametricCurve};
@@ -30,30 +31,18 @@ use crate::geometry::surfaces::{
 use crate::math::bspline::conic::{self, PlaneNet};
 use crate::{Frame, Point};
 
-/// Validates `[first, last]` against a direction with the given bounds and
-/// period. A periodic direction accepts any start, so a range may cross its
-/// seam, but no more than one period.
+/// Validates a range against a direction with the given bounds and
+/// period (see [`ParameterRange::checked`]): an infinite end is
+/// `Unbounded`, any other refusal `InvalidRange`.
 fn check_range(
-    (first, last): (f64, f64),
+    range: (f64, f64),
     bounds: (f64, f64),
     period: Option<f64>,
 ) -> Result<(), BSplineConversionError> {
-    if first.is_nan() || last.is_nan() {
-        return Err(BSplineConversionError::InvalidRange);
-    }
-    if first.is_infinite() || last.is_infinite() {
-        return Err(BSplineConversionError::Unbounded);
-    }
-    if first >= last {
-        return Err(BSplineConversionError::InvalidRange);
-    }
-    match period {
-        Some(period) if last - first > period * (1.0 + 1e-12) => {
-            Err(BSplineConversionError::InvalidRange)
-        }
-        Some(_) => Ok(()),
-        None if first < bounds.0 || last > bounds.1 => Err(BSplineConversionError::InvalidRange),
-        None => Ok(()),
+    match ParameterRange::checked(range, bounds, period) {
+        Ok(_) => Ok(()),
+        Err(RangeError::Infinite) => Err(BSplineConversionError::Unbounded),
+        Err(_) => Err(BSplineConversionError::InvalidRange),
     }
 }
 
