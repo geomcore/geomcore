@@ -355,6 +355,10 @@ impl ParametricSurface for DeadZone {
         }
     }
 
+    fn highest_derivative_order(&self) -> u32 {
+        1
+    }
+
     fn u_bounds(&self) -> (f64, f64) {
         (-self.scale, self.scale)
     }

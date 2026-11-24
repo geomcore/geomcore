@@ -262,3 +262,11 @@ _Avoid_: mean curvature for the product
 **Side**:
 Which span to evaluate at a knot or periodic seam: `Below` approaches from the span ending there, `Above` from the span starting there (the side plain evaluation takes, except at the upper bound). Both sides agree away from knots, and at a knot they differ only in derivatives of higher order than its **Continuity**.
 _Avoid_: left/right (which flip with traversal direction), sidedness
+
+**Parameter range**:
+The interval `[first, last]` of a curve, or of one surface direction, that a shape is restricted to, together with the period it wraps by when the basis is periodic. A valid range is finite, non-empty, within the basis bounds and no longer than one period.
+_Avoid_: domain (the full parameter space of the basis), interval alone
+
+**Seam**:
+The parameter at which a periodic range closes on itself, where `start + period` is the same point as `start`. Wrapping a parameter into a period lands on the start of the seam, never its end.
+_Avoid_: cut, wrap point

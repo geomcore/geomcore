@@ -585,6 +585,10 @@ impl ParametricSurface for OwnPlane {
         self.0.derivative(u, v, du, dv)
     }
 
+    fn highest_derivative_order(&self) -> u32 {
+        self.0.highest_derivative_order()
+    }
+
     fn u_bounds(&self) -> (f64, f64) {
         self.0.u_bounds()
     }
