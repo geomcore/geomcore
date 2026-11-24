@@ -1,4 +1,5 @@
 use super::*;
+use crate::math::parameter_range::ParameterRange;
 
 /// The period `[1, 3)`.
 fn period() -> ParameterDomain {
@@ -22,24 +23,18 @@ fn test_start_and_end_of_an_interval() {
 }
 
 #[test]
-fn test_from_bounds_is_a_period_or_an_interval() {
-    let periodic = ParameterDomain::from_bounds((1.0, 3.0), Some(2.0));
+fn test_search_domain_is_a_period_or_an_interval() {
+    let domain = |bounds, period| ParameterRange::new(bounds, period).search_domain();
+    let periodic = domain((1.0, 3.0), Some(2.0));
     assert!(periodic.is_periodic());
     assert_eq!((periodic.start(), periodic.width()), (1.0, 2.0));
-    let interval = ParameterDomain::from_bounds((1.0, 3.0), None);
+    let interval = domain((1.0, 3.0), None);
     assert!(!interval.is_periodic());
     assert_eq!((interval.start(), interval.end()), (1.0, 3.0));
     // Less than a period of a periodic parameter is an arc.
-    let arc = ParameterDomain::from_bounds((1.0, 2.5), Some(2.0));
+    let arc = domain((1.0, 2.5), Some(2.0));
     assert!(!arc.is_periodic());
     assert_eq!((arc.start(), arc.end()), (1.0, 2.5));
-}
-
-#[test]
-fn test_turn_is_a_whole_period() {
-    assert!(ParameterDomain::TURN.is_periodic());
-    assert_eq!(ParameterDomain::TURN.start(), 0.0);
-    assert_eq!(ParameterDomain::TURN.end(), TAU);
 }
 
 #[test]

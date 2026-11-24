@@ -20,6 +20,20 @@ the Python distribution are versioned in lockstep.
   first. The Python binding reads it instead of its own copy of the
   rule, which would have given a new elementary surface 2.
 
+- The constructors that decide whether their points are degenerate take
+  the caller's `tol: Tolerance` as their last argument, instead of reading
+  `Tolerance::DEFAULT` (#473): `Circle::from_three_points`,
+  `Plane::from_three_points`, `Ellipse::from_center_and_points`,
+  `Hyperbola::from_center_and_points`, `Cone::from_two_points_and_radii`,
+  `Parabola::from_focus_and_directrix`, `TrimmedCurve::arc_through`, and
+  the 2D forms of each. A model of another size scales its tolerance and
+  gets the same answers (ADR 0051). Pass `Tolerance::DEFAULT` to keep the
+  previous behaviour. In Python `tol` is optional and defaults to
+  `Tolerance.default()`.
+- `Ellipse::from_center_and_points` and its 2D form refuse a minor radius
+  below `tol.confusion` instead of below the literal `1e-7`. The 3D form no
+  longer repeats that check on the plane normal, which has the same length.
+
 ### Changed
 
 - Point projection on an ellipse is about ten times faster (#462):
@@ -47,6 +61,14 @@ the Python distribution are versioned in lockstep.
   rule, which folds the end back to the start. The quartic and octic
   curves, the numeric searches and the B-spline knot filter use it. Any
   other parameter keeps its value bit for bit.
+- Curve–surface and surface–surface extrema find a minimum beside a
+  sphere's pole again (#494). Since 0.50.0 a run of equal sampled
+  distances counted as one valley and seeded one refinement, and a
+  sphere's pole row is such a run: its samples are one point. Seeded at
+  the angle 0 on the pole, the refinement could not turn towards a
+  minimum beside it, so a sphere above a B-spline patch could report no
+  minimum at all. Samples that are the same point no longer join one
+  valley; each seeds its own refinement, as before 0.50.0.
 
 ## [0.50.0] - 2026-11-23
 

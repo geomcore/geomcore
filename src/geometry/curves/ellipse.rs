@@ -119,6 +119,13 @@ pub type Ellipse = GenericEllipse<Point>;
 pub type Ellipse2D = GenericEllipse<Point2D>;
 
 impl<P: TierPoint> GenericEllipse<P> {
+    /// The eccentric angle of `point` on the ellipse, in closed form: what
+    /// [`PointExtrema::parameter_of`] returns, without a tolerance it would
+    /// not read.
+    pub(crate) fn angle_of(&self, point: P) -> f64 {
+        elementary::ellipse_parameter(&self.frame, self.major_radius, self.minor_radius, point)
+    }
+
     /// Creates an ellipse from a frame, a semi-major radius, and a
     /// semi-minor radius directly.
     ///
@@ -416,19 +423,20 @@ impl Ellipse {
     /// Returns [`EllipseConstructionError::NonFinite`] if a coordinate of
     /// `center`, `s1` or `s2` is NaN or infinite;
     /// [`EllipseConstructionError::NullAxis`] if `d1` is below
-    /// `Tolerance::DEFAULT.confusion` (`s1` coincides with `center`); or
-    /// [`EllipseConstructionError::InvertedAxis`] if `d1 < d2`, if `d2` is
-    /// below `1e-7`, or if `x_axis` is parallel to `s2 - center` (the two
-    /// points and the center are collinear).
+    /// `tol.confusion` (`s1` coincides with `center`); or
+    /// [`EllipseConstructionError::InvertedAxis`] if `d1 < d2` or if `d2`
+    /// is below `tol.confusion` (the two points and the center are
+    /// collinear).
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse, Point};
+    /// use geomcore::{Ellipse, Point, Tolerance};
     /// let ellipse = Ellipse::from_center_and_points(
     ///     Point::ORIGIN,
     ///     Point::new(3.0, 0.0, 0.0),
     ///     Point::new(0.0, 1.5, 0.0),
+    ///     Tolerance::DEFAULT,
     /// )
     /// .unwrap();
     /// assert_eq!(ellipse.major_radius(), 3.0);
@@ -438,13 +446,14 @@ impl Ellipse {
         center: Point,
         s1: Point,
         s2: Point,
+        tol: Tolerance,
     ) -> Result<Ellipse, EllipseConstructionError> {
         if !(center.is_finite() && s1.is_finite() && s2.is_finite()) {
             return Err(EllipseConstructionError::NonFinite);
         }
         let v1 = s1 - center;
         let d1 = v1.magnitude();
-        if d1 < Tolerance::DEFAULT.confusion {
+        if d1 < tol.confusion {
             return Err(EllipseConstructionError::NullAxis);
         }
         let x_axis = v1 * (1.0 / d1);
@@ -454,14 +463,12 @@ impl Ellipse {
         let perp = v2 - proj * x_axis;
         let d2 = perp.magnitude();
 
-        if d1 < d2 || d2 < 1e-7 {
+        if d1 < d2 || d2 < tol.confusion {
             return Err(EllipseConstructionError::InvertedAxis);
         }
 
+        // `|x_axis × v2|` is `d2`, already checked above.
         let normal = x_axis.cross(v2);
-        if normal.magnitude() < 1e-7 {
-            return Err(EllipseConstructionError::InvertedAxis);
-        }
 
         let frame = Frame::new(center, normal, x_axis).map_err(frame_error(
             EllipseConstructionError::NonFinite,
@@ -533,19 +540,20 @@ impl Ellipse2D {
     /// Returns [`EllipseConstructionError::NonFinite`] if a coordinate of
     /// `center`, `s1` or `s2` is NaN or infinite;
     /// [`EllipseConstructionError::NullAxis`] if `d1` is below
-    /// `Tolerance::DEFAULT.confusion` (`s1` coincides with `center`); or
-    /// [`EllipseConstructionError::InvertedAxis`] if `d1 < d2`, if `d2` is
-    /// below `1e-7`, or if `x_axis` is parallel to `s2 - center` (the two
-    /// points and the center are collinear).
+    /// `tol.confusion` (`s1` coincides with `center`); or
+    /// [`EllipseConstructionError::InvertedAxis`] if `d1 < d2` or if `d2`
+    /// is below `tol.confusion` (the two points and the center are
+    /// collinear).
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Ellipse2D, Point2D};
+    /// use geomcore::{Ellipse2D, Point2D, Tolerance};
     /// let ellipse = Ellipse2D::from_center_and_points(
     ///     Point2D::ORIGIN,
     ///     Point2D::new(3.0, 0.0),
     ///     Point2D::new(0.0, 1.5),
+    ///     Tolerance::DEFAULT,
     /// )
     /// .unwrap();
     /// assert_eq!(ellipse.major_radius(), 3.0);
@@ -555,20 +563,21 @@ impl Ellipse2D {
         center: Point2D,
         s1: Point2D,
         s2: Point2D,
+        tol: Tolerance,
     ) -> Result<Ellipse2D, EllipseConstructionError> {
         if !(center.is_finite() && s1.is_finite() && s2.is_finite()) {
             return Err(EllipseConstructionError::NonFinite);
         }
         let v1 = s1 - center;
         let d1 = v1.magnitude();
-        if d1 < Tolerance::DEFAULT.confusion {
+        if d1 < tol.confusion {
             return Err(EllipseConstructionError::NullAxis);
         }
         let x_axis = v1 * (1.0 / d1);
         let v2 = s2 - center;
         let cross = x_axis.cross(v2);
         let d2 = cross.abs();
-        if d1 < d2 || d2 < 1e-7 {
+        if d1 < d2 || d2 < tol.confusion {
             return Err(EllipseConstructionError::InvertedAxis);
         }
         let y_axis = if cross < 0.0 {
@@ -657,7 +666,7 @@ impl_for_both_tiers! {
         /// Recovers the angular parameter of a point on (or near) the ellipse,
         /// wrapped into `[0, 2*PI)`.
         fn parameter_of(&self, point: P, _tol: Tolerance) -> f64 {
-            elementary::ellipse_parameter(&self.frame, self.major_radius, self.minor_radius, point)
+            self.angle_of(point)
         }
 
         fn contains(&self, point: P, tol: Tolerance) -> bool {

@@ -5,11 +5,12 @@ use crate::Direction;
 use crate::base::TierPoint;
 use crate::geometry::curves::ParametricCurve;
 use crate::math::numeric::{newton_min_1d, newton_min_2d};
+use crate::math::parameter_domain::ParameterDomain;
 use crate::operations::extrema::curve_curve_pieces::curve_curve_seeds;
 use crate::operations::extrema::operand::CurveExtremaOperand;
 use crate::operations::extrema::{Extremum, parameters_apart};
-use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::{Completeness, CurveCurveRegion};
+use crate::operations::search_domain::curve_domain;
 use crate::{Point, Point2D, Tolerance, Vector};
 use std::ops::Deref;
 
@@ -572,7 +573,7 @@ where
     A: ParametricCurve,
     B: ParametricCurve,
 {
-    let (da, db) = (ParameterDomain::of(a), ParameterDomain::of(b));
+    let (da, db) = (curve_domain(a), curve_domain(b));
     let straight = (Straight::of(a, da), Straight::of(b, db));
     if !matches!(straight, (Some(_), Some(_)))
         && let Some((mut seeds, completeness)) = curve_curve_seeds(a, b, tol)
@@ -594,7 +595,7 @@ where
     A: ParametricCurve,
     B: ParametricCurve,
 {
-    let (da, db) = (ParameterDomain::of(a), ParameterDomain::of(b));
+    let (da, db) = (curve_domain(a), curve_domain(b));
     let straight = (Straight::of(a, da), Straight::of(b, db));
     sampled_minima(a, da, b, db, straight, tol)
 }
@@ -720,7 +721,14 @@ where
     let bounds = dom.bounds();
     let mut found = Vec::new();
     let shape = [seeds.len(), 1];
-    for (k, _) in grid_minima(&values, shape, [dom.is_periodic(), false], rounding) {
+    let same_points = |p: usize, q: usize| points[p].distance(points[q]) <= rounding;
+    for (k, _) in grid_minima(
+        &values,
+        shape,
+        [dom.is_periodic(), false],
+        rounding,
+        same_points,
+    ) {
         let t = dom.wrap(newton_min_1d(|t| local(t).0, seeds[k], bounds, 1e-14, 100));
         let ((_, g, h), speed) = local(t);
         let optimal = is_box_minimum(
@@ -783,6 +791,10 @@ where
         shape,
         [da.is_periodic(), db.is_periodic()],
         rounding,
+        |p, q| {
+            let m = shape[1];
+            pa[p / m].distance(pa[q / m]) <= rounding && pb[p % m].distance(pb[q % m]) <= rounding
+        },
     )
     .into_iter()
     .map(|(i, j)| [ss[i], ts[j]])
@@ -802,10 +814,17 @@ where
         let points: Vec<Point> = us.iter().map(|&u| curve(u)).collect();
         let values: Vec<f64> = points.iter().map(|q| p.distance(*q)).collect();
         let rounding = distance_rounding(coordinate_size(points.iter().chain([&p])));
-        grid_minima(&values, [us.len(), 1], [dom.is_periodic(), false], rounding)
-            .into_iter()
-            .map(|(k, _)| us[k])
-            .collect::<Vec<f64>>()
+        let same_points = |p: usize, q: usize| points[p].distance(points[q]) <= rounding;
+        grid_minima(
+            &values,
+            [us.len(), 1],
+            [dom.is_periodic(), false],
+            rounding,
+            same_points,
+        )
+        .into_iter()
+        .map(|(k, _)| us[k])
+        .collect::<Vec<f64>>()
     };
     let (dense_s, dense_t) = (
         da.seeds(a, scale, SEED_GRID_1D),
@@ -1340,11 +1359,18 @@ pub(crate) fn distance_rounding(size: f64) -> f64 {
 /// come out lower: taken one by one they would fill the [`MAX_SEEDS`]
 /// ahead of a farther minimum, and how many depended on the placement
 /// (#448). The refinement from any node of the plateau reaches the valley.
+///
+/// Two nodes whose samples are the same points (`same_points`) never join
+/// a plateau: their distances tie because the shapes do not move between
+/// them, as along the pole row of a sphere, not because a valley runs
+/// there. Each keeps its own seed, since the refinement from a node of a
+/// degenerate row cannot turn towards a minimum beside it.
 pub(crate) fn grid_minima(
     values: &[f64],
     shape: [usize; 2],
     wrap: [bool; 2],
     rounding: f64,
+    same_points: impl Fn(usize, usize) -> bool,
 ) -> Vec<(usize, usize)> {
     let [n, m] = shape;
     let neighbour = |i: usize, di: isize, len: usize, wrap: bool| {
@@ -1397,7 +1423,11 @@ pub(crate) fn grid_minima(
                 lowest = p;
             }
             any_neighbour(p / m, p % m, &mut |x| {
-                if minimum[x] && !seen[x] && (values[x] - values[p]).abs() <= rounding {
+                if minimum[x]
+                    && !seen[x]
+                    && (values[x] - values[p]).abs() <= rounding
+                    && !same_points(x, p)
+                {
                     seen[x] = true;
                     plateau.push(x);
                 }

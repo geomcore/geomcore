@@ -75,6 +75,7 @@ fn test_ellipse3d_from_center_and_points_ok() {
         Point::ORIGIN,
         Point::new(3.0, 0.0, 0.0),
         Point::new(0.0, 1.5, 0.0),
+        Tolerance::DEFAULT,
     )
     .unwrap();
     assert_eq!(e.major_radius(), 3.0);
@@ -84,7 +85,12 @@ fn test_ellipse3d_from_center_and_points_ok() {
 #[test]
 fn test_ellipse3d_from_center_and_points_null_axis_errors() {
     assert_eq!(
-        Ellipse::from_center_and_points(Point::ORIGIN, Point::ORIGIN, Point::new(0.0, 1.5, 0.0),),
+        Ellipse::from_center_and_points(
+            Point::ORIGIN,
+            Point::ORIGIN,
+            Point::new(0.0, 1.5, 0.0),
+            Tolerance::DEFAULT,
+        ),
         Err(EllipseConstructionError::NullAxis)
     );
 }
@@ -96,6 +102,7 @@ fn test_ellipse3d_from_center_and_points_inverted_axis_errors_when_minor_larger(
             Point::ORIGIN,
             Point::new(1.0, 0.0, 0.0),
             Point::new(0.0, 3.0, 0.0),
+            Tolerance::DEFAULT,
         ),
         Err(EllipseConstructionError::InvertedAxis)
     );
@@ -108,6 +115,7 @@ fn test_ellipse3d_from_center_and_points_inverted_axis_errors_when_collinear() {
             Point::ORIGIN,
             Point::new(3.0, 0.0, 0.0),
             Point::new(1.0, 0.0, 0.0),
+            Tolerance::DEFAULT,
         ),
         Err(EllipseConstructionError::InvertedAxis)
     );
@@ -120,6 +128,7 @@ fn test_ellipse3d_from_center_and_points_non_finite_errors() {
             Point::ORIGIN,
             Point::new(3.0, 0.0, 0.0),
             Point::new(1.0, f64::INFINITY, 0.0),
+            Tolerance::DEFAULT,
         ),
         Err(EllipseConstructionError::NonFinite)
     );
