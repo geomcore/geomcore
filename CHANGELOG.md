@@ -9,6 +9,19 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Fixed
+
+- A point found near an ellipse's seam is reported at its own parameter
+  unless the seam point lies within `tol.confusion` of it along the curve
+  (#482). The snap to the parameter 0 bounded that arc by the minor
+  radius alone, the speed at the seam, so on a needle ellipse it could
+  move the point by about `a Δt² / 2`: with radii 1 and 1e-6, a foot
+  0.05 rad before the seam was reported at 0, 1.25e-3 from the point
+  that parameter evaluates. The bound now adds the speed's growth, at
+  most the major radius per radian. Projections, extrema and the
+  intersections of ellipses snap as before wherever the point stays
+  within `tol.confusion`; circles are unchanged.
+
 ## [0.51.0] - 2026-11-24
 
 A performance release. The elementary surfaces read their normals and

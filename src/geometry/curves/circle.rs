@@ -190,7 +190,7 @@ impl<P: TierPoint> GenericCircle<P> {
     /// has one parameter.
     pub(crate) fn parameter_in_bounds(&self, u: f64, tol: Tolerance) -> f64 {
         // The speed is the radius everywhere.
-        elementary::seam_wrapped(u, 0.0, TAU, self.radius, tol.confusion)
+        elementary::seam_wrapped(u, 0.0, TAU, self.radius, 0.0, tol.confusion)
     }
 
     /// The length of the circle, its circumference (`2*PI*radius`).
