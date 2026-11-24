@@ -25,6 +25,28 @@ the Python distribution are versioned in lockstep.
   below `tol.confusion` instead of below the literal `1e-7`. The 3D form no
   longer repeats that check on the plane normal, which has the same length.
 
+### Changed
+
+- Discretizing a B-spline or Bézier curve is faster (#466), with the
+  same output bit for bit: `discretize_into` takes about 55% fewer
+  instructions, `point_count` and `discretize` about 20–25% fewer. Pieces
+  below degree 8 no longer carry buffers sized for degree 25, the bound
+  on the tangent's turning clears only the coefficients it uses, and
+  filling writes the points while it counts them instead of counting
+  first. When `discretize_into` panics on a buffer of the wrong length,
+  the buffers now hold unspecified values; before, they were untouched.
+
+### Fixed
+
+- A parameter wrapped into a period no longer comes back as the end of the
+  period (#467). For an angle a hair below the start, such as `-1e-17`,
+  `start + (u − start).rem_euclid(period)` rounds to `start + period`,
+  so a point on the seam could be reported at both `0` and `2π`. Every
+  place that brings a parameter into its period now goes through one
+  rule, which folds the end back to the start. The quartic and octic
+  curves, the numeric searches and the B-spline knot filter use it. Any
+  other parameter keeps its value bit for bit.
+
 ## [0.50.0] - 2026-11-23
 
 Near a contact, every closed form now follows one rule (ADR 0057): two
