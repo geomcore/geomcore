@@ -19,6 +19,7 @@ use crate::geometry::curves::{
 use crate::geometry::curves::{bounded_curve_types, curve_dispatch, elementary_curve_dispatch};
 use crate::math::bspline::curve as math;
 use crate::math::numeric::{bernstein, brent_minimum};
+use crate::math::parameter_range::wrap_into_period;
 use crate::{Point, Tolerance};
 use std::f64::consts::{PI, TAU};
 
@@ -62,7 +63,7 @@ pub(crate) fn trigonometric_box<P: TierPoint>(
     } else {
         let ends = BoundingBoxOf::<P>::new(point_at(first), point_at(last));
         (low, high) = (lanes(ends.min_corner()), lanes(ends.max_corner()));
-        let reached = |t: f64| first + (t - first).rem_euclid(TAU) <= last;
+        let reached = |t: f64| wrap_into_period(t, first, TAU) <= last;
         for k in 0..P::DIM {
             let peak = b.coordinate(k).atan2(a.coordinate(k));
             if reached(peak) {

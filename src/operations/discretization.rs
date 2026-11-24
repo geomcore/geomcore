@@ -19,6 +19,7 @@ use crate::geometry::curves::{
     GenericBSplineCurve, GenericBezierCurve, GenericCircle, GenericEllipse, ParametricCurve,
     ParametricCurve2D, RangeOperations, TrimmedCurve, TrimmedCurve2D, bounded_curve_types,
 };
+use crate::math::parameter_range::ParameterRange;
 use crate::{Point, Point2D};
 use std::fmt;
 
@@ -254,7 +255,8 @@ pub trait Discretize {
     ///
     /// # Panics
     ///
-    /// Panics if a slice has the wrong length.
+    /// Panics if a slice has the wrong length, leaving the slices'
+    /// contents unspecified.
     fn discretize_into(
         &self,
         criteria: DiscretizationCriteria,
@@ -366,7 +368,8 @@ pub trait Discretize2D {
     ///
     /// # Panics
     ///
-    /// Panics if a slice has the wrong length.
+    /// Panics if a slice has the wrong length, leaving the slices'
+    /// contents unspecified.
     fn discretize_into(
         &self,
         criteria: DiscretizationCriteria,
@@ -445,28 +448,52 @@ impl<P> Slices<'_, P> {
 /// Writes the discretization of `[first, last]` into `out`, the end points
 /// from `point_at_parameter`: the runs may leave out a rounding error at
 /// either end.
+///
+/// The runs are written as they are counted, so each span is visited once.
+/// A closed curve whose runs give fewer than three segments is visited a
+/// second time with more segments per run (see [`plan`]). The lengths are
+/// checked once the count is known; the slices hold unspecified values when
+/// that check panics.
 fn fill<C: RangeOperations + ?Sized>(
     curve: &C,
     (first, last): (f64, f64),
     closed: bool,
     criteria: &DiscretizationCriteria,
     point_at_parameter: impl Fn(f64) -> C::Point,
-    out: Slices<'_, C::Point>,
+    mut out: Slices<'_, C::Point>,
 ) {
-    let (n, min_segments) = plan(curve, (first, last), closed, criteria);
+    let write = |min_segments, out: &mut Slices<'_, C::Point>| {
+        let (mut runs, mut segments) = (0usize, 0usize);
+        curve.for_each_run(first, last, criteria, min_segments, |run, point_at| {
+            runs += 1;
+            let step = 1.0 / run.segments as f64;
+            for j in 0..run.segments {
+                let i = segments.saturating_add(j);
+                let s = j as f64 * step;
+                if let Some(parameter) = out.parameters.get_mut(i) {
+                    *parameter = run.first + (run.last - run.first) * s;
+                }
+                if let Some(point) = out.points.get_mut(i) {
+                    *point = point_at(s);
+                }
+                if let Some(chord) = out.chord_deviations.get_mut(i) {
+                    *chord = run.chord_deviation;
+                }
+                if let Some(angle) = out.angle_deviations.get_mut(i) {
+                    *angle = run.angle_deviation;
+                }
+            }
+            segments = segments.saturating_add(run.segments);
+        });
+        (runs, segments)
+    };
+    let (runs, mut segments) = write(1, &mut out);
+    // The same rule as `plan`.
+    if closed && segments < 3 {
+        segments = write(3usize.div_ceil(runs), &mut out).1;
+    }
+    let n = segments.saturating_add(1);
     out.check_lengths(n);
-    let mut i = 0;
-    curve.for_each_run(first, last, criteria, min_segments, |run, point_at| {
-        let step = 1.0 / run.segments as f64;
-        for j in 0..run.segments {
-            let s = j as f64 * step;
-            out.parameters[i] = run.first + (run.last - run.first) * s;
-            out.points[i] = point_at(s);
-            out.chord_deviations[i] = run.chord_deviation;
-            out.angle_deviations[i] = run.angle_deviation;
-            i += 1;
-        }
-    });
     out.parameters[0] = first;
     out.parameters[n - 1] = last;
     out.points[0] = point_at_parameter(first);
@@ -685,7 +712,12 @@ macro_rules! discretize_trimmed {
 
 /// Whether `[first, last]` spans a whole `period`.
 fn spans_period((first, last): (f64, f64), period: Option<f64>) -> bool {
-    period.is_some_and(|period| last - first >= period * (1.0 - 1e-12))
+    ParameterRange {
+        first,
+        last,
+        period,
+    }
+    .spans_whole_period()
 }
 
 discretize_trimmed!(

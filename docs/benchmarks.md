@@ -616,6 +616,40 @@ Filling costs about three counts: it plans the count again, then visits
 the runs to write them. Allocating adds little to filling a reused
 buffer.
 
+## Pieces sized to their degree (#466)
+
+A profile of `fill_reused_buffer` at 1e-3 (callgrind, 340 M instructions)
+found 41% of them in `memset` and `memcpy`: the turning bound zeroed a
+50 × 3 buffer of tangent directions and two buffers of 99 products on
+every call, and each halving and evaluation copied a piece's 26 control
+points (degree 25) where a cubic uses 4. Bézier extraction took 23%,
+done once to count and again to fill.
+
+Pieces below degree 8 now hold 8 control points, the turning buffers
+are made once per curve on the stack, sized like the pieces, and cleared
+to the length used, and filling
+writes the runs while it counts them (a closed curve with fewer than
+three segments is visited a second time, with more segments per run).
+The output is bit-for-bit the same on every bench curve, at four chord
+deviations with and without an angle limit, on rational curves of
+degree 1 to 12, on curves elevated to degree 7 to 15, and on closed
+curves taking the second visit.
+
+Instructions (the budget's counts, Rust 1.96.1):
+
+| id | before | after |
+|---|---|---|
+| `1e-2/count` | 86.8 M | 63.8 M (−26%) |
+| `1e-2/fill_reused_buffer` | 279.7 M | 144.3 M (−48%) |
+| `1e-2/allocate` | 120.1 M | 94.3 M (−21%) |
+| `1e-3/count` | 92.6 M | 68.6 M (−26%) |
+| `1e-3/fill_reused_buffer` | 329.4 M | 181.5 M (−45%) |
+| `1e-3/allocate` | 165.3 M | 131.5 M (−20%) |
+
+The bench's fill calls `point_count` first to size the buffers. Without
+that call, filling costs 80.5 M and 112.9 M (1.3 and 1.6 counts), where it
+cost 192.9 M and 236.8 M (2.2 and 2.6 counts): 55% fewer.
+
 Reproduce with:
 
 ```sh

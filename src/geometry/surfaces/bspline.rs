@@ -2007,7 +2007,7 @@ impl BSplineSurface {
         let (u, v) = (to_global(s, 0), to_global(t, 1));
         let wrap = |x: f64, periodic: bool, lo: f64, hi: f64| {
             if periodic {
-                lo + (x - lo).rem_euclid(hi - lo)
+                crate::math::parameter_range::wrap_into_period(x, lo, hi - lo)
             } else {
                 x
             }
@@ -2116,6 +2116,11 @@ impl ParametricSurface for BSplineSurface {
                 panic!("derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)")
             }
         }
+    }
+
+    /// The B-spline surface evaluates up to `du + dv = 2`.
+    fn highest_derivative_order(&self) -> u32 {
+        2
     }
 
     fn first_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
