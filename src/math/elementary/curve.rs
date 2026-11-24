@@ -267,6 +267,7 @@ pub(crate) fn hyperbola_parameter<F: FrameOperations>(frame: &F, min: f64, p: F:
 /// A `u` already in `[first, last)` is returned unchanged: just below
 /// `last`, `(first - u) / period` can round to `-1` and the formula would
 /// fold `u` onto `first`, a different span of a periodic B-spline.
+#[inline]
 pub(crate) fn in_period(u: f64, first: f64, last: f64) -> f64 {
     if (first..last).contains(&u) {
         return u;
