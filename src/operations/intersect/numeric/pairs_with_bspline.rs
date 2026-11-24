@@ -12,7 +12,6 @@
 //! circle, ellipse or hyperbola does not follow the curve's own parameter,
 //! so what the search finds is carried back to it.
 
-use crate::geometry::curves::PointExtrema;
 use crate::math::parameter_range::ParameterRange;
 use crate::operations::search_domain::curve_domain;
 use std::borrow::Cow;
@@ -88,13 +87,11 @@ impl HullCurve<'_> {
     /// at its representative nearest `t`, not wrapped into the range.
     fn carried(&self, t: f64) -> f64 {
         let point = || self.bspline.point_at(t);
-        // The conics invert in closed form, which takes no tolerance.
-        let tol = Tolerance::DEFAULT;
         match self.source {
             None | Some(ElementaryCurve::Line(_) | ElementaryCurve::Parabola(_)) => t,
-            Some(ElementaryCurve::Circle(c)) => nearest(c.parameter_of(point(), tol), t),
-            Some(ElementaryCurve::Ellipse(e)) => nearest(e.parameter_of(point(), tol), t),
-            Some(ElementaryCurve::Hyperbola(h)) => h.parameter_of(point(), tol),
+            Some(ElementaryCurve::Circle(c)) => nearest(c.angle_of(point()), t),
+            Some(ElementaryCurve::Ellipse(e)) => nearest(e.angle_of(point()), t),
+            Some(ElementaryCurve::Hyperbola(h)) => h.angle_of(point()),
         }
     }
 

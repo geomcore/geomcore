@@ -14,7 +14,7 @@ use std::borrow::Cow;
 use std::f64::consts::{FRAC_PI_2, TAU};
 
 use crate::geometry::curves::{
-    BSplineCurve, Circle, Curve, ElementaryCurve, ParametricCurve, PointExtrema, TrimmedCurve,
+    BSplineCurve, Circle, Curve, ElementaryCurve, Ellipse, ParametricCurve, TrimmedCurve,
 };
 use crate::geometry::surfaces::swept::profile_bspline;
 use crate::geometry::surfaces::{
@@ -223,11 +223,15 @@ pub(crate) fn nearest(angle: f64, x: f64) -> f64 {
 enum Direction {
     /// The same parameter.
     Straight,
-    /// The angle of the circle or ellipse `curve` at the point of its
-    /// B-spline `arc` with the same parameter, built from the same pieces
-    /// as the patch's.
-    Angle {
-        curve: ElementaryCurve,
+    /// The angle of `circle` at the point of its B-spline `arc` with the
+    /// same parameter, built from the same pieces as the patch's.
+    CircleAngle {
+        circle: Circle,
+        arc: Box<BSplineCurve>,
+    },
+    /// The eccentric angle of `ellipse`, as for a circle.
+    EllipseAngle {
+        ellipse: Ellipse,
         arc: Box<BSplineCurve>,
     },
 }
@@ -237,8 +241,8 @@ impl Direction {
     fn circular((lo, hi): (f64, f64)) -> Option<Direction> {
         let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).ok()?;
         let arc = TrimmedCurve::new(circle, lo, hi).ok()?.to_bspline().ok()?;
-        Some(Direction::Angle {
-            curve: ElementaryCurve::Circle(circle),
+        Some(Direction::CircleAngle {
+            circle,
             arc: Box::new(arc),
         })
     }
@@ -250,12 +254,14 @@ impl Direction {
     fn of_profile(profile: &Curve, arc: BSplineCurve) -> Option<Direction> {
         match profile.as_elementary() {
             None => Some(Direction::Straight),
-            Some(curve @ (ElementaryCurve::Circle(_) | ElementaryCurve::Ellipse(_))) => {
-                Some(Direction::Angle {
-                    curve,
-                    arc: Box::new(arc),
-                })
-            }
+            Some(ElementaryCurve::Circle(circle)) => Some(Direction::CircleAngle {
+                circle,
+                arc: Box::new(arc),
+            }),
+            Some(ElementaryCurve::Ellipse(ellipse)) => Some(Direction::EllipseAngle {
+                ellipse,
+                arc: Box::new(arc),
+            }),
             Some(_) => None,
         }
     }
@@ -265,11 +271,9 @@ impl Direction {
     fn carried(&self, x: f64) -> f64 {
         match self {
             Direction::Straight => x,
-            Direction::Angle { curve, arc } => {
-                // A circle or ellipse inverts in closed form, which takes no
-                // tolerance.
-                let parameter = curve.parameter_of(arc.point_at(x), Tolerance::DEFAULT);
-                nearest(parameter, x)
+            Direction::CircleAngle { circle, arc } => nearest(circle.angle_of(arc.point_at(x)), x),
+            Direction::EllipseAngle { ellipse, arc } => {
+                nearest(ellipse.angle_of(arc.point_at(x)), x)
             }
         }
     }

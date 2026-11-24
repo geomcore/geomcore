@@ -84,6 +84,7 @@ fn test_hyperbola3d_from_center_and_points_ok() {
         Point::ORIGIN,
         Point::new(2.0, 0.0, 0.0),
         Point::new(0.0, 1.0, 0.0),
+        Tolerance::DEFAULT,
     )
     .unwrap();
     assert_eq!(h.major_radius(), 2.0);
@@ -93,7 +94,12 @@ fn test_hyperbola3d_from_center_and_points_ok() {
 #[test]
 fn test_hyperbola3d_from_center_and_points_confused_points_errors() {
     assert_eq!(
-        Hyperbola::from_center_and_points(Point::ORIGIN, Point::ORIGIN, Point::new(0.0, 1.0, 0.0),),
+        Hyperbola::from_center_and_points(
+            Point::ORIGIN,
+            Point::ORIGIN,
+            Point::new(0.0, 1.0, 0.0),
+            Tolerance::DEFAULT,
+        ),
         Err(HyperbolaConstructionError::ConfusedPoints)
     );
 }
@@ -105,6 +111,7 @@ fn test_hyperbola3d_from_center_and_points_collinear_points_errors() {
             Point::ORIGIN,
             Point::new(2.0, 0.0, 0.0),
             Point::new(1.0, 0.0, 0.0),
+            Tolerance::DEFAULT,
         ),
         Err(HyperbolaConstructionError::CollinearPoints)
     );
