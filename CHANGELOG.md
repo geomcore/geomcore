@@ -14,7 +14,9 @@ the Python distribution are versioned in lockstep.
 - Each elementary surface's implicit equation is written once (#504).
   The conic and line intersections, the marching seeds and the reading
   of conics lying close to a surface derived it again, the cone's four
-  times and the torus's five.
+  times and the torus's five. A circle or an ellipse against a sphere or
+  a cylinder no longer samples it a second time to decide whether it
+  lies on the surface: up to 22% fewer instructions.
 
 - Point projection onto a rational B-spline surface is faster, still
   proven global (part of #501). A subpatch whose convexity is not

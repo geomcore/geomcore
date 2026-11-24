@@ -183,13 +183,13 @@ pub(crate) trait Quadric:
         None
     }
 
-    /// Whether the whole conic lies on the surface. Only an ellipse or a
-    /// circle can lie on a sphere or a cylinder, so the default checks
-    /// those alone.
-    fn holds<C: Conic>(&self, conic: &C, tol: Tolerance) -> bool {
-        let shape = conic.shape();
-        matches!(shape, ConicShape::Ellipse { .. })
-            && conic_lies_on(conic, self, shape.samples(), tol)
+    /// Whether the whole conic lies on the surface, for a conic that
+    /// [`near_section::closed_conic_near`] declined. Only an ellipse or a
+    /// circle can lie on a sphere or a cylinder, and one that reaches this
+    /// strays more than a few tolerances from the surface at a sample: by
+    /// default none does.
+    fn holds<C: Conic>(&self, _conic: &C, _tol: Tolerance) -> bool {
+        false
     }
 }
 
