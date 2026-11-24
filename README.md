@@ -25,9 +25,9 @@ changes are flagged in the changelog). Implemented:
   `transformed`.
 - **Containment, projection and extrema** on every curve and surface:
   closed form on the analytic types, exact subdivision on B-splines.
-- **Intersections** of any two curves or surfaces, B-splines and trimmed
-  curves included, through one `a.intersect(&b, tol)` call that works in
-  either order and on shapes whose type is only known at run time. It
+- **Intersections** of two curves in the same dimension, a 3D curve and an
+  surface, or two surfaces. Call `a.intersect(&b, tol)` in
+  either order, including on shapes whose type is known at run time. It
   solves the pair exactly when a closed form exists (plane, quadric and
   torus pairs, a torus against a plane, a sphere, a cylinder, a cone or another torus in any position; lines, circles and conics against each other and against
   the elementary surfaces, a torus only for lines and circles; a plane against an extruded or revolved
@@ -43,7 +43,7 @@ changes are flagged in the changelog). Implemented:
 - **Curve-on-surface parametrization**: `curve_3d_to_uv`, the exact UV
   curve of a 3D curve on a surface, for lines and circles on the five
   elementary surfaces and any curve on a plane; `curve_3d_to_uv_within`
-  gives one B-spline within a deviation for every other pair.
+  can approximate a bounded curve as one UV B-spline.
 - **UV curves to 3D curves**: the exact 3D curve a UV curve, a curve of a
   surface's `(u, v)` space, traces, for every pair with a closed form
   (any curve on a plane, lines along `u` or `v` on any surface), and
