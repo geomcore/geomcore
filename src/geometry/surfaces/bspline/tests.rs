@@ -2083,3 +2083,91 @@ fn test_sided_matches_neighbor_spans_and_point_is_exact() {
     let (pa, _) = surface.first_derivatives_sided(0.6, v, Side::Above, Side::Above);
     assert_eq!(pb, pa);
 }
+
+/// A hairpin sheet: along `u` it runs out at height 1, turns around and
+/// comes back at height -1, so points between the two sheets lie near the
+/// medial surface, almost equidistant from both. Bicubic, 8 × 6 poles,
+/// rational with weights varying across it if `rational`.
+fn hairpin(rational: bool) -> BSplineSurface {
+    let profile = [
+        (0.0, 1.0),
+        (2.0, 1.0),
+        (4.0, 1.1),
+        (5.5, 0.9),
+        (5.5, -0.9),
+        (4.0, -1.1),
+        (2.0, -1.0),
+        (0.0, -1.0),
+    ];
+    let poles: Vec<Vec<Point>> = profile
+        .iter()
+        .enumerate()
+        .map(|(i, &(x, z))| {
+            (0..6)
+                .map(|j| Point::new(x, j as f64, z + 0.05 * ((i + 2 * j) as f64).sin()))
+                .collect()
+        })
+        .collect();
+    let (u_knots, u_mults) = (vec![0.0, 1.0, 2.0, 3.0, 4.0, 5.0], vec![4, 1, 1, 1, 1, 4]);
+    let (v_knots, v_mults) = (vec![0.0, 1.0, 2.0, 3.0], vec![4, 1, 1, 4]);
+    if rational {
+        let weights = (0..8)
+            .map(|i| {
+                (0..6)
+                    .map(|j| 1.0 + 0.4 * ((3 * i + j) as f64).sin())
+                    .collect()
+            })
+            .collect();
+        BSplineSurface::new_rational(
+            3, 3, poles, weights, u_knots, u_mults, v_knots, v_mults, false, false,
+        )
+        .unwrap()
+    } else {
+        BSplineSurface::new(
+            3, 3, poles, u_knots, u_mults, v_knots, v_mults, false, false,
+        )
+        .unwrap()
+    }
+}
+
+#[test]
+fn test_projection_finds_the_nearer_sheet_of_a_folded_surface() {
+    for rational in [false, true] {
+        let sheet = hairpin(rational);
+        // A dense grid of the surface's points: no projection may end
+        // farther than the nearest of them.
+        let n = 300;
+        let grid: Vec<Point> = (0..=n)
+            .flat_map(|i| (0..=n).map(move |j| (i, j)))
+            .map(|(i, j)| sheet.point_at(5.0 * i as f64 / n as f64, 3.0 * j as f64 / n as f64))
+            .collect();
+        let mut checked = 0;
+        for i in 0..12 {
+            for j in 0..7 {
+                for k in -3..=3 {
+                    // Between the sheets, near the medial surface, and
+                    // outside them.
+                    let q = Point::new(
+                        -0.5 + 0.55 * i as f64,
+                        -0.3 + 0.55 * j as f64,
+                        0.02 * k as f64 + 0.9 * (k / 3) as f64,
+                    );
+                    let p = sheet.project_point(q, Tolerance::DEFAULT);
+                    let nearest = grid
+                        .iter()
+                        .map(|g| g.distance(q))
+                        .fold(f64::INFINITY, f64::min);
+                    assert!(
+                        p.distance <= nearest + 1e-12,
+                        "rational {rational}, {q:?}: {} beyond the grid's {nearest}",
+                        p.distance
+                    );
+                    assert!(p.point.distance(sheet.point_at(p.u, p.v)) <= 1e-12);
+                    assert!((p.point.distance(q) - p.distance).abs() <= 1e-12);
+                    checked += 1;
+                }
+            }
+        }
+        assert_eq!(checked, 12 * 7 * 7);
+    }
+}

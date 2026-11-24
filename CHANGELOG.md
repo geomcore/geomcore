@@ -9,6 +9,17 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Changed
+
+- Point projection onto a B-spline surface is faster, still proven
+  global (part of #464): each knot-span patch keeps its Bernstein net and
+  the boxes bounding its distance once first used, so a patch is ruled
+  out in a few operations instead of rebuilding its net, and a patch
+  searched copies the net instead of rebuilding it. About 40% fewer
+  instructions on a polynomial bicubic surface, 20% on a rational one,
+  and up to 10% on the projections and marches onto B-spline surfaces
+  that run through it.
+
 ## [0.50.0] - 2026-11-23
 
 Near a contact, every closed form now follows one rule (ADR 0057): two
