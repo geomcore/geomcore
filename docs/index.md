@@ -1,15 +1,10 @@
 # geomcore
 
-A pure, standalone geometric kernel for CAD-grade curves and surfaces:
-parametric evaluation, rigid transformations, projection, intersection,
-fitting, and exact curve-on-surface parametrization. It is built as
-small, independently useful Rust libraries with idiomatic Python
-bindings.
-
-`geomcore` is not a modeling or CAD system. There is no topology, no
-B-rep and no boolean operation. It is the geometry layer underneath one:
-useful on its own to anyone who needs robust computational geometry, and
-a foundation for a future kernel.
+geomcore is a Rust library with Python bindings for building, evaluating
+and querying 2D and 3D curves and 3D surfaces. Use it to find
+intersections, measure clearance, fit measured points or map curves
+between 3D and surface coordinates. Its scope is geometry. CAD topology,
+B-rep and Boolean operations are outside that scope.
 
 ```viewer
 scene: assets/scenes/getting-started.json
@@ -19,13 +14,14 @@ height: 420
 
 ## Find what you need
 
-The documentation follows the [Diátaxis](https://diataxis.fr/) modes:
-learn by doing, solve a task, look something up, or understand a choice.
-
 | I want to… | Start here |
 |---|---|
 | Install and run my first example | [Getting started](getting-started.md) |
 | Draw geometry in the browser | [Visualize with the viewer](viewer.md) |
+| Build an arc, sweep a profile or place a shape | [Build and place geometry](guides/construction.md) |
+| Fit measured points or a surface grid | [Elementary shapes](geometry/elementary.md#fitting-to-points), [B-spline fitting](nurbs/editing-fitting.md#fitting) |
+| Measure clearance between shapes | [Closest approach](guides/projection.md#closest-approach-between-shapes) |
+| Measure length, find a bounding box or evaluate a normal | [Length and bounds](nurbs/editing-fitting.md#measure-and-bound), [Local properties](python.md#local-properties-and-one-sided-evaluation) |
 | Project a point or test containment | [Projection & containment](guides/projection.md) |
 | Intersect curves or surfaces | [Intersection](guides/intersection.md) |
 | Turn a curve into points and chords | [Discretize a curve](guides/discretization.md) |

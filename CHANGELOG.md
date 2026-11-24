@@ -21,6 +21,22 @@ the Python distribution are versioned in lockstep.
   most the major radius per radian. Projections, extrema and the
   intersections of ellipses snap as before wherever the point stays
   within `tol.confusion`; circles are unchanged.
+- A circle or an ellipse lying within a few tolerances of a cone all
+  along gets the contacts the distance to the cone gives (#497). Its
+  substituted equation is too flat there for its roots to tell: two
+  crossings with the curve leaving the tolerance between them came back
+  as one tangent point, a dip within the tolerance as nothing, and a
+  curve within the tolerance at five samples as lying on the cone where
+  it leaves the tolerance in between. The points at the tolerance from
+  a cone lie on the two cones of the same axis and half-angle with the
+  apex moved by `tol.confusion / sin φ`; the curve's roots on them split
+  it into stretches wholly within the tolerance or wholly beyond it. A
+  curve within it all along lies on the cone; each stretch within it
+  holds its crossings, found where the distance changes sign, or else
+  one touching point where the curve comes nearest. A trimmed arc keeps
+  the crossings in its range instead of one moved to its end. Away from
+  the cone, beyond 64 tolerances at one of five samples, the equation
+  answers as before.
 
 ## [0.51.0] - 2026-11-24
 
