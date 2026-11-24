@@ -20,12 +20,13 @@
 use crate::geometry::curves::ParametricCurve;
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::{newton_min_2d, solve_3x3};
+use crate::math::parameter_domain::ParameterDomain;
 use crate::operations::extrema::Extremum;
 use crate::operations::extrema::curve_curve::{
     SEED_REACH, configuration_scale, coordinate_size, curve_size, distance_rounding, grid_minima,
     is_box_minimum, merge_valleys,
 };
-use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
+use crate::operations::search_domain::{u_domain, v_domain};
 use crate::{Point, Tolerance, Vector};
 
 /// Samples per finite parameter domain of a curve.
@@ -35,10 +36,7 @@ const SURFACE_SAMPLES: usize = 24;
 
 /// The parameter domains of a surface's two directions.
 pub(crate) fn surface_domains<S: ParametricSurface>(surface: &S) -> [ParameterDomain; 2] {
-    [
-        ParameterDomain::from_bounds(surface.u_bounds(), surface.u_period()),
-        ParameterDomain::from_bounds(surface.v_bounds(), surface.v_period()),
-    ]
+    [u_domain(surface), v_domain(surface)]
 }
 
 /// Half a squared distance with its gradient and Hessian over two

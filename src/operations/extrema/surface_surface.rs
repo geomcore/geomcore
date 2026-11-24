@@ -6,6 +6,7 @@ use std::ops::Deref;
 
 use crate::geometry::surfaces::{ElementarySurface, ParametricSurface};
 use crate::math::numeric::newton_min_2d;
+use crate::math::parameter_domain::ParameterDomain;
 use crate::operations::extrema::curve_curve::{flat_minimum, is_box_minimum};
 use crate::operations::extrema::curve_surface::whole_elementary_surface;
 use crate::operations::extrema::surface_search::{
@@ -14,7 +15,6 @@ use crate::operations::extrema::surface_search::{
     probe_length, reference_parameters, seeds, surface_domains, surface_size,
 };
 use crate::operations::extrema::{Extremum, parameters_apart};
-use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::{Completeness, SurfaceSurfaceRegion};
 use crate::{Cylinder, Plane, Point, Sphere, Tolerance, Vector};
 
