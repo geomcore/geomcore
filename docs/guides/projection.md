@@ -157,19 +157,28 @@ parameters, points, distances = circle.project_points_array(queries)
 grid = sphere.points_at_array(numpy.column_stack([us, vs]))   # (N, 3)
 ```
 
-## Curves against curves
+## Closest approach between shapes
 
-`curve.extrema(other)` with another curve reports the local minima of
-the distance between the two curves over their domains: the primitive
-behind closest-approach queries and trimmed-arc handling. With a point,
-the same method gives that point's projections, as above. In Rust the
-curve pair is the free function `curve_curve_extrema` (ADR 0033).
+Use shape-to-shape extrema to measure clearance. The result lists
+local distance minima in increasing order, with the witness points on
+both operands and the search's `completeness`. Use `minimum_distance`
+in Python when you only need the closest pair found. Inspect
+`extrema(other).completeness` when you need to know whether the search
+proved the global minimum.
+
+Python supports two curves in the same dimension, a 3D curve and a
+surface, or two surfaces. In Rust, use `curve_curve_extrema`,
+`curve_surface_extrema` or `surface_surface_extrema`.
 
 === "Python"
 
     ```python
-    minima = line.extrema(circle).minima
-    distances = [m.distance for m in minima]
+    closest = line.minimum_distance(circle)
+    assert closest is not None and abs(closest.distance - 3.0) < 1e-7
+
+    result = sphere.extrema(line)
+    closest = result.closest()
+    assert closest is not None and abs(closest.distance - 1.0) < 1e-7
     ```
 
 === "Rust"
