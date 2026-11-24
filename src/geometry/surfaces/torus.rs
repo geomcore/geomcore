@@ -292,8 +292,14 @@ impl ParametricSurface for Torus {
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        let (u, v) = self.parameters_of(point, tol);
-        let foot = self.point_at(u, v);
+        // The foot from the local coordinates where they give it, by
+        // evaluating the parameters elsewhere.
+        let (u, v, foot) =
+            elementary::torus_projection(&self.frame, self.major_radius, self.minor_radius, point)
+                .unwrap_or_else(|| {
+                    let (u, v) = self.parameters_of(point, tol);
+                    (u, v, self.point_at(u, v))
+                });
         let distance = foot.distance(point);
         SurfaceProjection {
             u,
