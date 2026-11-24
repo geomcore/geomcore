@@ -2,9 +2,11 @@
 //! or its period, with the wrapping, stepping and slack the numeric
 //! searches share.
 
+use crate::math::parameter_range::ParameterRange;
 use std::f64::consts::TAU;
 
 use crate::geometry::curves::ParametricCurve;
+use crate::math::parameter_range::wrap_into_period;
 
 /// Parameters within this fraction of a domain's width outside it (or
 /// outside a subpiece pair) count as inside.
@@ -34,8 +36,13 @@ impl ParameterDomain {
     /// any: the period from `lo` when the bounds span it, else the interval
     /// (a periodic curve bounded to less than a period is an arc).
     pub(crate) fn from_bounds((lo, hi): (f64, f64), period: Option<f64>) -> ParameterDomain {
+        let range = ParameterRange {
+            first: lo,
+            last: hi,
+            period,
+        };
         match period {
-            Some(period) if lo.is_finite() && hi - lo >= period * (1.0 - 1e-12) => {
+            Some(period) if lo.is_finite() && range.spans_whole_period() => {
                 ParameterDomain::Periodic { start: lo, period }
             }
             _ => ParameterDomain::Interval(lo, hi),
@@ -97,7 +104,7 @@ impl ParameterDomain {
     pub(crate) fn wrap(self, u: f64) -> f64 {
         let near = |end: f64| end.is_finite() && (u - end).abs() <= 2e-14 * (1.0 + end.abs());
         match self {
-            ParameterDomain::Periodic { start, period } => start + (u - start).rem_euclid(period),
+            ParameterDomain::Periodic { start, period } => wrap_into_period(u, start, period),
             ParameterDomain::Interval(lo, _) if near(lo) => lo,
             ParameterDomain::Interval(_, hi) if near(hi) => hi,
             ParameterDomain::Interval(lo, hi) => u.clamp(lo, hi),
@@ -159,7 +166,7 @@ impl ParameterDomain {
         let slack = self.slack();
         match self {
             ParameterDomain::Periodic { start, period } => {
-                let wrapped = start + (x - start).rem_euclid(period);
+                let wrapped = wrap_into_period(x, start, period);
                 Some(if start + period - wrapped <= slack {
                     start
                 } else {

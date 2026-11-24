@@ -210,7 +210,8 @@ fn test_parabola2d_from_focus_and_directrix() {
     let tol = crate::Tolerance::DEFAULT;
     let directrix = crate::Line2D::new(Point2D::new(1.0, 2.0), Vector2D::new(-1.0, 2.0)).unwrap();
     let focus = Point2D::new(4.0, 1.0);
-    let parabola = Parabola2D::from_focus_and_directrix(focus, &directrix).unwrap();
+    let parabola =
+        Parabola2D::from_focus_and_directrix(focus, &directrix, Tolerance::DEFAULT).unwrap();
     assert!(parabola.focus().distance(focus) < 1e-12);
     for k in -5..=5 {
         let p = parabola.point_at(f64::from(k) * 0.7);

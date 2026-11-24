@@ -30,6 +30,7 @@ fn test_from_three_points_ok() {
         Point::ORIGIN,
         Point::new(1.0, 0.0, 0.0),
         Point::new(0.0, 1.0, 0.0),
+        Tolerance::DEFAULT,
     )
     .unwrap();
     assert_eq!(p.axis().direction(), Vector::Z);
@@ -40,7 +41,7 @@ fn test_from_three_points_ok() {
 fn test_from_three_points_confused_errors() {
     let p1 = Point::new(1.0, 2.0, 3.0);
     assert_eq!(
-        Plane::from_three_points(p1, p1, Point::new(4.0, 5.0, 6.0)),
+        Plane::from_three_points(p1, p1, Point::new(4.0, 5.0, 6.0), Tolerance::DEFAULT),
         Err(PlaneConstructionError::ConfusedPoints)
     );
 }
@@ -51,7 +52,7 @@ fn test_from_three_points_collinear_errors() {
     let p2 = Point::new(1.0, 0.0, 0.0);
     let p3 = Point::new(2.0, 0.0, 0.0);
     assert_eq!(
-        Plane::from_three_points(p1, p2, p3),
+        Plane::from_three_points(p1, p2, p3, Tolerance::DEFAULT),
         Err(PlaneConstructionError::CollinearPoints)
     );
 }

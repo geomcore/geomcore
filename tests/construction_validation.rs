@@ -6,7 +6,7 @@ use geomcore::{
     CylinderConstructionError, Ellipse, Ellipse2D, EllipseConstructionError, Frame, Frame2D,
     FrameConstructionError, Hyperbola, Hyperbola2D, HyperbolaConstructionError, Line, Line2D,
     LineConstructionError, Parabola, Parabola2D, ParabolaConstructionError, Plane,
-    PlaneConstructionError, Point, Point2D, Sphere, SphereConstructionError, Torus,
+    PlaneConstructionError, Point, Point2D, Sphere, SphereConstructionError, Tolerance, Torus,
     TorusConstructionError, Vector, Vector2D,
 };
 
@@ -58,7 +58,7 @@ fn test_lines_and_planes_reject_non_finite() {
         );
         assert_eq!(Plane::new(p, Z), Err(PlaneConstructionError::NonFinite));
         assert_eq!(
-            Plane::from_three_points(O, Point::new(1.0, 0.0, 0.0), p),
+            Plane::from_three_points(O, Point::new(1.0, 0.0, 0.0), p, Tolerance::DEFAULT),
             Err(PlaneConstructionError::NonFinite)
         );
     }
@@ -100,7 +100,7 @@ fn test_circles_reject_non_finite() {
     for p in bad_points() {
         assert_eq!(Circle::new(p, Z, 1.0).err(), nf);
         assert_eq!(
-            Circle::from_three_points(O, Point::new(1.0, 0.0, 0.0), p).err(),
+            Circle::from_three_points(O, Point::new(1.0, 0.0, 0.0), p, Tolerance::DEFAULT).err(),
             nf
         );
     }
@@ -138,11 +138,11 @@ fn test_conics_reject_non_finite_and_zero_sizes() {
             Err(EllipseConstructionError::NonFinite)
         );
         assert_eq!(
-            Ellipse::from_center_and_points(O, Point::new(3.0, 0.0, 0.0), p),
+            Ellipse::from_center_and_points(O, Point::new(3.0, 0.0, 0.0), p, Tolerance::DEFAULT),
             Err(EllipseConstructionError::NonFinite)
         );
         assert_eq!(
-            Hyperbola::from_center_and_points(O, Point::new(2.0, 0.0, 0.0), p),
+            Hyperbola::from_center_and_points(O, Point::new(2.0, 0.0, 0.0), p, Tolerance::DEFAULT),
             Err(HyperbolaConstructionError::NonFinite)
         );
     }
@@ -193,12 +193,18 @@ fn test_conics_reject_non_finite_and_zero_sizes() {
         Ellipse2D::from_center_and_points(
             Point2D::ORIGIN,
             Point2D::new(3.0, 0.0),
-            Point2D::new(6.0, 0.0)
+            Point2D::new(6.0, 0.0),
+            Tolerance::DEFAULT
         ),
         Err(EllipseConstructionError::InvertedAxis)
     );
     assert_eq!(
-        Ellipse2D::from_center_and_points(Point2D::ORIGIN, Point2D::ORIGIN, Point2D::new(0.0, 1.0)),
+        Ellipse2D::from_center_and_points(
+            Point2D::ORIGIN,
+            Point2D::ORIGIN,
+            Point2D::new(0.0, 1.0),
+            Tolerance::DEFAULT
+        ),
         Err(EllipseConstructionError::NullAxis)
     );
 
@@ -256,7 +262,8 @@ fn test_conics_reject_non_finite_and_zero_sizes() {
             Hyperbola2D::from_center_and_points(
                 Point2D::ORIGIN,
                 Point2D::new(2.0, 0.0),
-                Point2D::new(0.0, b)
+                Point2D::new(0.0, b),
+                Tolerance::DEFAULT
             ),
             Err(HyperbolaConstructionError::NonFinite)
         );
@@ -298,7 +305,13 @@ fn test_elementary_surfaces_reject_non_finite() {
             Err(ConeConstructionError::NonFinite)
         );
         assert_eq!(
-            Cone::from_two_points_and_radii(O, Point::new(0.0, 0.0, 1.0), 1.0, b),
+            Cone::from_two_points_and_radii(
+                O,
+                Point::new(0.0, 0.0, 1.0),
+                1.0,
+                b,
+                Tolerance::DEFAULT
+            ),
             Err(ConeConstructionError::NonFinite)
         );
     }
@@ -317,7 +330,7 @@ fn test_elementary_surfaces_reject_non_finite() {
             Err(ConeConstructionError::NonFinite)
         );
         assert_eq!(
-            Cone::from_two_points_and_radii(O, p, 1.0, 2.0),
+            Cone::from_two_points_and_radii(O, p, 1.0, 2.0, Tolerance::DEFAULT),
             Err(ConeConstructionError::NonFinite)
         );
     }

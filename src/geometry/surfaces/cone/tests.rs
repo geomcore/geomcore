@@ -73,7 +73,7 @@ fn test_new_null_normal_errors() {
 fn test_from_two_points_and_radii_null_axis_errors() {
     let p = Point::new(1.0, 2.0, 3.0);
     assert_eq!(
-        Cone::from_two_points_and_radii(p, p, 1.0, 2.0),
+        Cone::from_two_points_and_radii(p, p, 1.0, 2.0, Tolerance::DEFAULT),
         Err(ConeConstructionError::NullAxis)
     );
 }
@@ -81,11 +81,23 @@ fn test_from_two_points_and_radii_null_axis_errors() {
 #[test]
 fn test_from_two_points_and_radii_negative_radius_errors() {
     assert_eq!(
-        Cone::from_two_points_and_radii(Point::ORIGIN, Point::new(0.0, 0.0, 1.0), -1.0, 2.0),
+        Cone::from_two_points_and_radii(
+            Point::ORIGIN,
+            Point::new(0.0, 0.0, 1.0),
+            -1.0,
+            2.0,
+            Tolerance::DEFAULT
+        ),
         Err(ConeConstructionError::NegativeRadius)
     );
     assert_eq!(
-        Cone::from_two_points_and_radii(Point::ORIGIN, Point::new(0.0, 0.0, 1.0), 1.0, -2.0),
+        Cone::from_two_points_and_radii(
+            Point::ORIGIN,
+            Point::new(0.0, 0.0, 1.0),
+            1.0,
+            -2.0,
+            Tolerance::DEFAULT
+        ),
         Err(ConeConstructionError::NegativeRadius)
     );
 }
@@ -94,7 +106,13 @@ fn test_from_two_points_and_radii_negative_radius_errors() {
 fn test_from_two_points_and_radii_null_angle_errors_when_radii_equal() {
     // r1 == r2 gives a zero half-angle: no valid cone (it's a cylinder).
     assert_eq!(
-        Cone::from_two_points_and_radii(Point::ORIGIN, Point::new(0.0, 0.0, 1.0), 2.0, 2.0),
+        Cone::from_two_points_and_radii(
+            Point::ORIGIN,
+            Point::new(0.0, 0.0, 1.0),
+            2.0,
+            2.0,
+            Tolerance::DEFAULT
+        ),
         Err(ConeConstructionError::NullAngle)
     );
 }
@@ -102,8 +120,14 @@ fn test_from_two_points_and_radii_null_angle_errors_when_radii_equal() {
 #[test]
 fn test_from_two_points_and_radii_matches_golden_case_shrinking() {
     // From tests/fixtures/construction.json: cones_two_points_radii[0].
-    let c = Cone::from_two_points_and_radii(Point::ORIGIN, Point::new(0.0, 0.0, 4.0), 2.0, 1.0)
-        .unwrap();
+    let c = Cone::from_two_points_and_radii(
+        Point::ORIGIN,
+        Point::new(0.0, 0.0, 4.0),
+        2.0,
+        1.0,
+        Tolerance::DEFAULT,
+    )
+    .unwrap();
     assert!((c.half_angle() - (-0.24497866312686414)).abs() < 1e-9);
     assert_eq!(c.reference_radius(), 2.0);
     let frame = c.frame();
@@ -121,6 +145,7 @@ fn test_from_two_points_and_radii_matches_golden_case_growing() {
         Point::new(2.0, 3.0, 1.0),
         1.0,
         2.5,
+        Tolerance::DEFAULT,
     )
     .unwrap();
     assert!((c.half_angle() - 0.5908727501454191).abs() < 1e-9);

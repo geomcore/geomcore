@@ -40,6 +40,22 @@ macro_rules! curve_variants {
 }
 pub(crate) use curve_variants;
 
+/// The bounded curve types, as the generic types of both tiers: the one
+/// list behind the [`BoundedCurve`](crate::BoundedCurve) impls, the boxes
+/// over the bounds and the discretization over the bounds.
+/// `bounded_curve_types!(worker!(arguments))` expands to
+/// `worker! { arguments GenericCircle, GenericEllipse, GenericBSplineCurve,
+/// GenericBezierCurve }`; the worker's module imports those names.
+macro_rules! bounded_curve_types {
+    ($worker:ident ! ( $($arguments:tt)* )) => {
+        $worker! {
+            $($arguments)*
+            GenericCircle, GenericEllipse, GenericBSplineCurve, GenericBezierCurve
+        }
+    };
+}
+pub(crate) use bounded_curve_types;
+
 /// The match forwarding a call to the curve a [`Curve`] holds:
 /// `curve_dispatch!(self, c => c.point_at(u))`.
 macro_rules! curve_dispatch {
