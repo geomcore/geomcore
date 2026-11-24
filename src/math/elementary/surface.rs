@@ -49,6 +49,76 @@ fn radial_derivative(frame: &Frame, u: Turn, order: u32) -> Vector {
     cosine * frame.x_direction() + sine * frame.y_direction()
 }
 
+/// The radial direction `cos(u) x_dir + sin(u) y_dir` of `frame`.
+pub(crate) fn radial(frame: &Frame, u: Turn) -> Vector {
+    radial_derivative(frame, u, 0)
+}
+
+/// `1` for a direct frame, `-1` for an indirect one: `x_dir × y_dir` is
+/// that times `z_dir`, which orients the normals.
+pub(crate) fn handedness(frame: &Frame) -> f64 {
+    if frame.is_direct() { 1.0 } else { -1.0 }
+}
+
+/// `-1` for a negative number, `1` otherwise.
+fn sign(x: f64) -> f64 {
+    if x < 0.0 { -1.0 } else { 1.0 }
+}
+
+/// The unit normal `Su × Sv / |Su × Sv|` of the cylinder of radius `r` in
+/// `frame` at `u`, with `[|Su|, |Sv|, |Su × Sv|]`: `Su = r ρ'`, `Sv = z`,
+/// `Su × Sv = r h ρ` (`h` the [`handedness`]).
+pub(crate) fn cylinder_normal(frame: &Frame, r: f64, u: f64) -> ([f64; 3], Vector) {
+    let lengths = [r.abs(), 1.0, r.abs()];
+    (
+        lengths,
+        (sign(r) * handedness(frame)) * radial(frame, Turn::of(u)),
+    )
+}
+
+/// [`cylinder_normal`] of the cone: with `R = reference_radius + v sin a`,
+/// `Su = R ρ'`, `Sv = sin a ρ + cos a z`, `Su × Sv = h R (cos a ρ - sin a z)`.
+pub(crate) fn cone_normal(
+    frame: &Frame,
+    reference_radius: f64,
+    half_angle: f64,
+    u: f64,
+    v: f64,
+) -> ([f64; 3], Vector) {
+    let a = Turn::of(half_angle);
+    let r = reference_radius + v * a.sine;
+    let lengths = [r.abs(), 1.0, r.abs()];
+    let direction = a.cosine * radial(frame, Turn::of(u)) - a.sine * frame.z_direction();
+    (lengths, (sign(r) * handedness(frame)) * direction)
+}
+
+/// [`cylinder_normal`] of the sphere of radius `r`: `Su = r cos v ρ'`,
+/// `Sv = r (cos v z - sin v ρ)`, `Su × Sv = h r² cos v (cos v ρ + sin v z)`.
+pub(crate) fn sphere_normal(frame: &Frame, r: f64, u: f64, v: f64) -> ([f64; 3], Vector) {
+    let t = Turn::of(v);
+    let around = r * t.cosine;
+    let lengths = [around.abs(), r.abs(), (around * r).abs()];
+    let direction = t.cosine * radial(frame, Turn::of(u)) + t.sine * frame.z_direction();
+    (lengths, (sign(around * r) * handedness(frame)) * direction)
+}
+
+/// [`cylinder_normal`] of the torus: with `R = maj + min cos v`,
+/// `Su = R ρ'`, `Sv = min (cos v z - sin v ρ)`,
+/// `Su × Sv = h R min (cos v ρ + sin v z)`.
+pub(crate) fn torus_normal(
+    frame: &Frame,
+    maj: f64,
+    min: f64,
+    u: f64,
+    v: f64,
+) -> ([f64; 3], Vector) {
+    let t = Turn::of(v);
+    let r = maj + min * t.cosine;
+    let lengths = [r.abs(), min.abs(), (r * min).abs()];
+    let direction = t.cosine * radial(frame, Turn::of(u)) + t.sine * frame.z_direction();
+    (lengths, (sign(r * min) * handedness(frame)) * direction)
+}
+
 // ---- plane ----
 
 /// Evaluates the plane in `frame` at `(u, v)`: `origin + u*x_dir + v*y_dir`.

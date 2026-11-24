@@ -689,8 +689,9 @@ fn bitangent_circles(
     let root = (alpha * alpha + beta * beta - gamma * gamma)
         .max(0.0)
         .sqrt();
-    let circles = [root, -root]
-        .map(|root| Circle::from_three_points(touching, at(theta + FRAC_PI_2, root), across).ok());
+    let circles = [root, -root].map(|root| {
+        Circle::from_three_points(touching, at(theta + FRAC_PI_2, root), across, tol).ok()
+    });
     let [Some(first), Some(second)] = circles else {
         return None;
     };

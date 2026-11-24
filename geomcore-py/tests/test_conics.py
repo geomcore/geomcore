@@ -86,6 +86,20 @@ def test_circle_from_three_points_refuses_coincident_points_in_both_tiers():
         Circle.from_three_points(Point.origin(), Point.origin(), Point(1.0, 1.0, 0.0))
 
 
+def test_from_points_constructors_read_the_callers_tolerance():
+    # 1e-4 apart: distinct by default, confused in a model whose confusion
+    # distance is 1e-3 (#473).
+    loose = geomcore.Tolerance(confusion=1e-3)
+    near = (1.0, 1e-4)
+    Circle2D.from_three_points((1.0, 0.0), near, (-1.0, 0.0))
+    with pytest.raises(geomcore.ConstructionError, match="confused"):
+        Circle2D.from_three_points((1.0, 0.0), near, (-1.0, 0.0), loose)
+    with pytest.raises(geomcore.ConstructionError, match="confused"):
+        Circle.from_three_points((1.0, 0.0, 0.0), (*near, 0.0), (-1.0, 0.0, 0.0), tol=loose)
+    with pytest.raises(geomcore.ConstructionError):
+        Ellipse2D.from_center_and_points((0.0, 0.0), (1e-4, 0.0), (0.0, 1.0), loose)
+
+
 def test_hyperbola_asymptotes_are_lines_of_its_tier():
     rising, falling = Hyperbola(Point.origin(), Vector.unit_z(), Vector.unit_x(), 4.0, 3.0).asymptotes()
     assert isinstance(rising, Line) and isinstance(falling, Line)

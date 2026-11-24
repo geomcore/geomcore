@@ -51,10 +51,13 @@ shape_methods! {
     /// Build a 2D hyperbola from its center, a major-axis end point `s1`
     /// and a second point `s2` fixing the minor radius and the side the
     /// frame's y direction points to.
+    ///
+    /// `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
     #[staticmethod]
-    fn from_center_and_points(center: PyPoint2D, s1: PyPoint2D, s2: PyPoint2D) -> PyResult<Self> {
+    #[pyo3(signature = (center, s1, s2, tol = None))]
+    fn from_center_and_points(center: PyPoint2D, s1: PyPoint2D, s2: PyPoint2D, tol: Option<crate::values::ToleranceArgument>) -> PyResult<Self> {
         Ok(PyHyperbola2D(
-            Hyperbola2D::from_center_and_points(center.0, s1.0, s2.0).map_err(python_error)?,
+            Hyperbola2D::from_center_and_points(center.0, s1.0, s2.0, crate::tolerance(tol)).map_err(python_error)?,
         ))
     }
 

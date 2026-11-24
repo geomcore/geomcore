@@ -104,6 +104,13 @@ pub type Circle = GenericCircle<Point>;
 pub type Circle2D = GenericCircle<Point2D>;
 
 impl<P: TierPoint> GenericCircle<P> {
+    /// The angle of the point of the circle nearest `point`, in closed
+    /// form: what [`PointExtrema::parameter_of`] returns, without a
+    /// tolerance it would not read.
+    pub(crate) fn angle_of(&self, point: P) -> f64 {
+        elementary::circle_parameter(&self.frame, point)
+    }
+
     /// Creates a circle from a frame and a radius directly.
     ///
     /// A radius of 0 is accepted: the circle is then the point at its
@@ -311,10 +318,10 @@ impl Circle {
     /// Creates the circumcircle through three points.
     ///
     /// Failure checks run before any circumcenter computation: any pairwise
-    /// distance below `Tolerance::DEFAULT.confusion` is reported as
+    /// distance below `tol.confusion` is reported as
     /// [`CircleConstructionError::ConfusedPoints`] (this also covers all
     /// three points being coincident); otherwise, if the points are
-    /// collinear (`|(p2-p1) x (p3-p1)| <= Tolerance::DEFAULT.confusion * max(|p2-p1|,
+    /// collinear (`|(p2-p1) x (p3-p1)| <= tol.confusion * max(|p2-p1|,
     /// |p3-p1|)`), [`CircleConstructionError::CollinearPoints`] is returned.
     ///
     /// The center is computed via the standard circumcenter closed form:
@@ -333,11 +340,12 @@ impl Circle {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Circle, Point};
+    /// use geomcore::{Circle, Point, Tolerance};
     /// let circle = Circle::from_three_points(
     ///     Point::new(1.0, 0.0, 0.0),
     ///     Point::new(0.0, 1.0, 0.0),
     ///     Point::new(-1.0, 0.0, 0.0),
+    ///     Tolerance::DEFAULT,
     /// )
     /// .unwrap();
     /// assert!((circle.radius() - 1.0).abs() < 1e-9);
@@ -346,10 +354,11 @@ impl Circle {
         p1: Point,
         p2: Point,
         p3: Point,
+        tol: Tolerance,
     ) -> Result<Circle, CircleConstructionError> {
-        if p1.distance(p2) < Tolerance::DEFAULT.confusion
-            || p2.distance(p3) < Tolerance::DEFAULT.confusion
-            || p1.distance(p3) < Tolerance::DEFAULT.confusion
+        if p1.distance(p2) < tol.confusion
+            || p2.distance(p3) < tol.confusion
+            || p1.distance(p3) < tol.confusion
         {
             return Err(CircleConstructionError::ConfusedPoints);
         }
@@ -357,7 +366,7 @@ impl Circle {
         let v12 = p2 - p1;
         let v13 = p3 - p1;
         let collinear_cross = v12.cross(v13).magnitude();
-        if collinear_cross <= Tolerance::DEFAULT.confusion * v12.magnitude().max(v13.magnitude()) {
+        if collinear_cross <= tol.confusion * v12.magnitude().max(v13.magnitude()) {
             return Err(CircleConstructionError::CollinearPoints);
         }
 
@@ -470,9 +479,9 @@ impl Circle2D {
     /// left, clockwise (on an indirect frame) when they turn right.
     ///
     /// The checks are those of [`Circle::from_three_points`]: any pairwise
-    /// distance below `Tolerance::DEFAULT.confusion` is reported as
+    /// distance below `tol.confusion` is reported as
     /// [`CircleConstructionError::ConfusedPoints`]; otherwise, if
-    /// `|(p2-p1) × (p3-p1)| <= Tolerance::DEFAULT.confusion * max(|p2-p1|,
+    /// `|(p2-p1) × (p3-p1)| <= tol.confusion * max(|p2-p1|,
     /// |p3-p1|)`, [`CircleConstructionError::CollinearPoints`] is returned.
     /// A non-finite coordinate gives [`CircleConstructionError::NonFinite`].
     ///
@@ -491,11 +500,12 @@ impl Circle2D {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::{Circle2D, Point2D};
+    /// use geomcore::{Circle2D, Point2D, Tolerance};
     /// let circle = Circle2D::from_three_points(
     ///     Point2D::new(1.0, 0.0),
     ///     Point2D::new(0.0, 1.0),
     ///     Point2D::new(-1.0, 0.0),
+    ///     Tolerance::DEFAULT,
     /// )
     /// .unwrap();
     /// assert!(circle.center().distance(Point2D::ORIGIN) < 1e-15);
@@ -507,11 +517,12 @@ impl Circle2D {
         p1: Point2D,
         p2: Point2D,
         p3: Point2D,
+        tol: Tolerance,
     ) -> Result<Circle2D, CircleConstructionError> {
         if !p1.is_finite() || !p2.is_finite() || !p3.is_finite() {
             return Err(CircleConstructionError::NonFinite);
         }
-        let confusion = Tolerance::DEFAULT.confusion;
+        let confusion = tol.confusion;
         if p1.distance(p2) < confusion || p2.distance(p3) < confusion || p1.distance(p3) < confusion
         {
             return Err(CircleConstructionError::ConfusedPoints);
@@ -553,7 +564,7 @@ impl_for_both_tiers! {
         /// Recovers the angular parameter of a point on (or near) the circle,
         /// wrapped into `[0, 2*PI)`.
         fn parameter_of(&self, point: P, _tol: Tolerance) -> f64 {
-            elementary::circle_parameter(&self.frame, point)
+            self.angle_of(point)
         }
 
         fn contains(&self, point: P, tol: Tolerance) -> bool {

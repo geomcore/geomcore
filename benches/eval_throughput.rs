@@ -8,7 +8,10 @@ use std::f64::consts::TAU;
 use std::hint::black_box;
 
 use geomcore::prelude::*;
-use geomcore::{BSplineCurve, BSplineSurface, Circle, Point, Vector};
+use geomcore::{
+    BSplineCurve, BSplineSurface, Circle, Cone, Cylinder, Frame, Plane, Point, Sphere, Surface,
+    Tolerance, Torus, Vector,
+};
 
 const N: usize = 100_000;
 
@@ -191,6 +194,37 @@ fn bench_eval_throughput(c: &mut Criterion) {
         b.iter(|| {
             for &(u, v) in black_box(&uvs) {
                 black_box(surface.second_derivatives(u, v));
+            }
+        })
+    });
+
+    // Unit normals of the five elementary surfaces in a tilted frame,
+    // 20 000 each.
+    let frame = Frame::new(
+        Point::new(0.3, -0.2, 0.5),
+        Vector::new(0.2, -0.3, 1.0),
+        Vector::new(1.0, 0.4, 0.0),
+    )
+    .unwrap();
+    let elementary: [Surface; 5] = [
+        Plane::from_frame(frame).into(),
+        Cylinder::from_frame(frame, 2.0).unwrap().into(),
+        Cone::from_frame(frame, 0.4, 2.0).unwrap().into(),
+        Sphere::from_frame(frame, 2.0).unwrap().into(),
+        Torus::from_frame(frame, 3.0, 1.0).unwrap().into(),
+    ];
+    let angles: Vec<(f64, f64)> = (0..N / 5)
+        .map(|i| {
+            let t = i as f64 / (N / 5) as f64;
+            (t * TAU, (t - 0.5) * 3.0)
+        })
+        .collect();
+    group.bench_function("elementary_surface_normal_100k", |b| {
+        b.iter(|| {
+            for surface in &elementary {
+                for &(u, v) in black_box(&angles) {
+                    black_box(surface.normal(u, v, Tolerance::DEFAULT));
+                }
             }
         })
     });

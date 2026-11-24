@@ -384,6 +384,14 @@ impl KnotVector {
         (first, basis_first_of::<P>(&left, &right))
     }
 
+    /// [`basis_of_degree`](Self::basis_of_degree) with the first and
+    /// second derivatives, as [`basis_second`] computes them.
+    #[inline(always)]
+    fn basis_second_of_degree<const P: usize>(&self, u: f64) -> (usize, [[f64; 4]; 3]) {
+        let (first, left, right) = self.differences_of_degree::<P>(u);
+        (first, basis_second_of::<P>(&left, &right))
+    }
+
     /// The first pole of the span holding `u` and the knot differences
     /// `left[j] = u - U[span + 1 - j]`, `right[j] = U[span + j] - u` for
     /// `j` in `1..=P`, in a non-periodic direction of the constant degree
@@ -1145,6 +1153,63 @@ fn basis_first_of<const P: usize>(left: &[f64; 4], right: &[f64; 4]) -> [[f64; 4
     [values, firsts]
 }
 
+/// The recurrence of [`basis_second`] for the constant degree `P` (at
+/// most 3): `[values, first derivatives, second derivatives]`, every
+/// operation that of [`basis_second`] in the same order, so the two agree
+/// bit for bit.
+#[inline(always)]
+fn basis_second_of<const P: usize>(left: &[f64; 4], right: &[f64; 4]) -> [[f64; 4]; 3] {
+    let mut values = [1.0, 0.0, 0.0, 0.0];
+    // The levels below degree `P - 1`, values only.
+    for j in 1..P.saturating_sub(1) {
+        let mut saved = 0.0;
+        for r in 0..P {
+            if r < j {
+                let temp = values[r] * (1.0 / (right[r + 1] + left[j - r]));
+                values[r] = saved + right[r + 1] * temp;
+                saved = left[j - r] * temp;
+            }
+        }
+        values[j] = saved;
+    }
+    // Degree `P - 1`, with its first derivatives.
+    let mut lower = [0.0f64; 4];
+    if P >= 2 {
+        let q = P - 1;
+        let mut saved = 0.0;
+        let mut previous = 0.0;
+        for r in 0..q {
+            let temp = values[r] * (1.0 / (right[r + 1] + left[q - r]));
+            values[r] = saved + right[r + 1] * temp;
+            saved = left[q - r] * temp;
+            lower[r] = q as f64 * (previous - temp);
+            previous = temp;
+        }
+        values[q] = saved;
+        lower[q] = q as f64 * previous;
+    }
+    let mut firsts = [0.0f64; 4];
+    let mut seconds = [0.0f64; 4];
+    let mut saved = 0.0;
+    let mut previous = 0.0;
+    let mut previous_lower = 0.0;
+    for r in 0..P {
+        let inverse = 1.0 / (right[r + 1] + left[P - r]);
+        let temp = values[r] * inverse;
+        values[r] = saved + right[r + 1] * temp;
+        saved = left[P - r] * temp;
+        firsts[r] = P as f64 * (previous - temp);
+        previous = temp;
+        let lower_temp = lower[r] * inverse;
+        seconds[r] = P as f64 * (previous_lower - lower_temp);
+        previous_lower = lower_temp;
+    }
+    values[P] = saved;
+    firsts[P] = P as f64 * previous;
+    seconds[P] = P as f64 * previous_lower;
+    [values, firsts, seconds]
+}
+
 #[inline]
 fn point_sized<const N: usize, G: PolePoint>(knots: &KnotVector, poles: Poles<G>, u: f64) -> G {
     let mut values = [0.0f64; N];
@@ -1197,6 +1262,14 @@ pub(crate) fn derivatives<const ORDER: usize, G: TierPoint>(
             1 => return first_of_degree::<1, G>(knots, poles, u),
             2 => return first_of_degree::<2, G>(knots, poles, u),
             3 => return first_of_degree::<3, G>(knots, poles, u),
+            _ => {}
+        }
+    }
+    if ORDER == 2 && !knots.periodic {
+        match knots.degree {
+            1 => return second_of_degree::<1, G>(knots, poles, u),
+            2 => return second_of_degree::<2, G>(knots, poles, u),
+            3 => return second_of_degree::<3, G>(knots, poles, u),
             _ => {}
         }
     }
@@ -1308,6 +1381,55 @@ fn first_of_degree<const P: usize, G: TierPoint>(
         let inverse = 1.0 / sums[0][3];
         out[0] = out[0] * inverse;
         out[1] = (out[1] - out[0] * sums[1][3]) * inverse;
+    }
+    out
+}
+
+/// [`derivatives`] of order 2 in a non-periodic direction of degree `P`
+/// (at most 3): [`first_of_degree`] carried to the second derivatives, the
+/// sums and the quotient rule those of [`derivatives_sized`].
+#[inline(always)]
+#[allow(clippy::needless_range_loop)] // one coordinate index into three sums and the pole
+fn second_of_degree<const P: usize, G: TierPoint>(
+    knots: &KnotVector,
+    poles: Poles<G>,
+    u: f64,
+) -> [G::Vector; 3] {
+    let (first, ders) = knots.basis_second_of_degree::<P>(u);
+    let points = &poles.points[first..=first + P];
+    let mut sums = [[0.0f64; 4]; MAX_DERIVATIVE + 1];
+    match poles.weights {
+        None => {
+            for j in 0..=P {
+                let p = points[j];
+                for k in 0..=2 {
+                    for c in 0..G::DIM {
+                        sums[k][c] += ders[k][j] * G::coord(p, c);
+                    }
+                }
+            }
+        }
+        Some(weights) => {
+            let weights = &weights[first..=first + P];
+            for j in 0..=P {
+                let p = points[j];
+                for k in 0..=2 {
+                    let b = ders[k][j] * weights[j];
+                    for c in 0..G::DIM {
+                        sums[k][c] += b * G::coord(p, c);
+                    }
+                    sums[k][3] += b;
+                }
+            }
+        }
+    }
+    let mut out = sums.map(vector_of::<G>);
+    if poles.weights.is_some() {
+        let [w0, w1, w2] = sums.map(|s| s[3]);
+        let inverse = 1.0 / w0;
+        out[0] = out[0] * inverse;
+        out[1] = (out[1] - out[0] * w1) * inverse;
+        out[2] = (out[2] - out[1] * (2.0 * w1) - out[0] * w2) * inverse;
     }
     out
 }

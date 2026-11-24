@@ -20,6 +20,20 @@ the Python distribution are versioned in lockstep.
   first. The Python binding reads it instead of its own copy of the
   rule, which would have given a new elementary surface 2.
 
+- The constructors that decide whether their points are degenerate take
+  the caller's `tol: Tolerance` as their last argument, instead of reading
+  `Tolerance::DEFAULT` (#473): `Circle::from_three_points`,
+  `Plane::from_three_points`, `Ellipse::from_center_and_points`,
+  `Hyperbola::from_center_and_points`, `Cone::from_two_points_and_radii`,
+  `Parabola::from_focus_and_directrix`, `TrimmedCurve::arc_through`, and
+  the 2D forms of each. A model of another size scales its tolerance and
+  gets the same answers (ADR 0051). Pass `Tolerance::DEFAULT` to keep the
+  previous behaviour. In Python `tol` is optional and defaults to
+  `Tolerance.default()`.
+- `Ellipse::from_center_and_points` and its 2D form refuse a minor radius
+  below `tol.confusion` instead of below the literal `1e-7`. The 3D form no
+  longer repeats that check on the plane normal, which has the same length.
+
 ### Changed
 
 - Point projection on cylinders, cones, spheres and tori is faster
@@ -30,6 +44,20 @@ the Python distribution are versioned in lockstep.
   tube-centre circle the projection evaluates its parameters as before.
   Parameters and nearest points agree with the previous ones within
   rounding.
+- The unit normals of planes, cylinders, cones, spheres and tori are
+  faster (#461): `normal` reads them in closed form wherever the
+  partials span a tangent plane, about 42% fewer instructions and 25–50%
+  less time. At the apex, the poles, the pinch points, on degenerate
+  shapes and at non-finite parameters the recovery answers as before.
+  Results agree with the cross product of the partials within 1e-15.
+- B-spline second derivatives are faster (#460). `eval_d2` on a
+  non-periodic curve of degree 1 to 3 computes the basis functions and
+  their first and second derivatives in one unrolled pass, as `eval_d1`
+  already did: about 45% fewer instructions on a cubic curve. Every
+  Newton step that reads a curve's second derivative benefits: curve
+  offsets, swept projections, curve–curve extrema and curve–surface
+  intersections take 2–11% fewer instructions. Results are bit-for-bit
+  unchanged.
 - Discretizing a B-spline or Bézier curve is faster (#466), with the
   same output bit for bit: `discretize_into` takes about 55% fewer
   instructions, `point_count` and `discretize` about 20–25% fewer. Pieces
@@ -49,6 +77,14 @@ the Python distribution are versioned in lockstep.
   rule, which folds the end back to the start. The quartic and octic
   curves, the numeric searches and the B-spline knot filter use it. Any
   other parameter keeps its value bit for bit.
+- Curve–surface and surface–surface extrema find a minimum beside a
+  sphere's pole again (#494). Since 0.50.0 a run of equal sampled
+  distances counted as one valley and seeded one refinement, and a
+  sphere's pole row is such a run: its samples are one point. Seeded at
+  the angle 0 on the pole, the refinement could not turn towards a
+  minimum beside it, so a sphere above a B-spline patch could report no
+  minimum at all. Samples that are the same point no longer join one
+  valley; each seeds its own refinement, as before 0.50.0.
 
 ## [0.50.0] - 2026-11-23
 

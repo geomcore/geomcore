@@ -1087,3 +1087,111 @@ fn test_curvatures_none_for_non_finite_parameters() {
     assert_eq!(torus().curvatures(f64::NAN, 0.0, tol), None);
     assert_eq!(cylinder().curvatures(f64::INFINITY, 0.0, tol), None);
 }
+
+// ---- closed-form normals of the elementary surfaces ----
+
+/// The closed-form normal of each elementary surface against the generic
+/// recovery: within 1e-15 where the partials span a plane, and the same
+/// answer (`None` included) at the apex, the poles, the pinch points and
+/// on degenerate shapes, for direct and indirect frames, tilted and far
+/// from the origin.
+#[test]
+fn test_closed_form_normals_match_the_recovery() {
+    use crate::{Cone, Cylinder, Frame, Plane, Sphere, Torus};
+    use std::f64::consts::{FRAC_PI_2, PI, TAU};
+    let tol = Tolerance::DEFAULT;
+    let mut frames = Vec::new();
+    for origin in [Point::new(0.3, -0.2, 0.5), Point::new(1e6, -3e5, 2e6)] {
+        let frame = Frame::new(
+            origin,
+            Vector::new(0.2, -0.3, 1.0),
+            Vector::new(1.0, 0.4, 0.0),
+        )
+        .unwrap();
+        frames.extend([frame, frame.flipped_y(), frame.flipped_z()]);
+    }
+    let mut state = 7u64;
+    let mut random = |a: f64, b: f64| {
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        a + (b - a) * ((state >> 11) as f64 / (1u64 << 53) as f64)
+    };
+    let check = |surface: &dyn ParametricSurface, name: &str, u: f64, v: f64| {
+        let fast = surface.normal(u, v, tol);
+        let general = recovered_normal(surface, u, v, tol);
+        match (fast, general) {
+            (Some(a), Some(b)) => assert!(
+                (a.vector() - b.vector()).magnitude() <= 1e-15,
+                "{name} at ({u}, {v}): {a:?} vs {b:?}"
+            ),
+            (a, b) => assert_eq!(a, b, "{name} at ({u}, {v})"),
+        }
+    };
+    for frame in frames {
+        let surfaces: Vec<(String, Box<dyn ParametricSurface>)> = vec![
+            ("plane".into(), Box::new(Plane::from_frame(frame))),
+            (
+                "cylinder".into(),
+                Box::new(Cylinder::from_frame(frame, 2.0).unwrap()),
+            ),
+            (
+                "thin cylinder".into(),
+                Box::new(Cylinder::from_frame(frame, 1e-12).unwrap()),
+            ),
+            (
+                "cone".into(),
+                Box::new(Cone::from_frame(frame, 0.4, 2.0).unwrap()),
+            ),
+            (
+                "cone apex at origin".into(),
+                Box::new(Cone::from_frame(frame, 0.7, 0.0).unwrap()),
+            ),
+            (
+                "sphere".into(),
+                Box::new(Sphere::from_frame(frame, 2.0).unwrap()),
+            ),
+            (
+                "ring torus".into(),
+                Box::new(Torus::from_frame(frame, 3.0, 1.0).unwrap()),
+            ),
+            (
+                "horn torus".into(),
+                Box::new(Torus::from_frame(frame, 1.0, 1.0).unwrap()),
+            ),
+            (
+                "spindle torus".into(),
+                Box::new(Torus::from_frame(frame, 0.5, 1.0).unwrap()),
+            ),
+        ];
+        for (name, surface) in &surfaces {
+            for _ in 0..300 {
+                check(surface.as_ref(), name, random(-1.0, 7.0), random(-8.0, 8.0));
+                check(
+                    surface.as_ref(),
+                    name,
+                    random(0.0, TAU),
+                    random(-FRAC_PI_2, FRAC_PI_2),
+                );
+            }
+            // Seams, poles, the apex and pinch points, and either side.
+            for u in [0.0, 1.0, PI, TAU] {
+                for v in [
+                    0.0,
+                    1e-13,
+                    -1e-13,
+                    FRAC_PI_2,
+                    -FRAC_PI_2,
+                    FRAC_PI_2 - 1e-9,
+                    PI,
+                    2.0 / 0.4f64.sin(),
+                    -2.0 / 0.4f64.sin(),
+                    -2.0 / 0.4f64.sin() + 1e-12,
+                    2.0 * PI / 3.0,
+                ] {
+                    check(surface.as_ref(), name, u, v);
+                }
+            }
+        }
+    }
+}

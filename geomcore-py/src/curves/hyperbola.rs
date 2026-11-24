@@ -66,10 +66,13 @@ shape_methods! {
 
     /// Build a hyperbola from its center, the vertex point and a second
     /// point on the curve.
+    ///
+    /// `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
     #[staticmethod]
-    fn from_center_and_points(center: PyPoint, s1: PyPoint, s2: PyPoint) -> PyResult<Self> {
+    #[pyo3(signature = (center, s1, s2, tol = None))]
+    fn from_center_and_points(center: PyPoint, s1: PyPoint, s2: PyPoint, tol: Option<crate::values::ToleranceArgument>) -> PyResult<Self> {
         Ok(PyHyperbola(
-            Hyperbola::from_center_and_points(center.0, s1.0, s2.0).map_err(python_error)?,
+            Hyperbola::from_center_and_points(center.0, s1.0, s2.0, crate::tolerance(tol)).map_err(python_error)?,
         ))
     }
 

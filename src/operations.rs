@@ -16,3 +16,4 @@ pub(crate) mod intersect;
 pub(crate) mod offset;
 /// Point projection onto curves and surfaces.
 pub(crate) mod projection;
+pub(crate) mod search_domain;

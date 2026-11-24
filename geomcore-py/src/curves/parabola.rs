@@ -63,10 +63,13 @@ shape_methods! {
 
     /// Build the parabola of every point as far from `focus` as from
     /// `directrix`; the parameter runs along the directrix's direction.
+    ///
+    /// `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
     #[staticmethod]
-    fn from_focus_and_directrix(focus: PyPoint, directrix: PyLine) -> PyResult<Self> {
+    #[pyo3(signature = (focus, directrix, tol = None))]
+    fn from_focus_and_directrix(focus: PyPoint, directrix: PyLine, tol: Option<crate::values::ToleranceArgument>) -> PyResult<Self> {
         Ok(Self(
-            Parabola::from_focus_and_directrix(focus.0, &directrix.0).map_err(python_error)?,
+            Parabola::from_focus_and_directrix(focus.0, &directrix.0, crate::tolerance(tol)).map_err(python_error)?,
         ))
     }
 
