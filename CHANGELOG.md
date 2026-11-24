@@ -9,6 +9,17 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Changed
+
+- Discretizing a B-spline or Bézier curve is faster (#466), with the
+  same output bit for bit: `discretize_into` takes about 55% fewer
+  instructions, `point_count` and `discretize` about 20–25% fewer. Pieces
+  below degree 8 no longer carry buffers sized for degree 25, the bound
+  on the tangent's turning clears only the coefficients it uses, and
+  filling writes the points while it counts them instead of counting
+  first. When `discretize_into` panics on a buffer of the wrong length,
+  the buffers now hold unspecified values; before, they were untouched.
+
 ### Fixed
 
 - A parameter wrapped into a period no longer comes back as the end of the
