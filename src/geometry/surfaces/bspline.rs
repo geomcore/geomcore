@@ -2037,7 +2037,7 @@ impl BSplineSurface {
         let (u, v) = (to_global(s, 0), to_global(t, 1));
         let wrap = |x: f64, periodic: bool, lo: f64, hi: f64| {
             if periodic {
-                lo + (x - lo).rem_euclid(hi - lo)
+                crate::math::parameter_range::wrap_into_period(x, lo, hi - lo)
             } else {
                 x
             }
