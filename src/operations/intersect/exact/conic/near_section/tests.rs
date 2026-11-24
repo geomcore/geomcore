@@ -1,5 +1,4 @@
 use super::*;
-use crate::geometry::curves::ParametricCurve;
 use crate::{Circle, Frame};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -338,7 +337,7 @@ fn test_near_elliptic_sections_of_a_cone_agree_with_the_sampled_distance() {
         let offset = height * k * sine / a;
         let minor = (k * height * height + a * offset * offset).sqrt() + jitter(random());
         let major = minor / a.sqrt();
-        if !(minor > band) {
+        if minor <= band {
             continue;
         }
         let center = Point::new(
