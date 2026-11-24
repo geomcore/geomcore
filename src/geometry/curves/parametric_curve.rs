@@ -6,6 +6,10 @@
 use crate::base::tier::TierPoint;
 use crate::geometry::curves::BSplineCurve;
 use crate::geometry::curves::ElementaryCurve;
+use crate::geometry::curves::bounded_curve_types;
+use crate::geometry::curves::{
+    GenericBSplineCurve, GenericBezierCurve, GenericCircle, GenericEllipse,
+};
 use crate::operations::projection::CurveProjection;
 use crate::{Continuity, Direction, Point, Tolerance, Vector};
 
@@ -557,10 +561,12 @@ pub trait BoundedCurve: ParametricCurve {
     }
 }
 
-impl BoundedCurve for crate::Circle {}
-impl BoundedCurve for crate::Ellipse {}
-impl BoundedCurve for BSplineCurve {}
-impl BoundedCurve for crate::BezierCurve {}
+macro_rules! bounded_curve {
+    ($($curve:ident),*) => {$(
+        impl BoundedCurve for $curve<Point> {}
+    )*};
+}
+bounded_curve_types!(bounded_curve!());
 impl<C: ParametricCurve> BoundedCurve for crate::TrimmedCurve<C> {}
 
 /// A reference to a curve is the curve, so a
