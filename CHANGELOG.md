@@ -9,6 +9,19 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Changed
+
+- Point projection onto a rational B-spline surface is faster, still
+  proven global (part of #501). A subpatch whose convexity is not
+  settled is split in four at once instead of in two: the interval
+  Hessian of a rational patch is loose, so a half next to a minimum was
+  seldom settled before its quarters were, and its verdict was wasted.
+  Every quarter still gets its own verdict. About 11% fewer instructions
+  on a rational bicubic surface, 16% on projections onto a rational
+  surface of revolution, and 5% on marching a sphere against a B-spline
+  torus. Polynomial patches split in two as before; in four they would
+  cost 5% more.
+
 ## [0.52.0] - 2026-11-24
 
 Contacts read where the curve really is. A circle or an ellipse lying

@@ -2459,7 +2459,11 @@ impl<'a> PatchSearch<'a> {
                 Verdict::Unknown(along_u) => {
                     if node.depth < MAX_DEPTH && splits < self.budget {
                         splits += 1;
-                        self.split(&node, along_u);
+                        if self.h == 4 && node.depth + 1 < MAX_DEPTH {
+                            self.split_in_four(&node, along_u);
+                        } else {
+                            self.split(&node, along_u);
+                        }
                         continue;
                     } else if fallbacks < MAX_FALLBACKS {
                         fallbacks += 1;
@@ -2680,6 +2684,42 @@ impl<'a> PatchSearch<'a> {
 
     /// Halves the subpatch along `u` (else `v`) and queues both halves,
     /// the first taking over its slot.
+    /// Splits `node` in four, along `u` if `along_u` (else along `v`) and
+    /// each half the other way, and queues the quarters. The halves get no
+    /// verdict of their own: on a rational patch, whose interval Hessian
+    /// is loose, a half next to a minimum is seldom settled before its
+    /// quarters are.
+    fn split_in_four(&mut self, node: &Subpatch, along_u: bool) {
+        let a = node.slot;
+        let (b, c, d) = (self.slot(), self.slot(), self.slot());
+        self.halve(a, along_u, a, c);
+        self.halve(a, !along_u, a, b);
+        self.halve(c, !along_u, c, d);
+        let (first, second) = halves(node.rect, along_u);
+        let depth = node.depth + 2;
+        for (rect, [lo, hi]) in [(first, [a, b]), (second, [c, d])] {
+            let (low, high) = halves(rect, !along_u);
+            self.push(lo, low, depth, node.boundary_curve);
+            self.push(hi, high, depth, node.boundary_curve);
+        }
+    }
+
+    /// Halves the net at `source` along `u` if `along_u` (else along `v`)
+    /// into the distinct slots `low` and `high`; `source` may be either.
+    fn halve(&mut self, source: usize, along_u: bool, low: usize, high: usize) {
+        let size = self.size;
+        self.scratch
+            .copy_from_slice(&self.nets[source..source + size]);
+        let (lo, hi) = if low < high {
+            let (x, y) = self.nets.split_at_mut(high);
+            (&mut x[low..low + size], &mut y[..size])
+        } else {
+            let (x, y) = self.nets.split_at_mut(low);
+            (&mut y[..size], &mut x[high..high + size])
+        };
+        math::halve_net(&self.scratch, self.rows, self.cols, self.h, along_u, lo, hi);
+    }
+
     fn split(&mut self, node: &Subpatch, along_u: bool) {
         self.scratch
             .copy_from_slice(&self.nets[node.slot..node.slot + self.size]);
@@ -2702,6 +2742,24 @@ impl<'a> PatchSearch<'a> {
         };
         self.push(left, first, node.depth + 1, node.boundary_curve);
         self.push(right, second, node.depth + 1, node.boundary_curve);
+    }
+}
+
+/// The two halves of the parameter rectangle `rect` (`[u0, u1, v0, v1]`),
+/// split along `u` if `along_u`, else along `v`.
+fn halves(rect: [f64; 4], along_u: bool) -> ([f64; 4], [f64; 4]) {
+    if along_u {
+        let mid = 0.5 * (rect[0] + rect[1]);
+        (
+            [rect[0], mid, rect[2], rect[3]],
+            [mid, rect[1], rect[2], rect[3]],
+        )
+    } else {
+        let mid = 0.5 * (rect[2] + rect[3]);
+        (
+            [rect[0], rect[1], rect[2], mid],
+            [rect[0], rect[1], mid, rect[3]],
+        )
     }
 }
 

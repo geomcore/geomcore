@@ -2171,3 +2171,50 @@ fn test_projection_finds_the_nearer_sheet_of_a_folded_surface() {
         assert_eq!(checked, 12 * 7 * 7);
     }
 }
+
+/// The rational B-spline form of a torus projects every point to the
+/// distance the torus itself gives, `|√((ρ − R)² + z²) − r|`: inside the
+/// tube, near its centre circle and the axis, where many feet are nearly
+/// equidistant, and far away.
+#[test]
+fn test_projection_onto_a_rational_torus_matches_its_exact_distance() {
+    let (major, minor) = (3.0, 1.0);
+    let torus = crate::Torus::new(Point::ORIGIN, Vector::Z, major, minor).unwrap();
+    let surface = torus.to_bspline();
+    let mut seed = 0x2545_F491_4F6C_DD1Du64;
+    let mut random = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        (seed >> 11) as f64 / (1u64 << 53) as f64
+    };
+    for k in 0..400 {
+        let (angle, tube_angle) = (
+            std::f64::consts::TAU * random(),
+            std::f64::consts::TAU * random(),
+        );
+        // From the centre circle out to well beyond the tube, and a few
+        // points near the axis.
+        let reach = if k % 8 == 0 {
+            2.9 * random()
+        } else {
+            3.0 * random()
+        };
+        let (radial, height) = if k % 8 == 0 {
+            (reach * random() * 0.3, (2.0 * random() - 1.0) * 2.0)
+        } else {
+            (major + reach * tube_angle.cos(), reach * tube_angle.sin())
+        };
+        let point = Point::new(radial * angle.cos(), radial * angle.sin(), height);
+        let rho = (point.x * point.x + point.y * point.y).sqrt();
+        let exact = ((rho - major).hypot(point.z) - minor).abs();
+        let projection = surface.project_point(point, Tolerance::DEFAULT);
+        assert!(
+            (projection.distance - exact).abs() <= 1e-9 * (1.0 + exact),
+            "{point:?}: {} against {exact}",
+            projection.distance
+        );
+        let foot = surface.point_at(projection.u, projection.v);
+        assert!((foot.distance(point) - projection.distance).abs() <= 1e-9 * (1.0 + exact));
+    }
+}
