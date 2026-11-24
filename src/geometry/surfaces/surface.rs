@@ -386,25 +386,27 @@ impl ElementarySurface {
             ElementarySurface::Cylinder(cylinder) => {
                 let frame = cylinder.frame();
                 let radius = cylinder.radius();
-                table(|du, dv| elementary::cylinder_partial(&frame, radius, u_turn, du, dv))
+                table(|du, dv| elementary::cylinder_derivative(&frame, radius, u_turn, du, dv))
             }
             ElementarySurface::Cone(cone) => {
                 let frame = cone.frame();
                 let (radius, half_angle) = (cone.reference_radius(), Turn::of(cone.half_angle()));
                 table(|du, dv| {
-                    elementary::cone_partial(&frame, radius, half_angle, u_turn, v, du, dv)
+                    elementary::cone_derivative(&frame, radius, half_angle, u_turn, v, du, dv)
                 })
             }
             ElementarySurface::Sphere(sphere) => {
                 let frame = sphere.frame();
                 let radius = sphere.radius();
-                table(|du, dv| elementary::sphere_partial(&frame, radius, u_turn, v_turn, du, dv))
+                table(|du, dv| {
+                    elementary::sphere_derivative(&frame, radius, u_turn, v_turn, du, dv)
+                })
             }
             ElementarySurface::Torus(torus) => {
                 let frame = torus.frame();
                 let (major, minor) = (torus.major_radius(), torus.minor_radius());
                 table(|du, dv| {
-                    elementary::torus_partial(&frame, major, minor, u_turn, v_turn, du, dv)
+                    elementary::torus_derivative(&frame, major, minor, u_turn, v_turn, du, dv)
                 })
             }
         };

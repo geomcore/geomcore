@@ -11,6 +11,16 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- Each elementary surface is inverted once, for its parameters and its
+  nearest point (#503). The cone's axis rule, the sphere's pole rule and
+  the torus's branch choice were written twice, once for `parameters_of`
+  and once for `project_point`. `contains` now reads the same nearest
+  point as `project_point`, so the two agree at `tol.confusion`, and it
+  no longer evaluates the parameters where that point has a closed form.
+  A line against a cylinder takes 13–29% fewer instructions, and point
+  projection onto a cylinder, a sphere or a torus 6–9% fewer and onto a
+  cone 17% fewer.
+
 - Point projection onto a rational B-spline surface is faster, still
   proven global (part of #501). A subpatch whose convexity is not
   settled is split in four at once instead of in two: the interval
