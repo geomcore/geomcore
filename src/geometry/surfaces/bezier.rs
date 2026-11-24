@@ -680,6 +680,11 @@ impl ParametricSurface for BezierSurface {
         self.0.derivative(u, v, du, dv)
     }
 
+    /// The Bézier surface evaluates up to `du + dv = 2`.
+    fn highest_derivative_order(&self) -> u32 {
+        2
+    }
+
     fn first_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
         self.0.first_derivatives(u, v)
     }

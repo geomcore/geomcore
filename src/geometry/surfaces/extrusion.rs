@@ -310,6 +310,11 @@ impl ParametricSurface for ExtrusionSurface {
         }
     }
 
+    /// The extrusion surface evaluates up to `du + dv = 2`.
+    fn highest_derivative_order(&self) -> u32 {
+        2
+    }
+
     fn u_bounds(&self) -> (f64, f64) {
         self.profile.bounds()
     }

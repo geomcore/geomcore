@@ -1101,6 +1101,9 @@ impl ParametricSurface for Floor {
     fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         self.0.derivative(u, v, du, dv)
     }
+    fn highest_derivative_order(&self) -> u32 {
+        self.0.highest_derivative_order()
+    }
     fn u_bounds(&self) -> (f64, f64) {
         self.0.u_bounds()
     }
