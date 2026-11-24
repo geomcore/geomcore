@@ -2,7 +2,11 @@
 //! [`PointExtrema2D`] point-projection trait and the [`BoundedCurve2D`]
 //! trait of the 2D curves with ends.
 
+use crate::geometry::curves::bounded_curve_types;
 use crate::geometry::curves::{BSplineCurve2D, Line2D};
+use crate::geometry::curves::{
+    GenericBSplineCurve, GenericBezierCurve, GenericCircle, GenericEllipse,
+};
 
 use crate::Continuity;
 use crate::operations::projection::CurveProjection2D;
@@ -368,10 +372,12 @@ pub trait BoundedCurve2D: ParametricCurve2D {
     }
 }
 
-impl BoundedCurve2D for crate::Circle2D {}
-impl BoundedCurve2D for crate::Ellipse2D {}
-impl BoundedCurve2D for BSplineCurve2D {}
-impl BoundedCurve2D for crate::BezierCurve2D {}
+macro_rules! bounded_curve_2d {
+    ($($curve:ident),*) => {$(
+        impl BoundedCurve2D for $curve<Point2D> {}
+    )*};
+}
+bounded_curve_types!(bounded_curve_2d!());
 impl<C: ParametricCurve2D> BoundedCurve2D for crate::TrimmedCurve2D<C> {}
 
 /// Distance extrema from a point to a 2D curve, and the projection,

@@ -192,6 +192,10 @@ impl ParametricSurface for Surface {
         surface_dispatch!(self, s => s.derivative(u, v, du, dv))
     }
 
+    fn highest_derivative_order(&self) -> u32 {
+        surface_dispatch!(self, s => s.highest_derivative_order())
+    }
+
     fn first_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
         surface_dispatch!(self, s => s.first_derivatives(u, v))
     }
@@ -416,6 +420,10 @@ impl ParametricSurface for ElementarySurface {
 
     fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         elementary_surface_dispatch!(self, s => s.derivative(u, v, du, dv))
+    }
+
+    fn highest_derivative_order(&self) -> u32 {
+        elementary_surface_dispatch!(self, s => s.highest_derivative_order())
     }
 
     fn first_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {

@@ -16,12 +16,11 @@ pub(crate) use sampled::sampled_steps;
 #[cfg(doc)]
 use crate::Tolerance;
 use crate::geometry::curves::{
-    ParametricCurve, ParametricCurve2D, RangeOperations, TrimmedCurve, TrimmedCurve2D,
+    GenericBSplineCurve, GenericBezierCurve, GenericCircle, GenericEllipse, ParametricCurve,
+    ParametricCurve2D, RangeOperations, TrimmedCurve, TrimmedCurve2D, bounded_curve_types,
 };
-use crate::{
-    BSplineCurve, BSplineCurve2D, BezierCurve, BezierCurve2D, Circle, Circle2D, Ellipse, Ellipse2D,
-    Point, Point2D,
-};
+use crate::math::parameter_range::ParameterRange;
+use crate::{Point, Point2D};
 use std::fmt;
 
 /// Error returned when a [`DiscretizationCriteria`] value is not a
@@ -608,8 +607,8 @@ fn smallest_count(guess: f64, fits: impl Fn(usize) -> bool) -> usize {
 /// writing points of type `$point`) over the whole bounds of bounded
 /// curves.
 macro_rules! discretize_bounded {
-    ($discretize:ident, $discretization:ident, $point:ty: $($curve:ty),*) => {$(
-        impl $discretize for $curve {
+    ($discretize:ident, $discretization:ident, $point:ty: $($curve:ident),*) => {$(
+        impl $discretize for $curve<$point> {
             fn discretize(&self, criteria: DiscretizationCriteria) -> $discretization {
                 let (parameters, points, chord_deviations, angle_deviations) = collect(
                     self,
@@ -656,8 +655,8 @@ macro_rules! discretize_bounded {
     )*};
 }
 
-discretize_bounded!(Discretize, Discretization, Point: Circle, Ellipse, BSplineCurve, BezierCurve);
-discretize_bounded!(Discretize2D, Discretization2D, Point2D: Circle2D, Ellipse2D, BSplineCurve2D, BezierCurve2D);
+bounded_curve_types!(discretize_bounded!(Discretize, Discretization, Point:));
+bounded_curve_types!(discretize_bounded!(Discretize2D, Discretization2D, Point2D:));
 
 /// Implements a discretization trait for a trimmed curve type over its
 /// range: closed when the range spans a whole period of its basis.
@@ -713,7 +712,12 @@ macro_rules! discretize_trimmed {
 
 /// Whether `[first, last]` spans a whole `period`.
 fn spans_period((first, last): (f64, f64), period: Option<f64>) -> bool {
-    period.is_some_and(|period| last - first >= period * (1.0 - 1e-12))
+    ParameterRange {
+        first,
+        last,
+        period,
+    }
+    .spans_whole_period()
 }
 
 discretize_trimmed!(
