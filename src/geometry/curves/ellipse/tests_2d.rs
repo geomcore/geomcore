@@ -9,7 +9,12 @@ fn test_ellipse2d_from_center_and_points_non_finite_errors() {
         Point2D::new(f64::NAN, 1.0),
     ] {
         assert_eq!(
-            Ellipse2D::from_center_and_points(Point2D::ORIGIN, Point2D::new(3.0, 0.0), s2),
+            Ellipse2D::from_center_and_points(
+                Point2D::ORIGIN,
+                Point2D::new(3.0, 0.0),
+                s2,
+                Tolerance::DEFAULT
+            ),
             Err(EllipseConstructionError::NonFinite)
         );
     }
@@ -21,6 +26,7 @@ fn test_ellipse2d_from_center_and_points_orients_y_toward_s2() {
         Point2D::ORIGIN,
         Point2D::new(3.0, 0.0),
         Point2D::new(0.0, -1.5),
+        Tolerance::DEFAULT,
     )
     .unwrap();
     assert_eq!(e.frame().x_direction(), Vector2D::X);

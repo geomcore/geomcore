@@ -8,20 +8,22 @@
 //! or ellipse does not follow the shape's own angle, so what a search finds
 //! on the patches is carried back to it.
 
+use crate::math::parameter_range::ParameterRange;
+use crate::operations::search_domain::{u_domain, v_domain};
 use std::borrow::Cow;
 use std::f64::consts::{FRAC_PI_2, TAU};
 
 use crate::geometry::curves::{
-    BSplineCurve, Circle, Curve, ElementaryCurve, ParametricCurve, PointExtrema, TrimmedCurve,
+    BSplineCurve, Circle, Curve, ElementaryCurve, Ellipse, ParametricCurve, TrimmedCurve,
 };
 use crate::geometry::surfaces::swept::profile_bspline;
 use crate::geometry::surfaces::{
     BSplineSurface, ElementarySurface, ExtrusionSurface, ParametricSurface, RevolutionSurface,
 };
 use crate::math::numeric::boxtree::Aabb;
+use crate::math::parameter_domain::ParameterDomain;
 use crate::operations::intersect::Completeness;
 use crate::operations::intersect::numeric::curve_surface_hull::CurveSurfaceHits;
-use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::{BoundingBox, Point, Tolerance, Vector};
 
 /// A surface as B-spline patches holding the part of it a search can
@@ -221,11 +223,15 @@ pub(crate) fn nearest(angle: f64, x: f64) -> f64 {
 enum Direction {
     /// The same parameter.
     Straight,
-    /// The angle of the circle or ellipse `curve` at the point of its
-    /// B-spline `arc` with the same parameter, built from the same pieces
-    /// as the patch's.
-    Angle {
-        curve: ElementaryCurve,
+    /// The angle of `circle` at the point of its B-spline `arc` with the
+    /// same parameter, built from the same pieces as the patch's.
+    CircleAngle {
+        circle: Circle,
+        arc: Box<BSplineCurve>,
+    },
+    /// The eccentric angle of `ellipse`, as for a circle.
+    EllipseAngle {
+        ellipse: Ellipse,
         arc: Box<BSplineCurve>,
     },
 }
@@ -235,8 +241,8 @@ impl Direction {
     fn circular((lo, hi): (f64, f64)) -> Option<Direction> {
         let circle = Circle::new(Point::ORIGIN, Vector::Z, 1.0).ok()?;
         let arc = TrimmedCurve::new(circle, lo, hi).ok()?.to_bspline().ok()?;
-        Some(Direction::Angle {
-            curve: ElementaryCurve::Circle(circle),
+        Some(Direction::CircleAngle {
+            circle,
             arc: Box::new(arc),
         })
     }
@@ -248,12 +254,14 @@ impl Direction {
     fn of_profile(profile: &Curve, arc: BSplineCurve) -> Option<Direction> {
         match profile.as_elementary() {
             None => Some(Direction::Straight),
-            Some(curve @ (ElementaryCurve::Circle(_) | ElementaryCurve::Ellipse(_))) => {
-                Some(Direction::Angle {
-                    curve,
-                    arc: Box::new(arc),
-                })
-            }
+            Some(ElementaryCurve::Circle(circle)) => Some(Direction::CircleAngle {
+                circle,
+                arc: Box::new(arc),
+            }),
+            Some(ElementaryCurve::Ellipse(ellipse)) => Some(Direction::EllipseAngle {
+                ellipse,
+                arc: Box::new(arc),
+            }),
             Some(_) => None,
         }
     }
@@ -263,11 +271,9 @@ impl Direction {
     fn carried(&self, x: f64) -> f64 {
         match self {
             Direction::Straight => x,
-            Direction::Angle { curve, arc } => {
-                // A circle or ellipse inverts in closed form, which takes no
-                // tolerance.
-                let parameter = curve.parameter_of(arc.point_at(x), Tolerance::DEFAULT);
-                nearest(parameter, x)
+            Direction::CircleAngle { circle, arc } => nearest(circle.angle_of(arc.point_at(x)), x),
+            Direction::EllipseAngle { ellipse, arc } => {
+                nearest(ellipse.angle_of(arc.point_at(x)), x)
             }
         }
     }
@@ -299,7 +305,7 @@ fn elementary_patches(
             (
                 vec![c.to_bspline_patch((0.0, TAU), v).ok()?],
                 [Direction::circular((0.0, TAU))?, Direction::Straight],
-                [ParameterDomain::TURN, ParameterDomain::Interval(v.0, v.1)],
+                [u_domain(&c), ParameterDomain::Interval(v.0, v.1)],
             )
         }
         ElementarySurface::Cone(c) => {
@@ -321,7 +327,7 @@ fn elementary_patches(
             (
                 patches,
                 [Direction::circular((0.0, TAU))?, Direction::Straight],
-                [ParameterDomain::TURN, ParameterDomain::Interval(v0, v1)],
+                [u_domain(&c), ParameterDomain::Interval(v0, v1)],
             )
         }
         ElementarySurface::Sphere(s) => {
@@ -333,7 +339,7 @@ fn elementary_patches(
                     Direction::circular(latitudes)?,
                 ],
                 [
-                    ParameterDomain::TURN,
+                    u_domain(&s),
                     ParameterDomain::Interval(latitudes.0, latitudes.1),
                 ],
             )
@@ -344,7 +350,7 @@ fn elementary_patches(
                 Direction::circular((0.0, TAU))?,
                 Direction::circular((0.0, TAU))?,
             ],
-            [ParameterDomain::TURN, ParameterDomain::TURN],
+            [u_domain(&t), v_domain(&t)],
         ),
     };
     Some((patches, ParameterMap { directions, ranges }))
@@ -378,7 +384,7 @@ fn extrusion_patches(
         });
     let v = (c0 - p1, c1 - p0);
     let patch = surface.to_bspline_patch(u, v).ok()?;
-    let u_range = ParameterDomain::from_bounds(u, profile.period());
+    let u_range = ParameterRange::new(u, profile.period()).search_domain();
     let map = ParameterMap {
         directions: [Direction::of_profile(profile, arc)?, Direction::Straight],
         ranges: [u_range, ParameterDomain::Interval(v.0, v.1)],
@@ -393,13 +399,13 @@ fn revolution_patches(surface: &RevolutionSurface) -> Option<(Vec<BSplineSurface
     let v = bounded(profile)?;
     let arc = profile_bspline(profile, v).ok()?;
     let patch = surface.to_bspline_patch((0.0, TAU), v).ok()?;
-    let v_range = ParameterDomain::from_bounds(v, profile.period());
+    let v_range = ParameterRange::new(v, profile.period()).search_domain();
     let map = ParameterMap {
         directions: [
             Direction::circular((0.0, TAU))?,
             Direction::of_profile(profile, arc)?,
         ],
-        ranges: [ParameterDomain::TURN, v_range],
+        ranges: [u_domain(surface), v_range],
     };
     Some((vec![patch], map))
 }

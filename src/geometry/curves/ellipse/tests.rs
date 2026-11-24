@@ -75,6 +75,7 @@ fn test_ellipse3d_from_center_and_points_ok() {
         Point::ORIGIN,
         Point::new(3.0, 0.0, 0.0),
         Point::new(0.0, 1.5, 0.0),
+        Tolerance::DEFAULT,
     )
     .unwrap();
     assert_eq!(e.major_radius(), 3.0);
@@ -84,7 +85,12 @@ fn test_ellipse3d_from_center_and_points_ok() {
 #[test]
 fn test_ellipse3d_from_center_and_points_null_axis_errors() {
     assert_eq!(
-        Ellipse::from_center_and_points(Point::ORIGIN, Point::ORIGIN, Point::new(0.0, 1.5, 0.0),),
+        Ellipse::from_center_and_points(
+            Point::ORIGIN,
+            Point::ORIGIN,
+            Point::new(0.0, 1.5, 0.0),
+            Tolerance::DEFAULT,
+        ),
         Err(EllipseConstructionError::NullAxis)
     );
 }
@@ -96,6 +102,7 @@ fn test_ellipse3d_from_center_and_points_inverted_axis_errors_when_minor_larger(
             Point::ORIGIN,
             Point::new(1.0, 0.0, 0.0),
             Point::new(0.0, 3.0, 0.0),
+            Tolerance::DEFAULT,
         ),
         Err(EllipseConstructionError::InvertedAxis)
     );
@@ -108,6 +115,7 @@ fn test_ellipse3d_from_center_and_points_inverted_axis_errors_when_collinear() {
             Point::ORIGIN,
             Point::new(3.0, 0.0, 0.0),
             Point::new(1.0, 0.0, 0.0),
+            Tolerance::DEFAULT,
         ),
         Err(EllipseConstructionError::InvertedAxis)
     );
@@ -120,6 +128,7 @@ fn test_ellipse3d_from_center_and_points_non_finite_errors() {
             Point::ORIGIN,
             Point::new(3.0, 0.0, 0.0),
             Point::new(1.0, f64::INFINITY, 0.0),
+            Tolerance::DEFAULT,
         ),
         Err(EllipseConstructionError::NonFinite)
     );
@@ -368,4 +377,113 @@ fn test_ellipse_of_equal_radii_has_its_foci_at_the_center() {
     assert_eq!(round.eccentricity(), 0.0);
     assert_eq!(round.foci(), [round.center(); 2]);
     assert!(round.directrices().is_none());
+}
+
+// ---- nearest-only projection ----
+
+/// `project_point` solves for the nearest foot alone. Against every
+/// stationary point of `extrema`, the foot is never farther than the
+/// nearest of them, beyond rounding; against a dense sampling, no point of
+/// the ellipse is nearer. Points scattered and far, on both axes, at the
+/// centre, near the evolute where two feet are almost as near, on the
+/// ellipse, off its plane; ellipses from a circle to `b/a = 1e-6`, in a
+/// frame near and far from the origin.
+#[test]
+fn test_nearest_only_projection_matches_extrema() {
+    use crate::geometry::curves::PointExtrema2D;
+    use crate::{Ellipse2D, Point2D, Vector2D};
+    use std::f64::consts::TAU;
+    let tol = Tolerance::DEFAULT;
+    let mut state = 5u64;
+    let mut random = |a: f64, b: f64| {
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        a + (b - a) * ((state >> 11) as f64 / (1u64 << 53) as f64)
+    };
+    for origin in [Point::new(0.3, -0.2, 0.5), Point::new(1e5, -3e4, 2e5)] {
+        let frame = Frame::new(
+            origin,
+            Vector::new(0.2, -0.3, 1.0),
+            Vector::new(1.0, 0.4, 0.0),
+        )
+        .unwrap();
+        for (a, b) in [
+            (2.0, 2.0),
+            (3.0, 1.5),
+            (3.0, 2.9),
+            (5.0, 0.05),
+            (1.0, 1e-6),
+            (1e-3, 4e-4),
+        ] {
+            let ellipse = Ellipse::from_frame(frame, a, b).unwrap();
+            let scale = a + origin.distance(Point::ORIGIN);
+            let samples: Vec<Point> = (0..20_000)
+                .map(|i| ellipse.point_at(TAU * i as f64 / 20_000.0))
+                .collect();
+            let mut queries: Vec<(f64, f64, f64)> = (0..300)
+                .map(|_| {
+                    (
+                        random(-2.0, 2.0) * a,
+                        random(-2.0, 2.0) * a,
+                        random(-1.0, 1.0) * a,
+                    )
+                })
+                .collect();
+            let cusp = (a * a - b * b) / a;
+            queries.extend([
+                (0.0, 0.0, 0.0),
+                (0.0, 0.3 * b, 0.0),
+                (0.0, -3.0 * b, 0.1),
+                (0.5 * cusp, 0.0, 0.0),
+                (-0.999 * cusp, 0.0, 0.0),
+                (1.001 * cusp, 0.0, 0.0),
+                (0.5 * cusp, 1e-12 * a, 0.0),
+                (0.5 * cusp, -1e-9 * a, 0.0),
+                (2.0 * a, 0.0, 0.0),
+                (a, 0.0, 0.0),
+                (0.6 * a, 0.8 * b, 0.0),
+                (-0.6 * a, -0.8 * b, 0.5),
+                (1e6, 3e5, -2e5),
+                (-1e6 * a, 1e-6, 0.0),
+            ]);
+            for (x, y, z) in queries {
+                let q = frame.point_at(x, y, z);
+                let fast = ellipse.project_point(q, tol);
+                let all = ellipse.extrema(q, tol);
+                let nearest = all.first().expect("an ellipse has a nearest point");
+                let slack = 1e-12 * (scale + q.distance(origin));
+                assert!(
+                    fast.point.distance(q) <= nearest.point.distance(q) + slack,
+                    "a={a} b={b} at ({x}, {y}, {z}): {} vs extrema {}",
+                    fast.point.distance(q),
+                    nearest.point.distance(q)
+                );
+                let dense = samples
+                    .iter()
+                    .map(|p| p.distance(q))
+                    .fold(f64::INFINITY, f64::min);
+                assert!(
+                    fast.point.distance(q) <= dense + slack,
+                    "a={a} b={b} at ({x}, {y}, {z}): dense"
+                );
+                assert!((0.0..TAU).contains(&fast.parameter));
+            }
+        }
+    }
+    let planar =
+        Ellipse2D::new(Point2D::new(1.0, -2.0), Vector2D::new(1.0, 1.0), 3.0, 1.0).unwrap();
+    for k in 0..200 {
+        let q = Point2D::new(-4.0 + 0.05 * k as f64, 0.03 * k as f64 - 3.0);
+        let fast = planar.project_point(q, tol);
+        let nearest = planar.extrema(q, tol)[0];
+        assert!(fast.point.distance(q) <= nearest.point.distance(q) + 1e-12);
+    }
+    let ellipse = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 3.0, 1.0).unwrap();
+    assert!(
+        ellipse
+            .project_point(Point::new(f64::NAN, 0.0, 0.0), tol)
+            .parameter
+            .is_nan()
+    );
 }

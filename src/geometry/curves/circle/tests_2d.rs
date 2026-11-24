@@ -123,7 +123,7 @@ fn test_circle2d_from_three_points_passes_through_them_in_order() {
         Point2D::new(-2.0, -1.5),
     );
     for (first, second, third, counterclockwise) in [(p1, p2, p3, true), (p3, p2, p1, false)] {
-        let circle = Circle2D::from_three_points(first, second, third).unwrap();
+        let circle = Circle2D::from_three_points(first, second, third, Tolerance::DEFAULT).unwrap();
         assert_eq!(circle.is_counterclockwise(), counterclockwise);
         assert!(circle.point_at(0.0).distance(first) < 1e-14);
         let (u2, u3) = (
@@ -146,8 +146,9 @@ fn test_circle2d_from_three_points_matches_the_circle_in_space() {
         Point2D::new(1e3, 2.0),
         Point2D::new(-7.0, 1e2),
     );
-    let flat = Circle2D::from_three_points(p1, p2, p3).unwrap();
-    let spatial = Circle::from_three_points(lift(p1), lift(p2), lift(p3)).unwrap();
+    let flat = Circle2D::from_three_points(p1, p2, p3, Tolerance::DEFAULT).unwrap();
+    let spatial =
+        Circle::from_three_points(lift(p1), lift(p2), lift(p3), Tolerance::DEFAULT).unwrap();
     assert!(lift(flat.center()).distance(spatial.center()) < 1e-10);
     assert!((flat.radius() - spatial.radius()).abs() < 1e-10);
 }
@@ -156,15 +157,15 @@ fn test_circle2d_from_three_points_matches_the_circle_in_space() {
 fn test_circle2d_from_three_points_errors() {
     let (a, b) = (Point2D::ORIGIN, Point2D::new(1.0, 0.0));
     assert_eq!(
-        Circle2D::from_three_points(a, b, Point2D::new(1.0, 1e-9)),
+        Circle2D::from_three_points(a, b, Point2D::new(1.0, 1e-9), Tolerance::DEFAULT),
         Err(CircleConstructionError::ConfusedPoints)
     );
     assert_eq!(
-        Circle2D::from_three_points(a, b, Point2D::new(2.0, 1e-9)),
+        Circle2D::from_three_points(a, b, Point2D::new(2.0, 1e-9), Tolerance::DEFAULT),
         Err(CircleConstructionError::CollinearPoints)
     );
     assert_eq!(
-        Circle2D::from_three_points(a, b, Point2D::new(f64::NAN, 1.0)),
+        Circle2D::from_three_points(a, b, Point2D::new(f64::NAN, 1.0), Tolerance::DEFAULT),
         Err(CircleConstructionError::NonFinite)
     );
 }

@@ -68,7 +68,7 @@ fn test_circle3d_from_three_points_ok() {
     let p1 = Point::new(1.0, 0.0, 0.0);
     let p2 = Point::new(0.0, 1.0, 0.0);
     let p3 = Point::new(-1.0, 0.0, 0.0);
-    let c = Circle::from_three_points(p1, p2, p3).unwrap();
+    let c = Circle::from_three_points(p1, p2, p3, Tolerance::DEFAULT).unwrap();
     assert!((c.radius() - 1.0).abs() < 1e-9);
 }
 
@@ -77,7 +77,7 @@ fn test_circle3d_from_three_points_two_coincident_errors() {
     let p = Point::new(1.0, 2.0, 3.0);
     let p2 = Point::new(4.0, 5.0, 6.0);
     assert_eq!(
-        Circle::from_three_points(p, p, p2),
+        Circle::from_three_points(p, p, p2, Tolerance::DEFAULT),
         Err(CircleConstructionError::ConfusedPoints)
     );
 }
@@ -86,7 +86,7 @@ fn test_circle3d_from_three_points_two_coincident_errors() {
 fn test_circle3d_from_three_points_all_coincident_errors() {
     let p = Point::new(1.0, 2.0, 3.0);
     assert_eq!(
-        Circle::from_three_points(p, p, p),
+        Circle::from_three_points(p, p, p, Tolerance::DEFAULT),
         Err(CircleConstructionError::ConfusedPoints)
     );
 }
@@ -97,7 +97,7 @@ fn test_circle3d_from_three_points_collinear_errors() {
     let p2 = Point::new(1.0, 0.0, 0.0);
     let p3 = Point::new(2.0, 0.0, 0.0);
     assert_eq!(
-        Circle::from_three_points(p1, p2, p3),
+        Circle::from_three_points(p1, p2, p3, Tolerance::DEFAULT),
         Err(CircleConstructionError::CollinearPoints)
     );
 }

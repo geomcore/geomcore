@@ -49,6 +49,76 @@ fn radial_derivative(frame: &Frame, u: Turn, order: u32) -> Vector {
     cosine * frame.x_direction() + sine * frame.y_direction()
 }
 
+/// The radial direction `cos(u) x_dir + sin(u) y_dir` of `frame`.
+pub(crate) fn radial(frame: &Frame, u: Turn) -> Vector {
+    radial_derivative(frame, u, 0)
+}
+
+/// `1` for a direct frame, `-1` for an indirect one: `x_dir × y_dir` is
+/// that times `z_dir`, which orients the normals.
+pub(crate) fn handedness(frame: &Frame) -> f64 {
+    if frame.is_direct() { 1.0 } else { -1.0 }
+}
+
+/// `-1` for a negative number, `1` otherwise.
+fn sign(x: f64) -> f64 {
+    if x < 0.0 { -1.0 } else { 1.0 }
+}
+
+/// The unit normal `Su × Sv / |Su × Sv|` of the cylinder of radius `r` in
+/// `frame` at `u`, with `[|Su|, |Sv|, |Su × Sv|]`: `Su = r ρ'`, `Sv = z`,
+/// `Su × Sv = r h ρ` (`h` the [`handedness`]).
+pub(crate) fn cylinder_normal(frame: &Frame, r: f64, u: f64) -> ([f64; 3], Vector) {
+    let lengths = [r.abs(), 1.0, r.abs()];
+    (
+        lengths,
+        (sign(r) * handedness(frame)) * radial(frame, Turn::of(u)),
+    )
+}
+
+/// [`cylinder_normal`] of the cone: with `R = reference_radius + v sin a`,
+/// `Su = R ρ'`, `Sv = sin a ρ + cos a z`, `Su × Sv = h R (cos a ρ - sin a z)`.
+pub(crate) fn cone_normal(
+    frame: &Frame,
+    reference_radius: f64,
+    half_angle: f64,
+    u: f64,
+    v: f64,
+) -> ([f64; 3], Vector) {
+    let a = Turn::of(half_angle);
+    let r = reference_radius + v * a.sine;
+    let lengths = [r.abs(), 1.0, r.abs()];
+    let direction = a.cosine * radial(frame, Turn::of(u)) - a.sine * frame.z_direction();
+    (lengths, (sign(r) * handedness(frame)) * direction)
+}
+
+/// [`cylinder_normal`] of the sphere of radius `r`: `Su = r cos v ρ'`,
+/// `Sv = r (cos v z - sin v ρ)`, `Su × Sv = h r² cos v (cos v ρ + sin v z)`.
+pub(crate) fn sphere_normal(frame: &Frame, r: f64, u: f64, v: f64) -> ([f64; 3], Vector) {
+    let t = Turn::of(v);
+    let around = r * t.cosine;
+    let lengths = [around.abs(), r.abs(), (around * r).abs()];
+    let direction = t.cosine * radial(frame, Turn::of(u)) + t.sine * frame.z_direction();
+    (lengths, (sign(around * r) * handedness(frame)) * direction)
+}
+
+/// [`cylinder_normal`] of the torus: with `R = maj + min cos v`,
+/// `Su = R ρ'`, `Sv = min (cos v z - sin v ρ)`,
+/// `Su × Sv = h R min (cos v ρ + sin v z)`.
+pub(crate) fn torus_normal(
+    frame: &Frame,
+    maj: f64,
+    min: f64,
+    u: f64,
+    v: f64,
+) -> ([f64; 3], Vector) {
+    let t = Turn::of(v);
+    let r = maj + min * t.cosine;
+    let lengths = [r.abs(), min.abs(), (r * min).abs()];
+    let direction = t.cosine * radial(frame, Turn::of(u)) + t.sine * frame.z_direction();
+    (lengths, (sign(r * min) * handedness(frame)) * direction)
+}
+
 // ---- plane ----
 
 /// Evaluates the plane in `frame` at `(u, v)`: `origin + u*x_dir + v*y_dir`.
@@ -362,6 +432,115 @@ pub(crate) fn torus_parameters(frame: &Frame, maj: f64, min: f64, p: Point) -> (
     let dp_radial = x * u.cos() + y * u.sin() - maj;
     let v = wrap_to_turn(z.atan2(dp_radial));
     (u, v)
+}
+
+// ---- projection feet ----
+//
+// The parameters of the nearest point of each surface with the foot read
+// from the local coordinates, not from evaluating the parameters: the
+// radial direction is `(x, y) / ρ`, so the foot needs no trigonometry.
+// `None` where that division is ill-conditioned (on the axis, on a
+// torus's tube-centre circle, at a sphere's poles): the callers then
+// evaluate the parameters as before.
+
+/// `(u, v)` and the foot of `p` on the cylinder of radius `r`, as
+/// [`cylinder_parameters`] and [`cylinder_d0`] give them.
+pub(crate) fn cylinder_projection(frame: &Frame, r: f64, p: Point) -> Option<(f64, f64, Point)> {
+    let (x, y, z) = frame.local_coordinates(p);
+    let rho = x.hypot(y);
+    if !(rho > 0.0 && rho.is_finite()) {
+        return None;
+    }
+    let scale = r / rho;
+    Some((
+        wrap_to_turn(y.atan2(x)),
+        z,
+        frame.point_at(scale * x, scale * y, z),
+    ))
+}
+
+/// `(u, v)` and the foot of `p` on the cone, as [`cone_parameters`] and
+/// [`cone_d0`] give them.
+pub(crate) fn cone_projection(
+    frame: &Frame,
+    reference_radius: f64,
+    half_angle: f64,
+    p: Point,
+) -> Option<(f64, f64, Point)> {
+    let (x, y, z) = frame.local_coordinates(p);
+    let (sine, cosine) = half_angle.sin_cos();
+    let tangent = half_angle.tan();
+    let radius_here = z * tangent + reference_radius;
+    let rho = x.hypot(y);
+    // On the axis `cone_parameters` reads `u = 0`: evaluate as before.
+    if (x * x + y * y) * (tangent * tangent) <= 1e-18 * (radius_here * radius_here)
+        || !(rho > 0.0 && rho.is_finite())
+    {
+        return None;
+    }
+    // Below the apex `u` is measured from the opposite azimuth, along which
+    // the point's radial coordinate is `-ρ`.
+    let (u, radial, side) = if radius_here < 0.0 {
+        (wrap_to_turn((-y).atan2(-x)), -rho, -1.0)
+    } else {
+        (wrap_to_turn(y.atan2(x)), rho, 1.0)
+    };
+    let v = sine * (radial - reference_radius) + cosine * z;
+    let radius = reference_radius + v * sine;
+    let scale = side * radius / rho;
+    Some((u, v, frame.point_at(scale * x, scale * y, v * cosine)))
+}
+
+/// `(u, v)` and the foot of `p` on the sphere of radius `r`, as
+/// [`sphere_parameters`] and [`sphere_d0`] give them.
+pub(crate) fn sphere_projection(frame: &Frame, r: f64, p: Point) -> Option<(f64, f64, Point)> {
+    let (x, y, z) = frame.local_coordinates(p);
+    let l = x.hypot(y);
+    // The poles, the centre among them, read `u = 0`: evaluate as before.
+    if l <= 1e-9 * z.abs() || !l.is_finite() {
+        return None;
+    }
+    let scale = r / l.hypot(z);
+    Some((
+        wrap_to_turn(y.atan2(x)),
+        (z / l).atan(),
+        frame.point_at(scale * x, scale * y, scale * z),
+    ))
+}
+
+/// `(u, v)` and the foot of `p` on the torus, as [`torus_parameters`] and
+/// [`torus_d0`] give them.
+pub(crate) fn torus_projection(
+    frame: &Frame,
+    maj: f64,
+    min: f64,
+    p: Point,
+) -> Option<(f64, f64, Point)> {
+    let (x, y, z) = frame.local_coordinates(p);
+    let rho = x.hypot(y);
+    if !(rho > 0.0 && rho.is_finite()) {
+        return None;
+    }
+    // The branch of `torus_parameters`: when `maj < min` the far side of the
+    // tube may be nearer, at `u + π`, where the radial coordinate is `-ρ`.
+    let (mut u, mut radial) = (y.atan2(x), rho);
+    if maj < min {
+        let offset = |radial: f64| ((radial - maj).hypot(z) - min).abs();
+        if offset(-rho) < offset(rho) {
+            u += std::f64::consts::PI;
+            radial = -rho;
+        }
+    }
+    let u = wrap_to_turn(u);
+    let (dr, dz) = (radial - maj, z);
+    let reach = dr.hypot(dz);
+    // On the tube-centre circle every `v` is as near: evaluate as before.
+    if !(reach > 0.0 && reach.is_finite()) {
+        return None;
+    }
+    let v = wrap_to_turn(dz.atan2(dr));
+    let along = (maj + min * dr / reach) / radial;
+    Some((u, v, frame.point_at(along * x, along * y, min * dz / reach)))
 }
 
 #[cfg(test)]

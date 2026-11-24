@@ -280,7 +280,8 @@ fn test_parabola_points_are_as_far_from_focus_as_from_directrix() {
     let directrix =
         crate::Line::new(Point::new(1.0, 2.0, -1.0), Vector::new(1.0, 1.0, 0.0)).unwrap();
     let focus = Point::new(0.0, 3.0, 2.0);
-    let parabola = Parabola::from_focus_and_directrix(focus, &directrix).unwrap();
+    let parabola =
+        Parabola::from_focus_and_directrix(focus, &directrix, Tolerance::DEFAULT).unwrap();
     assert!(parabola.focus().distance(focus) < 1e-12);
     let rebuilt = parabola.directrix();
     for k in -5..=5 {
@@ -298,12 +299,12 @@ fn test_parabola_from_a_focus_on_its_directrix_is_refused() {
     let directrix = crate::Line::new(Point::ORIGIN, Vector::X).unwrap();
     let on = Point::new(3.0, 0.0, 0.0);
     assert_eq!(
-        Parabola::from_focus_and_directrix(on, &directrix).err(),
+        Parabola::from_focus_and_directrix(on, &directrix, Tolerance::DEFAULT).err(),
         Some(ParabolaConstructionError::NonPositiveFocal)
     );
     let nan = Point::new(f64::NAN, 0.0, 0.0);
     assert_eq!(
-        Parabola::from_focus_and_directrix(nan, &directrix).err(),
+        Parabola::from_focus_and_directrix(nan, &directrix, Tolerance::DEFAULT).err(),
         Some(ParabolaConstructionError::NonFinite)
     );
 }
