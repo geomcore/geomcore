@@ -105,7 +105,12 @@ fn intersected_range(
     let Some(period) = period else {
         return overlap(0.0).ok_or(TrimmedSurfaceConstructionError::DisjointRanges);
     };
-    if requested.1 - requested.0 >= period * (1.0 - 1e-12) {
+    let requested_range = ParameterRange {
+        first: requested.0,
+        last: requested.1,
+        period: Some(period),
+    };
+    if requested_range.spans_whole_period() {
         return Ok(face_range);
     }
     // Both ranges span at most a period, so at most two of the copies
@@ -393,6 +398,12 @@ impl<S: ParametricSurface> ParametricSurface for TrimmedSurface<S> {
     #[inline]
     fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         self.basis.derivative(u, v, du, dv)
+    }
+
+    /// A trimmed surface evaluates its basis.
+    #[inline]
+    fn highest_derivative_order(&self) -> u32 {
+        self.basis.highest_derivative_order()
     }
 
     #[inline]

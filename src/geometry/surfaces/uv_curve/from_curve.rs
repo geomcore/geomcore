@@ -861,31 +861,20 @@ fn frame_angle(frame: crate::Frame, direction: impl Into<Vector>) -> f64 {
 // ---- normalization ----
 
 /// Shifts `line`'s value at `t = 0` into `surface`'s canonical parameter
-/// window: `u` (and `v` for the torus) wrapped by period multiples. On a
-/// sphere only a parallel gets here, which never reaches a pole.
+/// window: each periodic direction wrapped by period multiples into
+/// `[start, start + period)` from the start of its bounds. On a sphere only
+/// a parallel gets here, which never reaches a pole.
 fn normalize_line2d_at_zero(line: Line2D, surface: &ElementarySurface) -> Line2D {
-    match surface {
-        // A plane has no periodic direction: leave the line as-is.
-        ElementarySurface::Plane(_) => line,
-        ElementarySurface::Cylinder(_)
-        | ElementarySurface::Cone(_)
-        | ElementarySurface::Sphere(_) => wrap_u(line),
-        ElementarySurface::Torus(_) => wrap_v(wrap_u(line)),
+    let at_zero = line.point_at(0.0);
+    let wrapped = |value: f64, start: f64, period: Option<f64>| {
+        period.map_or(value, |period| in_period(value, start, start + period))
+    };
+    let u = wrapped(at_zero.x, surface.u_bounds().0, surface.u_period());
+    let v = wrapped(at_zero.y, surface.v_bounds().0, surface.v_period());
+    if (u, v) == (at_zero.x, at_zero.y) {
+        return line;
     }
-}
-
-/// Wraps `line`'s `u` at `t = 0` into `[0, 2π)`.
-fn wrap_u(line: Line2D) -> Line2D {
-    let u0 = line.point_at(0.0).x;
-    let new_u = in_period(u0, 0.0, TAU);
-    translate_line(line, new_u - u0, 0.0)
-}
-
-/// Wraps `line`'s `v` at `t = 0` into `[0, 2π)`.
-fn wrap_v(line: Line2D) -> Line2D {
-    let v0 = line.point_at(0.0).y;
-    let new_v = in_period(v0, 0.0, TAU);
-    translate_line(line, 0.0, new_v - v0)
+    translate_line(line, u - at_zero.x, v - at_zero.y)
 }
 
 /// Translates a 2D line's origin by `(du, dv)`, keeping its direction.

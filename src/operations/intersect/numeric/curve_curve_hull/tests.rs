@@ -7,8 +7,8 @@ use crate::operations::extrema::curve_curve_pieces::{bspline_minima, search_mini
 use crate::operations::intersect::IncompleteReason;
 use crate::operations::intersect::numeric::curve_curve::search_curve_curve;
 use crate::operations::intersect::numeric::curve_curve::{hits_at_minima, sampled_curve_curve};
-use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::results::completeness::Region;
+use crate::operations::search_domain::curve_domain;
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 
@@ -120,7 +120,7 @@ fn skew(rng: &mut Lcg, rational: bool) -> (BSplineCurve, BSplineCurve) {
 
 /// The hits of the piece-pair search, which must be complete.
 fn search<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) -> Vec<CurveCurveHit> {
-    let (ra, rb) = (ParameterDomain::of(a), ParameterDomain::of(b));
+    let (ra, rb) = (curve_domain(a), curve_domain(b));
     let (sa, sb) = (a.as_bspline().unwrap(), b.as_bspline().unwrap());
     let (candidates, completeness) = bspline_curve_curve(sa, ra, sb, rb, TOL);
     assert!(completeness.is_complete(), "{completeness:?}");
@@ -129,7 +129,7 @@ fn search<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) -> Vec<CurveCurv
 
 /// The minima through the piece-pair seeds, which must be complete.
 fn minima<A: ParametricCurve, B: ParametricCurve>(a: &A, b: &B) -> Vec<CurveCurveExtremum> {
-    let (da, db) = (ParameterDomain::of(a), ParameterDomain::of(b));
+    let (da, db) = (curve_domain(a), curve_domain(b));
     let (sa, sb) = (a.as_bspline().unwrap(), b.as_bspline().unwrap());
     let (seeds, completeness) = bspline_minima(sa, da, sb, db, TOL);
     assert!(completeness.is_complete(), "{completeness:?}");
@@ -191,7 +191,7 @@ fn assert_minima_match<A: ParametricCurve, B: ParametricCurve>(
             "{want:?} missing from {found:#?}"
         );
     }
-    let (da, db) = (ParameterDomain::of(a), ParameterDomain::of(b));
+    let (da, db) = (curve_domain(a), curve_domain(b));
     let ((a0, a1), (b0, b1)) = (a.bounds(), b.bounds());
     for e in &found {
         for (ds, dt) in [(1.0, 0.0), (0.0, 1.0), (1.0, 1.0), (1.0, -1.0)] {
@@ -408,7 +408,7 @@ fn raw_search<A: ParametricCurve, B: ParametricCurve>(
     a: &A,
     b: &B,
 ) -> (Vec<CurveCurveHit>, Completeness<CurveCurveRegion>) {
-    let (ra, rb) = (ParameterDomain::of(a), ParameterDomain::of(b));
+    let (ra, rb) = (curve_domain(a), curve_domain(b));
     let (sa, sb) = (a.as_bspline().unwrap(), b.as_bspline().unwrap());
     let (candidates, completeness) = bspline_curve_curve(sa, ra, sb, rb, TOL);
     (hits_at_minima(a, b, candidates, TOL), completeness)
@@ -616,7 +616,7 @@ fn test_exhausted_budget_leaves_the_pending_pairs() {
     let mut count = 0;
     for k in 0..8 {
         let (a, b) = crossing(&mut rng, k % 2 == 1, 3.0);
-        let (da, db) = (ParameterDomain::of(&a), ParameterDomain::of(&b));
+        let (da, db) = (curve_domain(&a), curve_domain(&b));
         let all = search(&a, &b);
         let (candidates, completeness) = search_candidates(&a, da, &b, db, TOL, 0);
         let found = hits_at_minima(&a, &b, candidates, TOL);

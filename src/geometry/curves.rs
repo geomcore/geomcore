@@ -25,7 +25,9 @@ pub(crate) use bspline::{all_finite, grid_finite};
 pub use circle::{Circle, Circle2D, CircleConstructionError, GenericCircle};
 pub use conversion::BSplineConversionError;
 pub use curve::{Curve, ElementaryCurve};
-pub(crate) use curve::{curve_dispatch, curve_variants, elementary_curve_dispatch};
+pub(crate) use curve::{
+    bounded_curve_types, curve_dispatch, curve_variants, elementary_curve_dispatch,
+};
 pub use curve_2d::Curve2D;
 pub(crate) use curve_2d::{curve_2d_dispatch, curve_2d_variants};
 pub use ellipse::{Ellipse, Ellipse2D, EllipseConstructionError, GenericEllipse};

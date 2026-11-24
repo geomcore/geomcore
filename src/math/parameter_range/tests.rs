@@ -185,3 +185,36 @@ fn test_checked_accepts_a_period_from_any_start() {
     assert!(ParameterRange::checked((0.1, 0.1 + TAU * (1.0 + 5e-13)), bounds, Some(TAU)).is_ok());
     assert!(ParameterRange::checked((0.2, 0.7), (0.0, 1.0), None).is_ok());
 }
+
+#[test]
+fn test_spans_whole_period_at_the_boundary() {
+    // (length, by the rounding band, within the default `parametric = 1e-9`)
+    let rows = [
+        (TAU, true, true),
+        (TAU * (1.0 - 2e-12), false, true),
+        (TAU - 5e-10, false, true),
+        (TAU - 2e-9, false, false),
+    ];
+    for start in [0.0, -PI, 2.5] {
+        for (length, rounding, within) in rows {
+            let range = ParameterRange {
+                first: start,
+                last: start + length,
+                period: Some(TAU),
+            };
+            assert_eq!(range.spans_whole_period(), rounding, "{start} {length}");
+            assert_eq!(
+                range.spans_whole_period_within(TOL),
+                within,
+                "{start} {length}"
+            );
+        }
+    }
+    let open = ParameterRange {
+        first: 0.0,
+        last: 1e9,
+        period: None,
+    };
+    assert!(!open.spans_whole_period());
+    assert!(!open.spans_whole_period_within(TOL));
+}

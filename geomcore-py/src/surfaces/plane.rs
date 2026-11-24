@@ -48,10 +48,13 @@ shape_methods! {
     }
 
     /// Build a plane through three non-collinear points.
+    ///
+    /// `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
     #[staticmethod]
-    fn from_three_points(p1: PyPoint, p2: PyPoint, p3: PyPoint) -> PyResult<Self> {
+    #[pyo3(signature = (p1, p2, p3, tol = None))]
+    fn from_three_points(p1: PyPoint, p2: PyPoint, p3: PyPoint, tol: Option<crate::values::ToleranceArgument>) -> PyResult<Self> {
         Ok(PyPlane(
-            Plane::from_three_points(p1.0, p2.0, p3.0).map_err(python_error)?,
+            Plane::from_three_points(p1.0, p2.0, p3.0, crate::tolerance(tol)).map_err(python_error)?,
         ))
     }
 

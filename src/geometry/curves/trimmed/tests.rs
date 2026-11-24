@@ -482,7 +482,7 @@ fn test_arc_through_passes_through_its_three_points_in_order() {
         Point::new(0.0, 1.0, 0.0),
         Point::new(-1.0, 0.0, 0.0),
     );
-    let arc = TrimmedCurve::arc_through(start, middle, end).unwrap();
+    let arc = TrimmedCurve::arc_through(start, middle, end, Tolerance::DEFAULT).unwrap();
     assert!(arc.start_point().distance(start) < 1e-12);
     assert!(arc.end_point().distance(end) < 1e-12);
     assert!(close(arc.sweep_angle(), PI));
@@ -496,15 +496,15 @@ fn test_arc_through_rejects_degenerate_points() {
     let c = Point::new(2.0, 0.0, 0.0);
     let nan = Point::new(f64::NAN, 0.0, 0.0);
     assert_eq!(
-        TrimmedCurve::arc_through(a, a, b).err(),
+        TrimmedCurve::arc_through(a, a, b, Tolerance::DEFAULT).err(),
         Some(ArcConstructionError::ConfusedPoints)
     );
     assert_eq!(
-        TrimmedCurve::arc_through(a, b, c).err(),
+        TrimmedCurve::arc_through(a, b, c, Tolerance::DEFAULT).err(),
         Some(ArcConstructionError::CollinearPoints)
     );
     assert_eq!(
-        TrimmedCurve::arc_through(a, b, nan).err(),
+        TrimmedCurve::arc_through(a, b, nan, Tolerance::DEFAULT).err(),
         Some(ArcConstructionError::NonFinite)
     );
 }
@@ -563,9 +563,9 @@ fn test_plane_arc_through_takes_the_turning_sense_of_its_points() {
         Point2D::new(0.0, 1.0),
         Point2D::new(-1.0, 0.0),
     );
-    let left = TrimmedCurve2D::arc_through(start, middle, end).unwrap();
+    let left = TrimmedCurve2D::arc_through(start, middle, end, Tolerance::DEFAULT).unwrap();
     assert!(left.basis().is_counterclockwise());
-    let right = TrimmedCurve2D::arc_through(end, middle, start).unwrap();
+    let right = TrimmedCurve2D::arc_through(end, middle, start, Tolerance::DEFAULT).unwrap();
     assert!(!right.basis().is_counterclockwise());
     for arc in [left, right] {
         assert!(close(arc.sweep_angle(), PI));

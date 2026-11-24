@@ -76,6 +76,7 @@ fn test_hyperbola2d_from_center_and_points_ok() {
         Point2D::new(1.0, 1.0),
         Point2D::new(3.0, 1.0),
         Point2D::new(1.0, 2.0),
+        Tolerance::DEFAULT,
     )
     .unwrap();
     assert_eq!(h.center(), Point2D::new(1.0, 1.0));
@@ -90,6 +91,7 @@ fn test_hyperbola2d_from_center_and_points_orients_y_toward_s2() {
         Point2D::ORIGIN,
         Point2D::new(2.0, 0.0),
         Point2D::new(0.5, -3.0),
+        Tolerance::DEFAULT,
     )
     .unwrap();
     assert_eq!(h.minor_radius(), 3.0);
@@ -100,19 +102,29 @@ fn test_hyperbola2d_from_center_and_points_orients_y_toward_s2() {
 fn test_hyperbola2d_from_center_and_points_errors() {
     let o = Point2D::ORIGIN;
     assert_eq!(
-        Hyperbola2D::from_center_and_points(o, o, Point2D::new(0.0, 1.0)),
+        Hyperbola2D::from_center_and_points(o, o, Point2D::new(0.0, 1.0), Tolerance::DEFAULT),
         Err(HyperbolaConstructionError::ConfusedPoints)
     );
     assert_eq!(
-        Hyperbola2D::from_center_and_points(o, Point2D::new(2.0, 0.0), o),
+        Hyperbola2D::from_center_and_points(o, Point2D::new(2.0, 0.0), o, Tolerance::DEFAULT),
         Err(HyperbolaConstructionError::ConfusedPoints)
     );
     assert_eq!(
-        Hyperbola2D::from_center_and_points(o, Point2D::new(2.0, 0.0), Point2D::new(2.0, 0.0)),
+        Hyperbola2D::from_center_and_points(
+            o,
+            Point2D::new(2.0, 0.0),
+            Point2D::new(2.0, 0.0),
+            Tolerance::DEFAULT
+        ),
         Err(HyperbolaConstructionError::ConfusedPoints)
     );
     assert_eq!(
-        Hyperbola2D::from_center_and_points(o, Point2D::new(2.0, 0.0), Point2D::new(5.0, 0.0)),
+        Hyperbola2D::from_center_and_points(
+            o,
+            Point2D::new(2.0, 0.0),
+            Point2D::new(5.0, 0.0),
+            Tolerance::DEFAULT
+        ),
         Err(HyperbolaConstructionError::CollinearPoints)
     );
 }

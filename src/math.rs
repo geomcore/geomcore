@@ -10,4 +10,5 @@ pub(crate) mod elementary;
 pub(crate) mod numeric;
 /// The rules of a parameter range: the shift by whole periods, the slack
 /// at the ends, the nearest end across the seam.
+pub(crate) mod parameter_domain;
 pub(crate) mod parameter_range;

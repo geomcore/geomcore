@@ -7,6 +7,7 @@ use crate::geometry::curves::{BSplineCurve, ElementaryCurve};
 use crate::math::bspline::curve::LARGE;
 use crate::math::bspline::surface::{Interval, derivative_bounds};
 use crate::math::numeric::{newton_min_1d, newton_min_2d};
+use crate::math::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::bezier_pieces::{
     CurvePieces, dot, extent, norm, sub, tangent_sign,
 };
@@ -14,7 +15,6 @@ use crate::operations::intersect::numeric::curve_curve_hull::{
     SPLITS_PER_PAIR, along_one_line, region, room, split_larger,
 };
 use crate::operations::intersect::numeric::pairs_with_bspline::{Hull, carried, hull_pair};
-use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::subdivision::{
     Node, OnceExhausted, PairTests, Subdivision, Unsettled, Visit, interval,
 };
