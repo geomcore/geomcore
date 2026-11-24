@@ -1247,7 +1247,9 @@ fn shift_parameter(
 ) -> Option<f64> {
     let shifted = parameter + step;
     if let Some(period) = period {
-        Some(bounds.0 + (shifted - bounds.0).rem_euclid(period))
+        Some(crate::math::parameter_range::wrap_into_period(
+            shifted, bounds.0, period,
+        ))
     } else {
         (bounds.0 <= shifted && shifted <= bounds.1).then_some(shifted)
     }
