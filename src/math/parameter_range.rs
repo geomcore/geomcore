@@ -7,6 +7,30 @@
 
 use crate::Tolerance;
 
+/// `u` shifted by whole periods into `[start, start + period)`.
+///
+/// `start + (u − start).rem_euclid(period)` alone can return
+/// `start + period`: for `u` a hair below `start` the remainder is
+/// `period − ε`, and adding it to `start` rounds up to the end (`−1e-17`
+/// wraps to exactly `2π`). That end folds back to `start`, the same point
+/// of a closed curve, so a parameter on the seam always has one value. Any
+/// other `u` gives the bits the bare expression gives; NaN stays NaN.
+#[inline]
+pub(crate) fn wrap_into_period(u: f64, start: f64, period: f64) -> f64 {
+    let wrapped = start + (u - start).rem_euclid(period);
+    if wrapped >= start + period {
+        start
+    } else {
+        wrapped
+    }
+}
+
+/// `angle` in `[0, 2π)`: [`wrap_into_period`] over a turn from zero.
+#[inline]
+pub(crate) fn wrap_angle(angle: f64) -> f64 {
+    wrap_into_period(angle, 0.0, std::f64::consts::TAU)
+}
+
 /// `parameter` shifted by whole periods into `[start, start + period)`.
 #[inline]
 fn shifted_from_start(parameter: f64, start: f64, period: f64) -> f64 {
