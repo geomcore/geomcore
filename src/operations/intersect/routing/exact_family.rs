@@ -10,7 +10,7 @@
 //! overlaps.
 
 use super::closed_form::Ranges;
-use super::{CurveBasis, CurveTier, coincident_overlaps, kept_parameter};
+use super::{CurveBasis, CurveTier, coincident_overlaps};
 use crate::InlineList;
 use crate::base::tier::TierPoint;
 use crate::geometry::curves::{
@@ -980,5 +980,26 @@ impl Conic2DIntersection {
             Conic2DIntersection::Coincident => curves_coincide(first, second, ranges, tol),
             Conic2DIntersection::Empty => curves_miss(),
         }
+    }
+}
+
+/// The parameter a hit keeps on one curve, or `None` when the hit lies
+/// outside the curve's range: the `stored` one, or the one `recover`
+/// computes from the point when the solver did not. On a curve restricted
+/// to `range` the hit keeps its representative in the range (see
+/// [`in_range`]).
+#[inline]
+fn kept_parameter(
+    stored: Option<f64>,
+    range: Option<(f64, f64)>,
+    period: Option<f64>,
+    recover: impl FnOnce() -> f64,
+    speed: impl FnOnce(f64) -> f64,
+    tol: Tolerance,
+) -> Option<f64> {
+    let parameter = stored.unwrap_or_else(recover);
+    match range {
+        Some(range) => in_range(parameter, range, period, speed, tol),
+        None => Some(parameter),
     }
 }

@@ -30,7 +30,7 @@ use crate::geometry::surfaces::{
     RevolutionSurface, Surface, TrimmedSurface,
 };
 use crate::math::parameter_range::ParameterRange;
-use crate::math::parameter_range::{in_range, nearest_end};
+use crate::math::parameter_range::{clip_range, in_range, is_single_point, nearest_end};
 use crate::operations::intersect::numeric::embedding_2d::{Embed, intersect_numeric_2d};
 use crate::operations::intersect::numeric::marching::marching_intersection;
 use crate::operations::intersect::results::{CurveCurveOverlapList, SurfaceSurfaceIntersection};
@@ -464,108 +464,6 @@ impl SurfaceOperand for Surface {
     fn surface_basis(&self) -> SurfaceKind<'_> {
         crate::geometry::surfaces::surface_dispatch!(self, surface => surface.surface_basis().into())
     }
-}
-
-/// The parameter a hit keeps on one curve, or `None` when the hit lies
-/// outside the curve's range: the `stored` one, or the one `recover`
-/// computes from the point when the solver did not. On a curve restricted
-/// to `range` the hit keeps its representative in the range (see
-/// [`in_range`]).
-#[inline]
-fn kept_parameter(
-    stored: Option<f64>,
-    range: Option<(f64, f64)>,
-    period: Option<f64>,
-    recover: impl FnOnce() -> f64,
-    speed: impl FnOnce(f64) -> f64,
-    tol: Tolerance,
-) -> Option<f64> {
-    let parameter = stored.unwrap_or_else(recover);
-    match range {
-        Some(range) => in_range(parameter, range, period, speed, tol),
-        None => Some(parameter),
-    }
-}
-
-/// Clips an overlap `(a, b)` to `range`, shifting by periods like
-/// [`in_range`].
-///
-/// Returns the pieces of the overlap that lie in the range, ordered by
-/// start, each expressed in the range's representation: none, one, or two
-/// when the overlap meets the range on both sides of the seam of a periodic
-/// curve. An overlap covering the whole period returns the range as one
-/// piece. The three slots hold the three shifted copies the search tries,
-/// so the list never fills up.
-///
-/// Lengths are measured in space: `speed` gives the length of the curve's
-/// derivative at a parameter (the line direction's length, the circle's
-/// radius). A piece whose length in space is at most `tol.confusion`,
-/// including a gap that small between the overlap and the range, is kept
-/// as a single point (see [`is_single_point`]): the overlap only touches
-/// the range there. Such a point is dropped when it is, up to a period,
-/// the end of another piece, so a touch is never reported twice.
-pub(crate) fn clip_range(
-    overlap: (f64, f64),
-    range: (f64, f64),
-    period: Option<f64>,
-    speed: &impl Fn(f64) -> f64,
-    tol: Tolerance,
-) -> InlineList<(f64, f64), 3> {
-    let clip = |(low, high): (f64, f64)| {
-        let clipped = (low.max(range.0), high.min(range.1));
-        (clipped.1 >= clipped.0 || is_single_point(clipped, speed, tol)).then_some(clipped)
-    };
-    let mut pieces = InlineList::new();
-    let Some(period) = period else {
-        if let Some(piece) = clip(overlap) {
-            pieces.push(piece);
-        }
-        return pieces;
-    };
-    let missing = period - (overlap.1 - overlap.0);
-    if missing <= 0.0 || missing * speed(overlap.1) <= tol.confusion {
-        pieces.push(range);
-        return pieces;
-    }
-    let first_copy = ((range.0 - overlap.1) / period).floor();
-    let mut copies = InlineList::<(f64, f64), 3>::new();
-    for step in 0..3 {
-        let shift = (first_copy + f64::from(step)) * period;
-        if let Some(piece) = clip((overlap.0 + shift, overlap.1 + shift)) {
-            copies.push(piece);
-        }
-    }
-    let same_point = |a: f64, b: f64| {
-        let gap = (a - b).rem_euclid(period);
-        gap.min(period - gap) * speed(a) <= tol.confusion
-    };
-    for (index, &piece) in copies.iter().enumerate() {
-        let repeated = is_single_point(piece, speed, tol)
-            && copies.iter().enumerate().any(|(other_index, &other)| {
-                let earlier_point = is_single_point(other, speed, tol) && other_index < index;
-                let longer = !is_single_point(other, speed, tol);
-                (earlier_point || longer)
-                    && (same_point(piece.0, other.0) || same_point(piece.0, other.1))
-            });
-        if !repeated {
-            pieces.push(piece);
-        }
-    }
-    pieces.sort_by(|a, b| a.0.total_cmp(&b.0));
-    pieces
-}
-
-/// Whether a piece clipped by [`clip_range`] is at most `tol.confusion`
-/// long in space, the parameter length times the curve's `speed` there: a
-/// single point where the overlap touches the range. A piece with its ends
-/// swapped is a gap, measured the same way.
-pub(crate) fn is_single_point(
-    (low, high): (f64, f64),
-    speed: &impl Fn(f64) -> f64,
-    tol: Tolerance,
-) -> bool {
-    let length = high - low;
-    length.is_finite() && length.abs() * speed(0.5 * (low + high)) <= tol.confusion
 }
 
 /// Intersects a curve with a surface: in closed form when the table lists

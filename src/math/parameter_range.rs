@@ -5,7 +5,8 @@
 //! The trimmed curves, the trimmed surfaces and the intersection router
 //! read them here.
 
-use crate::Tolerance;
+use crate::math::parameter_domain::ParameterDomain;
+use crate::{InlineList, Tolerance};
 
 /// A range `[first, last]` of a curve or of a surface direction, with the
 /// period the parameter wraps by, if any. A periodic range may start
@@ -34,6 +35,17 @@ pub(crate) enum RangeError {
 }
 
 impl ParameterRange {
+    /// `[first, last]` with `period`, taken as given: the bounds of a
+    /// curve or of a surface direction, or a range already checked
+    /// elsewhere. [`ParameterRange::checked`] validates one instead.
+    pub(crate) const fn new((first, last): (f64, f64), period: Option<f64>) -> ParameterRange {
+        ParameterRange {
+            first,
+            last,
+            period,
+        }
+    }
+
     /// `[first, last]` on a parameter with `bounds` and `period`, checked:
     /// both ends finite, `first < last`, and either at most one period
     /// long (`period × (1 + 1e-12)`, the rounding of a whole turn) or,
@@ -79,6 +91,21 @@ impl ParameterRange {
     pub(crate) fn spans_whole_period_within(self, tol: Tolerance) -> bool {
         self.period
             .is_some_and(|period| self.last - self.first >= period - tol.parametric)
+    }
+
+    /// The domain a numeric search runs over: the period from `first`
+    /// when the range spans a whole one, else the interval (a periodic
+    /// curve bounded to less than a period is an arc).
+    pub(crate) fn search_domain(self) -> ParameterDomain {
+        match self.period {
+            Some(period) if self.first.is_finite() && self.spans_whole_period() => {
+                ParameterDomain::Periodic {
+                    start: self.first,
+                    period,
+                }
+            }
+            _ => ParameterDomain::Interval(self.first, self.last),
+        }
     }
 }
 
@@ -190,6 +217,87 @@ pub(crate) fn nearest_end(parameter: f64, range: (f64, f64), period: Option<f64>
     } else {
         range.1
     }
+}
+
+/// Clips an overlap `(a, b)` to `range`, shifting by periods like
+/// [`in_range`].
+///
+/// Returns the pieces of the overlap that lie in the range, ordered by
+/// start, each expressed in the range's representation: none, one, or two
+/// when the overlap meets the range on both sides of the seam of a periodic
+/// curve. An overlap covering the whole period returns the range as one
+/// piece. The three slots hold the three shifted copies the search tries,
+/// so the list never fills up.
+///
+/// Lengths are measured in space: `speed` gives the length of the curve's
+/// derivative at a parameter (the line direction's length, the circle's
+/// radius). A piece whose length in space is at most `tol.confusion`,
+/// including a gap that small between the overlap and the range, is kept
+/// as a single point (see [`is_single_point`]): the overlap only touches
+/// the range there. Such a point is dropped when it is, up to a period,
+/// the end of another piece, so a touch is never reported twice.
+pub(crate) fn clip_range(
+    overlap: (f64, f64),
+    range: (f64, f64),
+    period: Option<f64>,
+    speed: &impl Fn(f64) -> f64,
+    tol: Tolerance,
+) -> InlineList<(f64, f64), 3> {
+    let clip = |(low, high): (f64, f64)| {
+        let clipped = (low.max(range.0), high.min(range.1));
+        (clipped.1 >= clipped.0 || is_single_point(clipped, speed, tol)).then_some(clipped)
+    };
+    let mut pieces = InlineList::new();
+    let Some(period) = period else {
+        if let Some(piece) = clip(overlap) {
+            pieces.push(piece);
+        }
+        return pieces;
+    };
+    let missing = period - (overlap.1 - overlap.0);
+    if missing <= 0.0 || missing * speed(overlap.1) <= tol.confusion {
+        pieces.push(range);
+        return pieces;
+    }
+    let first_copy = ((range.0 - overlap.1) / period).floor();
+    let mut copies = InlineList::<(f64, f64), 3>::new();
+    for step in 0..3 {
+        let shift = (first_copy + f64::from(step)) * period;
+        if let Some(piece) = clip((overlap.0 + shift, overlap.1 + shift)) {
+            copies.push(piece);
+        }
+    }
+    let same_point = |a: f64, b: f64| {
+        let gap = (a - b).rem_euclid(period);
+        gap.min(period - gap) * speed(a) <= tol.confusion
+    };
+    for (index, &piece) in copies.iter().enumerate() {
+        let repeated = is_single_point(piece, speed, tol)
+            && copies.iter().enumerate().any(|(other_index, &other)| {
+                let earlier_point = is_single_point(other, speed, tol) && other_index < index;
+                let longer = !is_single_point(other, speed, tol);
+                (earlier_point || longer)
+                    && (same_point(piece.0, other.0) || same_point(piece.0, other.1))
+            });
+        if !repeated {
+            pieces.push(piece);
+        }
+    }
+    pieces.sort_by(|a, b| a.0.total_cmp(&b.0));
+    pieces
+}
+
+/// Whether a piece clipped by [`clip_range`] is at most `tol.confusion`
+/// long in space, the parameter length times the curve's `speed` there: a
+/// single point where the overlap touches the range. A piece with its ends
+/// swapped is a gap, measured the same way.
+pub(crate) fn is_single_point(
+    (low, high): (f64, f64),
+    speed: &impl Fn(f64) -> f64,
+    tol: Tolerance,
+) -> bool {
+    let length = high - low;
+    length.is_finite() && length.abs() * speed(0.5 * (low + high)) <= tol.confusion
 }
 
 #[cfg(test)]

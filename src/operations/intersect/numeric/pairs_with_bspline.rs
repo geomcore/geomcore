@@ -13,17 +13,19 @@
 //! so what the search finds is carried back to it.
 
 use crate::geometry::curves::PointExtrema;
+use crate::math::parameter_range::ParameterRange;
+use crate::operations::search_domain::curve_domain;
 use std::borrow::Cow;
 
 use crate::geometry::curves::{BSplineCurve, ElementaryCurve, ParametricCurve, TrimmedCurve};
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::boxtree::Aabb;
+use crate::math::parameter_domain::ParameterDomain;
 use crate::operations::extrema::CurveCurveExtremum;
 use crate::operations::intersect::numeric::curve_curve_hull::bspline_curve_curve;
 use crate::operations::intersect::numeric::curve_surface_hull::{
     CurveSurfaceHits, bspline_curve_surface,
 };
-use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::surface_patches::{
     SurfacePatches, grown, nearest, reach,
 };
@@ -196,7 +198,7 @@ fn hull_curve<'a, C: ParametricCurve>(curve: &'a C, cover: Option<&Aabb>) -> Opt
     if let Some(bspline) = curve.as_bspline() {
         return Some(Hull::Curve(Box::new(HullCurve {
             bspline: Cow::Borrowed(bspline),
-            range: ParameterDomain::of(curve),
+            range: curve_domain(curve),
             source: None,
         })));
     }
@@ -208,7 +210,7 @@ fn hull_curve<'a, C: ParametricCurve>(curve: &'a C, cover: Option<&Aabb>) -> Opt
             return Some(Hull::Apart);
         }
     }
-    let range = ParameterDomain::from_bounds((lo, hi), curve.period());
+    let range = ParameterRange::new((lo, hi), curve.period()).search_domain();
     let bspline = if range.is_periodic() {
         source.to_bspline().ok()?
     } else {
@@ -236,7 +238,7 @@ where
     C: ParametricCurve,
     S: ParametricSurface,
 {
-    let domain = ParameterDomain::of(curve);
+    let domain = curve_domain(curve);
     match (curve.as_bspline(), surface.as_bspline()) {
         (Some(bspline), _) => {
             let cover = || Some(grown(&curve_box(bspline), tol));

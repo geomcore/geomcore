@@ -5,11 +5,12 @@ use crate::Direction;
 use crate::base::TierPoint;
 use crate::geometry::curves::ParametricCurve;
 use crate::math::numeric::{newton_min_1d, newton_min_2d};
+use crate::math::parameter_domain::ParameterDomain;
 use crate::operations::extrema::curve_curve_pieces::curve_curve_seeds;
 use crate::operations::extrema::operand::CurveExtremaOperand;
 use crate::operations::extrema::{Extremum, parameters_apart};
-use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::{Completeness, CurveCurveRegion};
+use crate::operations::search_domain::curve_domain;
 use crate::{Point, Point2D, Tolerance, Vector};
 use std::ops::Deref;
 
@@ -572,7 +573,7 @@ where
     A: ParametricCurve,
     B: ParametricCurve,
 {
-    let (da, db) = (ParameterDomain::of(a), ParameterDomain::of(b));
+    let (da, db) = (curve_domain(a), curve_domain(b));
     let straight = (Straight::of(a, da), Straight::of(b, db));
     if !matches!(straight, (Some(_), Some(_)))
         && let Some((mut seeds, completeness)) = curve_curve_seeds(a, b, tol)
@@ -594,7 +595,7 @@ where
     A: ParametricCurve,
     B: ParametricCurve,
 {
-    let (da, db) = (ParameterDomain::of(a), ParameterDomain::of(b));
+    let (da, db) = (curve_domain(a), curve_domain(b));
     let straight = (Straight::of(a, da), Straight::of(b, db));
     sampled_minima(a, da, b, db, straight, tol)
 }
