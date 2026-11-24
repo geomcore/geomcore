@@ -6,6 +6,7 @@
 //! read them here.
 
 use crate::Tolerance;
+use crate::math::parameter_domain::ParameterDomain;
 
 /// A range `[first, last]` of a curve or of a surface direction, with the
 /// period the parameter wraps by, if any. A periodic range may start
@@ -34,6 +35,17 @@ pub(crate) enum RangeError {
 }
 
 impl ParameterRange {
+    /// `[first, last]` with `period`, taken as given: the bounds of a
+    /// curve or of a surface direction, or a range already checked
+    /// elsewhere. [`ParameterRange::checked`] validates one instead.
+    pub(crate) const fn new((first, last): (f64, f64), period: Option<f64>) -> ParameterRange {
+        ParameterRange {
+            first,
+            last,
+            period,
+        }
+    }
+
     /// `[first, last]` on a parameter with `bounds` and `period`, checked:
     /// both ends finite, `first < last`, and either at most one period
     /// long (`period × (1 + 1e-12)`, the rounding of a whole turn) or,
@@ -79,6 +91,21 @@ impl ParameterRange {
     pub(crate) fn spans_whole_period_within(self, tol: Tolerance) -> bool {
         self.period
             .is_some_and(|period| self.last - self.first >= period - tol.parametric)
+    }
+
+    /// The domain a numeric search runs over: the period from `first`
+    /// when the range spans a whole one, else the interval (a periodic
+    /// curve bounded to less than a period is an arc).
+    pub(crate) fn search_domain(self) -> ParameterDomain {
+        match self.period {
+            Some(period) if self.first.is_finite() && self.spans_whole_period() => {
+                ParameterDomain::Periodic {
+                    start: self.first,
+                    period,
+                }
+            }
+            _ => ParameterDomain::Interval(self.first, self.last),
+        }
     }
 }
 

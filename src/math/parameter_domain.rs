@@ -2,10 +2,6 @@
 //! or its period, with the wrapping, stepping and slack the numeric
 //! searches share.
 
-use crate::math::parameter_range::ParameterRange;
-use std::f64::consts::TAU;
-
-use crate::geometry::curves::ParametricCurve;
 use crate::math::parameter_range::wrap_into_period;
 
 /// Parameters within this fraction of a domain's width outside it (or
@@ -26,34 +22,6 @@ pub(crate) enum ParameterDomain {
 }
 
 impl ParameterDomain {
-    /// The whole turn of an angle.
-    pub(crate) const TURN: ParameterDomain = ParameterDomain::Periodic {
-        start: 0.0,
-        period: TAU,
-    };
-
-    /// The domain of a parameter over `(lo, hi)` with period `period`, if
-    /// any: the period from `lo` when the bounds span it, else the interval
-    /// (a periodic curve bounded to less than a period is an arc).
-    pub(crate) fn from_bounds((lo, hi): (f64, f64), period: Option<f64>) -> ParameterDomain {
-        let range = ParameterRange {
-            first: lo,
-            last: hi,
-            period,
-        };
-        match period {
-            Some(period) if lo.is_finite() && range.spans_whole_period() => {
-                ParameterDomain::Periodic { start: lo, period }
-            }
-            _ => ParameterDomain::Interval(lo, hi),
-        }
-    }
-
-    /// The domain of `curve`.
-    pub(crate) fn of<C: ParametricCurve>(curve: &C) -> ParameterDomain {
-        ParameterDomain::from_bounds(curve.bounds(), curve.period())
-    }
-
     /// The box constraint of the minimiser (`None`: unconstrained).
     pub(crate) fn bounds(self) -> Option<(f64, f64)> {
         match self {
