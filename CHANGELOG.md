@@ -36,6 +36,14 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- Point projection on cylinders, cones, spheres and tori is faster
+  (#463): the nearest point is read from the point's local coordinates
+  instead of by evaluating its parameters, which saves the trigonometry.
+  20–34% less time, and about 23–27% fewer instructions on cones,
+  spheres and tori. On the axis, at the poles and on a torus's
+  tube-centre circle the projection evaluates its parameters as before.
+  Parameters and nearest points agree with the previous ones within
+  rounding.
 - The unit normals of planes, cylinders, cones, spheres and tori are
   faster (#461): `normal` reads them in closed form wherever the
   partials span a tangent plane, about 42% fewer instructions and 25–50%

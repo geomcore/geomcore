@@ -434,5 +434,114 @@ pub(crate) fn torus_parameters(frame: &Frame, maj: f64, min: f64, p: Point) -> (
     (u, v)
 }
 
+// ---- projection feet ----
+//
+// The parameters of the nearest point of each surface with the foot read
+// from the local coordinates, not from evaluating the parameters: the
+// radial direction is `(x, y) / ρ`, so the foot needs no trigonometry.
+// `None` where that division is ill-conditioned (on the axis, on a
+// torus's tube-centre circle, at a sphere's poles): the callers then
+// evaluate the parameters as before.
+
+/// `(u, v)` and the foot of `p` on the cylinder of radius `r`, as
+/// [`cylinder_parameters`] and [`cylinder_d0`] give them.
+pub(crate) fn cylinder_projection(frame: &Frame, r: f64, p: Point) -> Option<(f64, f64, Point)> {
+    let (x, y, z) = frame.local_coordinates(p);
+    let rho = x.hypot(y);
+    if !(rho > 0.0 && rho.is_finite()) {
+        return None;
+    }
+    let scale = r / rho;
+    Some((
+        wrap_to_turn(y.atan2(x)),
+        z,
+        frame.point_at(scale * x, scale * y, z),
+    ))
+}
+
+/// `(u, v)` and the foot of `p` on the cone, as [`cone_parameters`] and
+/// [`cone_d0`] give them.
+pub(crate) fn cone_projection(
+    frame: &Frame,
+    reference_radius: f64,
+    half_angle: f64,
+    p: Point,
+) -> Option<(f64, f64, Point)> {
+    let (x, y, z) = frame.local_coordinates(p);
+    let (sine, cosine) = half_angle.sin_cos();
+    let tangent = half_angle.tan();
+    let radius_here = z * tangent + reference_radius;
+    let rho = x.hypot(y);
+    // On the axis `cone_parameters` reads `u = 0`: evaluate as before.
+    if (x * x + y * y) * (tangent * tangent) <= 1e-18 * (radius_here * radius_here)
+        || !(rho > 0.0 && rho.is_finite())
+    {
+        return None;
+    }
+    // Below the apex `u` is measured from the opposite azimuth, along which
+    // the point's radial coordinate is `-ρ`.
+    let (u, radial, side) = if radius_here < 0.0 {
+        (wrap_to_turn((-y).atan2(-x)), -rho, -1.0)
+    } else {
+        (wrap_to_turn(y.atan2(x)), rho, 1.0)
+    };
+    let v = sine * (radial - reference_radius) + cosine * z;
+    let radius = reference_radius + v * sine;
+    let scale = side * radius / rho;
+    Some((u, v, frame.point_at(scale * x, scale * y, v * cosine)))
+}
+
+/// `(u, v)` and the foot of `p` on the sphere of radius `r`, as
+/// [`sphere_parameters`] and [`sphere_d0`] give them.
+pub(crate) fn sphere_projection(frame: &Frame, r: f64, p: Point) -> Option<(f64, f64, Point)> {
+    let (x, y, z) = frame.local_coordinates(p);
+    let l = x.hypot(y);
+    // The poles, the centre among them, read `u = 0`: evaluate as before.
+    if l <= 1e-9 * z.abs() || !l.is_finite() {
+        return None;
+    }
+    let scale = r / l.hypot(z);
+    Some((
+        wrap_to_turn(y.atan2(x)),
+        (z / l).atan(),
+        frame.point_at(scale * x, scale * y, scale * z),
+    ))
+}
+
+/// `(u, v)` and the foot of `p` on the torus, as [`torus_parameters`] and
+/// [`torus_d0`] give them.
+pub(crate) fn torus_projection(
+    frame: &Frame,
+    maj: f64,
+    min: f64,
+    p: Point,
+) -> Option<(f64, f64, Point)> {
+    let (x, y, z) = frame.local_coordinates(p);
+    let rho = x.hypot(y);
+    if !(rho > 0.0 && rho.is_finite()) {
+        return None;
+    }
+    // The branch of `torus_parameters`: when `maj < min` the far side of the
+    // tube may be nearer, at `u + π`, where the radial coordinate is `-ρ`.
+    let (mut u, mut radial) = (y.atan2(x), rho);
+    if maj < min {
+        let offset = |radial: f64| ((radial - maj).hypot(z) - min).abs();
+        if offset(-rho) < offset(rho) {
+            u += std::f64::consts::PI;
+            radial = -rho;
+        }
+    }
+    let u = wrap_to_turn(u);
+    let (dr, dz) = (radial - maj, z);
+    let reach = dr.hypot(dz);
+    // On the tube-centre circle every `v` is as near: evaluate as before.
+    if !(reach > 0.0 && reach.is_finite()) {
+        return None;
+    }
+    let v = wrap_to_turn(dz.atan2(dr));
+    let along = (maj + min * dr / reach) / radial;
+    Some((u, v, frame.point_at(along * x, along * y, min * dz / reach)))
+}
+
 #[cfg(test)]
 mod tests;
