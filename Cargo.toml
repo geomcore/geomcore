@@ -95,3 +95,7 @@ members = [".", "geomcore-py"]
 
 [workspace.package]
 version = "0.50.0"
+
+[[bench]]
+name = "bspline_surface_projection"
+harness = false

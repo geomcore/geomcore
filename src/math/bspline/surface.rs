@@ -491,6 +491,103 @@ pub(crate) fn net_points(net: &[f64], h: usize, out: &mut Vec<[f64; 3]>) {
     }));
 }
 
+/// [`net_distance_bound`]'s boxes of a Bernstein patch, kept to bound
+/// its distance from many points: the control points' extents along the
+/// world axes and along the frame fitted to the patch corners, measured
+/// from the first corner so that they keep the precision of the patch's
+/// own size.
+#[derive(Clone, Debug)]
+pub(crate) struct NetBound {
+    anchor: [f64; 3],
+    /// The fitted frame, if the corners span a direction.
+    axes: Option<[[f64; 3]; 3]>,
+    /// `[low, high]` along each world axis, then each fitted axis.
+    extents: [[f64; 2]; 6],
+}
+
+impl NetBound {
+    /// The boxes of the patch with the Euclidean control points `points`
+    /// (`[rows][cols]`).
+    pub(crate) fn new(points: &[[f64; 3]], rows: usize, cols: usize) -> NetBound {
+        let anchor = points[0];
+        let axes = fitted_frame(points, rows, cols);
+        let world = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+        let mut extents = [[f64::INFINITY, f64::NEG_INFINITY]; 6];
+        for &x in points {
+            let d = [x[0] - anchor[0], x[1] - anchor[1], x[2] - anchor[2]];
+            for (a, axis) in world.iter().chain(axes.iter().flatten()).enumerate() {
+                let y = d[0] * axis[0] + d[1] * axis[1] + d[2] * axis[2];
+                extents[a][0] = extents[a][0].min(y);
+                extents[a][1] = extents[a][1].max(y);
+            }
+        }
+        NetBound {
+            anchor,
+            axes,
+            extents,
+        }
+    }
+
+    /// The lower bound of [`net_distance_bound`] on the patch's distance
+    /// from `point`.
+    pub(crate) fn distance(&self, point: [f64; 3]) -> f64 {
+        let a = self.anchor;
+        let d = [point[0] - a[0], point[1] - a[1], point[2] - a[2]];
+        let outside = |extent: [f64; 2], y: f64| (extent[0] - y).max(y - extent[1]).max(0.0);
+        let along = |axes: &[[f64; 3]; 3], extents: &[[f64; 2]]| {
+            (0..3)
+                .map(|k| {
+                    let axis = axes[k];
+                    outside(extents[k], d[0] * axis[0] + d[1] * axis[1] + d[2] * axis[2]).powi(2)
+                })
+                .sum::<f64>()
+                .sqrt()
+        };
+        let world = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+        let aligned = along(&world, &self.extents[..3]);
+        let fitted = self
+            .axes
+            .map_or(0.0, |axes| along(&axes, &self.extents[3..]));
+        aligned.max(fitted)
+    }
+}
+
+/// The frame fitted to the corners of the Bernstein patch with the
+/// Euclidean control points `points` (`[rows][cols]`): the first axis
+/// along `s` (along `t` on a net collapsed to a boundary curve), the third
+/// normal to both, or to the first alone. `None` if the corners coincide.
+fn fitted_frame(points: &[[f64; 3]], rows: usize, cols: usize) -> Option<[[f64; 3]; 3]> {
+    let sub = |a: [f64; 3], b: [f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+    let add = |a: [f64; 3], b: [f64; 3]| [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let cross = |a: [f64; 3], b: [f64; 3]| {
+        [
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0],
+        ]
+    };
+    let unit = |a: [f64; 3]| {
+        let n = dot(a, a).sqrt();
+        (n > 0.0).then(|| [a[0] / n, a[1] / n, a[2] / n])
+    };
+    let corner = |i: usize, j: usize| points[i * cols + j];
+    let (c00, c01) = (corner(0, 0), corner(0, cols - 1));
+    let (c10, c11) = (corner(rows - 1, 0), corner(rows - 1, cols - 1));
+    let along_s = add(sub(c10, c00), sub(c11, c01));
+    let along_t = add(sub(c01, c00), sub(c11, c10));
+    let t1 = unit(along_s).or_else(|| unit(along_t))?;
+    let n = unit(cross(along_s, along_t)).unwrap_or_else(|| {
+        let i = (0..3)
+            .min_by(|&a, &b| t1[a].abs().total_cmp(&t1[b].abs()))
+            .unwrap_or(0);
+        let mut axis = [0.0; 3];
+        axis[i] = 1.0;
+        unit(cross(t1, axis)).unwrap_or(axis)
+    });
+    Some([t1, cross(n, t1), n])
+}
+
 /// Lower bound on the distance from `point` to a Bernstein patch with the
 /// Euclidean control points `points` (`[rows][cols]`): the larger of the
 /// distances to their axis-aligned box and to their box in a frame fitted
@@ -507,28 +604,14 @@ pub(crate) fn net_distance_bound(
     cols: usize,
     point: [f64; 3],
 ) -> f64 {
-    let sub = |a: [f64; 3], b: [f64; 3]| [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-    let add = |a: [f64; 3], b: [f64; 3]| [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
-    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-    let cross = |a: [f64; 3], b: [f64; 3]| {
-        [
-            a[1] * b[2] - a[2] * b[1],
-            a[2] * b[0] - a[0] * b[2],
-            a[0] * b[1] - a[1] * b[0],
-        ]
-    };
-    let unit = |a: [f64; 3]| {
-        let n = dot(a, a).sqrt();
-        (n > 0.0).then(|| [a[0] / n, a[1] / n, a[2] / n])
-    };
     let box_distance = |axes: &[[f64; 3]; 3]| {
         let mut lo = [f64::INFINITY; 3];
         let mut hi = [f64::NEG_INFINITY; 3];
         for &x in points {
-            let d = sub(x, point);
+            let d = [x[0] - point[0], x[1] - point[1], x[2] - point[2]];
             for a in 0..3 {
                 // Comparisons, cheaper than `f64::min`.
-                let y = dot(d, axes[a]);
+                let y = d[0] * axes[a][0] + d[1] * axes[a][1] + d[2] * axes[a][2];
                 if y < lo[a] {
                     lo[a] = y;
                 }
@@ -543,24 +626,9 @@ pub(crate) fn net_distance_bound(
             .sqrt()
     };
     let aligned = box_distance(&[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
-    let corner = |i: usize, j: usize| points[i * cols + j];
-    let (c00, c01) = (corner(0, 0), corner(0, cols - 1));
-    let (c10, c11) = (corner(rows - 1, 0), corner(rows - 1, cols - 1));
-    let along_s = add(sub(c10, c00), sub(c11, c01));
-    let along_t = add(sub(c01, c00), sub(c11, c10));
     // A net collapsed to a boundary curve has no extent along `s`: then the
     // frame follows the curve's chord, with any normal to it.
-    let fitted = unit(along_s).or_else(|| unit(along_t)).map_or(0.0, |t1| {
-        let n = unit(cross(along_s, along_t)).unwrap_or_else(|| {
-            let i = (0..3)
-                .min_by(|&a, &b| t1[a].abs().total_cmp(&t1[b].abs()))
-                .unwrap_or(0);
-            let mut axis = [0.0; 3];
-            axis[i] = 1.0;
-            unit(cross(t1, axis)).unwrap_or(axis)
-        });
-        box_distance(&[t1, cross(n, t1), n])
-    });
+    let fitted = fitted_frame(points, rows, cols).map_or(0.0, |axes| box_distance(&axes));
     aligned.max(fitted)
 }
 

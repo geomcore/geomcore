@@ -36,6 +36,14 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- Point projection onto a B-spline surface is faster, still proven
+  global (part of #464): each knot-span patch keeps its Bernstein net and
+  the boxes bounding its distance once first used, so a patch is ruled
+  out in a few operations instead of rebuilding its net, and a patch
+  searched copies the net instead of rebuilding it. About 40% fewer
+  instructions on a polynomial bicubic surface, 20% on a rational one,
+  and up to 10% on the projections and marches onto B-spline surfaces
+  that run through it.
 - The tight bounding box of a B-spline or Bézier curve is solved for
   rather than bounded (#465): each coordinate's extremes are found where
   its derivative changes sign on a Bézier piece, and the pieces come from
