@@ -95,9 +95,9 @@ intersect_dispatch	intersect/ellipse_ellipse/elementary	11768641
 intersect_dispatch	intersect/ellipse_ellipse/erased	11839298
 intersect_dispatch	intersect/ellipse_ellipse/routed	11727681
 intersect_dispatch	intersect/ellipse_ellipse/typed	11344931
-intersect_dispatch	intersect/line_circle/elementary	848132
-intersect_dispatch	intersect/line_circle/erased	910597
-intersect_dispatch	intersect/line_circle/routed	798980
+intersect_dispatch	intersect/line_circle/elementary	899756
+intersect_dispatch	intersect/line_circle/erased	962221
+intersect_dispatch	intersect/line_circle/routed	850604
 intersect_dispatch	intersect/line_circle/typed	327520
 intersect_dispatch	intersect/line_torus/elementary	8556461
 intersect_dispatch	intersect/line_torus/erased	8587181
@@ -116,7 +116,7 @@ intersect_dispatch	intersect/torus_cone/erased	4557325
 intersect_dispatch	intersect/torus_cone/routed	4289837
 intersect_dispatch	intersect/torus_cone/typed	1271614
 intersect_dispatch	intersect_routed/circle_circle/exact	449846
-intersect_dispatch	intersect_routed/circle_circle/routed	1622882
+intersect_dispatch	intersect_routed/circle_circle/routed	1686370
 intersect_dispatch	intersect_routed/circle_circle_2d/exact	80171
 intersect_dispatch	intersect_routed/circle_circle_2d/routed	1100464
 intersect_dispatch	intersect_routed/cone_cylinder/along_branches_exact	1875
