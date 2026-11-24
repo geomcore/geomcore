@@ -42,6 +42,28 @@ the Python distribution are versioned in lockstep.
   stationary point and keeping the nearest. About 95% fewer
   instructions, also in the projections onto ellipse extrusions. The
   nearest point is never farther than before; `extrema` is unchanged.
+- Point projection on cylinders, cones, spheres and tori is faster
+  (#463): the nearest point is read from the point's local coordinates
+  instead of by evaluating its parameters, which saves the trigonometry.
+  20–34% less time, and about 23–27% fewer instructions on cones,
+  spheres and tori. On the axis, at the poles and on a torus's
+  tube-centre circle the projection evaluates its parameters as before.
+  Parameters and nearest points agree with the previous ones within
+  rounding.
+- The unit normals of planes, cylinders, cones, spheres and tori are
+  faster (#461): `normal` reads them in closed form wherever the
+  partials span a tangent plane, about 42% fewer instructions and 25–50%
+  less time. At the apex, the poles, the pinch points, on degenerate
+  shapes and at non-finite parameters the recovery answers as before.
+  Results agree with the cross product of the partials within 1e-15.
+- B-spline second derivatives are faster (#460). `eval_d2` on a
+  non-periodic curve of degree 1 to 3 computes the basis functions and
+  their first and second derivatives in one unrolled pass, as `eval_d1`
+  already did: about 45% fewer instructions on a cubic curve. Every
+  Newton step that reads a curve's second derivative benefits: curve
+  offsets, swept projections, curve–curve extrema and curve–surface
+  intersections take 2–11% fewer instructions. Results are bit-for-bit
+  unchanged.
 - Discretizing a B-spline or Bézier curve is faster (#466), with the
   same output bit for bit: `discretize_into` takes about 55% fewer
   instructions, `point_count` and `discretize` about 20–25% fewer. Pieces
