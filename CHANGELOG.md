@@ -9,6 +9,15 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Changed
+
+- The unit normals of planes, cylinders, cones, spheres and tori are
+  faster (#461): `normal` reads them in closed form wherever the
+  partials span a tangent plane, about 42% fewer instructions and 25–50%
+  less time. At the apex, the poles, the pinch points, on degenerate
+  shapes and at non-finite parameters the recovery answers as before.
+  Results agree with the cross product of the partials within 1e-15.
+
 ## [0.50.0] - 2026-11-23
 
 Near a contact, every closed form now follows one rule (ADR 0057): two

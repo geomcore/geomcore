@@ -10,6 +10,7 @@ use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::SurfaceIsoError;
 use crate::geometry::surfaces::iso::{check_iso_param, iso_line};
+use crate::geometry::surfaces::parametric_surface::closed_form_normal;
 use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
@@ -374,6 +375,14 @@ fn arbitrary_perpendicular_frame(origin: Point, normal: Vector) -> Frame {
 }
 
 impl ParametricSurface for Plane {
+    /// The frame's `z` direction, oriented as `x_dir × y_dir`: the plane's
+    /// partials are its unit `x` and `y` directions at every finite
+    /// parameter.
+    fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Direction> {
+        let normal = self.normal_direction();
+        closed_form_normal(self, u, v, tol, [1.0; 3], || normal.vector())
+    }
+
     #[inline]
     fn point_at(&self, u: f64, v: f64) -> Point {
         elementary::plane_d0(&self.frame, u, v)

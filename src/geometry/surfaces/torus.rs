@@ -1,6 +1,7 @@
 //! Tori in 3D: parametric evaluation and parameter inversion, thin wrappers
 //! over [`crate::math::elementary::surface`].
 
+use crate::Direction;
 use crate::base::frame::frame_error;
 use crate::base::transform::image_error;
 use crate::geometry::curves::{Curve, Curve2D};
@@ -9,6 +10,7 @@ use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::SurfaceIsoError;
 use crate::geometry::surfaces::iso::{check_iso_param, iso_circle};
+use crate::geometry::surfaces::parametric_surface::closed_form_normal;
 use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
@@ -286,6 +288,14 @@ impl Torus {
 }
 
 impl ParametricSurface for Torus {
+    /// The closed-form normal where the partials span a tangent plane, the
+    /// recovery of [`ParametricSurface::normal`] elsewhere.
+    fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Direction> {
+        let (lengths, normal) =
+            elementary::torus_normal(&self.frame, self.major_radius, self.minor_radius, u, v);
+        closed_form_normal(self, u, v, tol, lengths, || normal)
+    }
+
     #[inline]
     fn point_at(&self, u: f64, v: f64) -> Point {
         elementary::torus_d0(&self.frame, self.major_radius, self.minor_radius, u, v)
