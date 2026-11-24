@@ -45,6 +45,7 @@ use crate::geometry::curves::fitting::{
     hermite_knots, hermite_spline, periodic_hermite_spline, segment_length,
 };
 use crate::geometry::curves::{Curve, Curve2D, ParametricCurve};
+use crate::math::parameter_range::wrap_angle;
 use crate::operations::intersect::{IntersectionCurve, SurfaceSurfaceIntersection};
 use crate::{
     Cone, Cylinder, InlineList, Line, Plane, Point, Point2D, Sphere, Surface, Tolerance, Torus,
@@ -1033,10 +1034,10 @@ fn cylinder_along_a_generator(
     let touching = (cosine.abs() - 1.0).abs() <= tol.angular;
     match FormZeros::of(cosine, touching, || form.reference()) {
         FormZeros::Never => {}
-        FormZeros::Touching(angle) => infinities.push((angle.rem_euclid(TAU), 1.0)),
+        FormZeros::Touching(angle) => infinities.push((wrap_angle(angle), 1.0)),
         FormZeros::Crossing { reference, half } => {
             for angle in [reference - half, reference + half] {
-                infinities.push((angle.rem_euclid(TAU), 1.0));
+                infinities.push((wrap_angle(angle), 1.0));
             }
         }
     }
@@ -1092,7 +1093,7 @@ fn cylinder_through_the_apex(
     let a2 = other.cone.axis;
     let n = a2 * a1.dot(a2) - a1 * other.cos_squared;
     let towards = n.dot(y).atan2(n.dot(x));
-    let infinity = (2.0 * towards - shared).rem_euclid(TAU);
+    let infinity = wrap_angle(2.0 * towards - shared);
     let curve = QuarticCurve::new(
         Surfaces::ConeCylinder(*cone, *cylinder),
         Discriminant::MetOnce,
@@ -1298,7 +1299,7 @@ fn sharing_a_generator(
     }
     // `D'(h)·a₂` vanishes where `ρ(h)` runs along `a₂` across the axis.
     let midway = a2.dot(ruled.y).atan2(a2.dot(ruled.x));
-    let across_axis = (2.0 * midway - shared).rem_euclid(TAU);
+    let across_axis = wrap_angle(2.0 * midway - shared);
     let mut infinities: InlineList<(f64, f64), MOST_INFINITIES> = InlineList::new();
     infinities.push((across_axis, 1.0));
     // `a₂·D = middle + R cos(t − towards)`.
@@ -1313,10 +1314,10 @@ fn sharing_a_generator(
         reach_y.atan2(reach_x)
     }) {
         FormZeros::Never => {}
-        FormZeros::Touching(angle) => infinities.push((angle.rem_euclid(TAU), 1.0)),
+        FormZeros::Touching(angle) => infinities.push((wrap_angle(angle), 1.0)),
         FormZeros::Crossing { reference, half } => {
             for angle in [reference - half, reference + half] {
-                infinities.push((angle.rem_euclid(TAU), 1.0));
+                infinities.push((wrap_angle(angle), 1.0));
             }
         }
     }
@@ -1403,7 +1404,7 @@ fn running_off(ruled: &RuledCone, other: &OtherCone, angle: f64, tol: Tolerance)
     } else {
         0.0
     };
-    (angle.rem_euclid(TAU), side)
+    (wrap_angle(angle), side)
 }
 
 /// The loops of a quartic whose quarter discriminant has a closed form.
@@ -1609,10 +1610,10 @@ fn factored_loops(
         }
         match FormZeros::of(cosines[k], touching[k], || references[k]) {
             FormZeros::Never => {}
-            FormZeros::Touching(at) => touching_at[k] = Some(at.rem_euclid(TAU)),
+            FormZeros::Touching(at) => touching_at[k] = Some(wrap_angle(at)),
             FormZeros::Crossing { reference, half } => {
                 for from in [-half, half] {
-                    found[count] = ((reference + from).rem_euclid(TAU), k, from);
+                    found[count] = (wrap_angle(reference + from), k, from);
                     count += 1;
                 }
             }
@@ -1763,7 +1764,7 @@ fn constant_factor_loops(
             return Some(if positive_from(at - reference + PI) {
                 arcs([Component::node(0, at + PI), Component::Apex], 1, Some(at))
             } else {
-                Loops::Touching(at.rem_euclid(TAU))
+                Loops::Touching(wrap_angle(at))
             });
         }
         FormZeros::Never => {
@@ -2019,7 +2020,7 @@ impl Component {
     /// parameter `0` at its start and `π` at its end.
     fn parameter_at_infinity(self, angle: f64, branch: f64, crossing: f64) -> Option<f64> {
         match self {
-            Component::Around { branch: own } => (own == branch).then(|| angle.rem_euclid(TAU)),
+            Component::Around { branch: own } => (own == branch).then(|| wrap_angle(angle)),
             Component::Between { start, end, .. } if branch == 0.0 => {
                 let off = |end: f64| {
                     let gap = (angle - end).rem_euclid(TAU);
@@ -2074,7 +2075,7 @@ impl Component {
                 Some(if branch > 0.0 { half } else { half + PI })
             }
             Component::Apex => None,
-            Component::OffSharedGenerator { .. } => Some(angle.rem_euclid(TAU)),
+            Component::OffSharedGenerator { .. } => Some(wrap_angle(angle)),
         }
     }
 
@@ -2088,7 +2089,7 @@ impl Component {
                 *end -= shift;
             }
             Component::Node { start, .. } | Component::ThroughApex { start } => {
-                *start = start.rem_euclid(TAU);
+                *start = wrap_angle(*start);
             }
             Component::Around { .. } | Component::Apex | Component::OffSharedGenerator { .. } => {}
         }
@@ -3470,7 +3471,7 @@ trait CurveFamily: Copy {
     /// it: a central difference of its exact points, as the normals' cross
     /// product vanishes at the crossing and turns over there.
     fn stepped_tangent(&self, component: Self::Component, parameter: f64) -> Vector {
-        let point = |parameter: f64| self.point(component, parameter.rem_euclid(TAU));
+        let point = |parameter: f64| self.point(component, wrap_angle(parameter));
         let step =
             point(parameter + CROSSING_TANGENT_STEP) - point(parameter - CROSSING_TANGENT_STEP);
         step * (1.0 / step.magnitude())
@@ -3721,7 +3722,7 @@ trait CurveFamily: Copy {
         let [u_angle, v_angle] = self.angles(side);
         let continued = |angle: f64, before: Option<f64>| match before {
             Some(before) => angle + TAU * ((before - angle) / TAU).round(),
-            None => angle.rem_euclid(TAU),
+            None => wrap_angle(angle),
         };
         let mut previous: Option<Point2D> = None;
         let values = samples

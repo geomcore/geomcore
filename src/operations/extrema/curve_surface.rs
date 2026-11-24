@@ -416,7 +416,7 @@ fn circle_plane(circle: &Circle, plane: &Plane, tol: Tolerance) -> Vec<f64> {
     };
     angles
         .into_iter()
-        .map(|angle| angle.rem_euclid(TAU))
+        .map(crate::math::parameter_range::wrap_angle)
         .collect()
 }
 
