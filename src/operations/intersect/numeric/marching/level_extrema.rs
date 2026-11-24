@@ -25,12 +25,15 @@
 //! intersection with `E` holds a point of the loop to trace from.
 
 use super::pair::{SurfacePair, swap};
-use crate::Direction;
 use crate::geometry::surfaces::{
     BSplineSurface, ElementarySurface, ParametricSurface, Plane, Torus,
 };
 use crate::math::bspline::surface::net_points;
 use crate::math::numeric::boxtree::Aabb;
+use crate::operations::intersect::implicit::{
+    ConeEquation, CylinderEquation, Equation, Implicit, PlaneEquation, SphereEquation,
+    TorusEquation,
+};
 use crate::operations::intersect::numeric::bezier_pieces::{bounding_box, derivative_cones, dot};
 use crate::operations::intersect::numeric::surface_patches::{SurfacePatches, grown};
 use crate::operations::intersect::routing::route_curve_surface;
@@ -191,127 +194,48 @@ fn plane_torus_seeds(plane: &Plane, torus: &Torus, tol: Tolerance) -> Vec<[f64; 
     seeds
 }
 
-/// The level of an elementary surface: a smooth function `F` on space
-/// whose zero set is the surface, with its gradient and Hessian.
+/// The level of an elementary surface: its implicit equation `F`, a
+/// smooth function on space whose zero set is the surface, with its
+/// gradient and Hessian.
 #[derive(Clone, Copy, Debug)]
 enum Level {
-    /// `(p - origin) . normal`.
-    Plane { origin: Point, normal: Direction },
-    /// `|p - center|^2 - radius^2`.
-    Sphere { center: Point, radius: f64 },
-    /// `|q|^2 - (q . axis)^2 - radius^2`, `q = p - origin`.
-    Cylinder {
-        origin: Point,
-        axis: Direction,
-        radius: f64,
-    },
-    /// `|q|^2 - (1 + slope) (q . axis)^2`, `q = p - apex`, `slope` the
-    /// squared tangent of the half-angle: both nappes.
-    Cone {
-        apex: Point,
-        axis: Direction,
-        slope: f64,
-    },
-    /// `s^2 - 4 R^2 (|q|^2 - (q . axis)^2)`, `q = p - center`,
-    /// `s = |q|^2 + R^2 - r^2`.
-    Torus {
-        center: Point,
-        axis: Direction,
-        major: f64,
-        minor: f64,
-    },
+    Plane(PlaneEquation),
+    Sphere(SphereEquation),
+    Cylinder(CylinderEquation),
+    Cone(ConeEquation),
+    Torus(TorusEquation),
 }
 
 impl Level {
     fn of(surface: ElementarySurface) -> Level {
         match surface {
-            ElementarySurface::Plane(s) => Level::Plane {
-                origin: s.frame().origin(),
-                normal: s.axis().direction(),
-            },
-            ElementarySurface::Sphere(s) => Level::Sphere {
-                center: s.center(),
-                radius: s.radius(),
-            },
-            ElementarySurface::Cylinder(s) => Level::Cylinder {
-                origin: s.frame().origin(),
-                axis: s.frame().z_direction(),
-                radius: s.radius(),
-            },
-            ElementarySurface::Cone(s) => Level::Cone {
-                apex: s.apex(),
-                axis: s.frame().z_direction(),
-                slope: s.half_angle().tan().powi(2),
-            },
-            ElementarySurface::Torus(s) => Level::Torus {
-                center: s.center(),
-                axis: s.frame().z_direction(),
-                major: s.major_radius(),
-                minor: s.minor_radius(),
-            },
+            ElementarySurface::Plane(s) => Level::Plane(s.equation()),
+            ElementarySurface::Sphere(s) => Level::Sphere(s.equation()),
+            ElementarySurface::Cylinder(s) => Level::Cylinder(s.equation()),
+            ElementarySurface::Cone(s) => Level::Cone(s.equation()),
+            ElementarySurface::Torus(s) => Level::Torus(s.equation()),
         }
     }
 
     /// `F(p)` and its gradient.
     fn value_and_gradient(&self, p: Point) -> (f64, Vector) {
-        match *self {
-            Level::Plane { origin, normal } => ((p - origin).dot(normal), normal.vector()),
-            Level::Sphere { center, radius } => {
-                let q = p - center;
-                (q.dot(q) - radius * radius, q * 2.0)
-            }
-            Level::Cylinder {
-                origin,
-                axis,
-                radius,
-            } => {
-                let q = p - origin;
-                let across = q.component_perpendicular_to(axis);
-                (across.dot(across) - radius * radius, across * 2.0)
-            }
-            Level::Cone { apex, axis, slope } => {
-                let q = p - apex;
-                let along = q.dot(axis);
-                let value = q.dot(q) - (1.0 + slope) * along * along;
-                (value, (q - axis * ((1.0 + slope) * along)) * 2.0)
-            }
-            Level::Torus {
-                center,
-                axis,
-                major,
-                minor,
-            } => {
-                let q = p - center;
-                let along = q.dot(axis);
-                let s = q.dot(q) + major * major - minor * minor;
-                let four_major = 4.0 * major * major;
-                let value = s * s - four_major * (q.dot(q) - along * along);
-                let gradient = q * (4.0 * s) - (q - axis * along) * (2.0 * four_major);
-                (value, gradient)
-            }
+        match self {
+            Level::Plane(e) => e.value_and_gradient(p),
+            Level::Sphere(e) => e.value_and_gradient(p),
+            Level::Cylinder(e) => e.value_and_gradient(p),
+            Level::Cone(e) => e.value_and_gradient(p),
+            Level::Torus(e) => e.value_and_gradient(p),
         }
     }
 
     /// The Hessian of `F` at `p` applied to `a` and `b`.
     fn hessian(&self, p: Point, a: Vector, b: Vector) -> f64 {
-        match *self {
-            Level::Plane { .. } => 0.0,
-            Level::Sphere { .. } => 2.0 * a.dot(b),
-            Level::Cylinder { axis, .. } => 2.0 * (a.dot(b) - a.dot(axis) * b.dot(axis)),
-            Level::Cone { axis, slope, .. } => {
-                2.0 * (a.dot(b) - (1.0 + slope) * a.dot(axis) * b.dot(axis))
-            }
-            Level::Torus {
-                center,
-                axis,
-                major,
-                minor,
-            } => {
-                let q = p - center;
-                let s = q.dot(q) + major * major - minor * minor;
-                4.0 * s * a.dot(b) + 8.0 * q.dot(a) * q.dot(b)
-                    - 8.0 * major * major * (a.dot(b) - a.dot(axis) * b.dot(axis))
-            }
+        match self {
+            Level::Plane(e) => e.hessian(p, a, b),
+            Level::Sphere(e) => e.hessian(p, a, b),
+            Level::Cylinder(e) => e.hessian(p, a, b),
+            Level::Cone(e) => e.hessian(p, a, b),
+            Level::Torus(e) => e.hessian(p, a, b),
         }
     }
 
@@ -323,9 +247,9 @@ impl Level {
     /// its poles.
     fn keeps_off(&self, poles: &[Point], sign: f64, tol: Tolerance) -> bool {
         let convex = match self {
-            Level::Plane { .. } => true,
-            Level::Sphere { .. } | Level::Cylinder { .. } => sign < 0.0,
-            Level::Cone { .. } | Level::Torus { .. } => false,
+            Level::Plane(_) => true,
+            Level::Sphere(_) | Level::Cylinder(_) => sign < 0.0,
+            Level::Cone(_) | Level::Torus(_) => false,
         };
         convex
             && poles.iter().all(|&pole| {
@@ -350,13 +274,14 @@ impl Level {
         let half =
             0.5 * ((b[3] - b[0]).powi(2) + (b[4] - b[1]).powi(2) + (b[5] - b[2]).powi(2)).sqrt();
         let away = match *self {
-            Level::Plane { normal, .. } => return Some(([normal.x, normal.y, normal.z], 0.0)),
-            Level::Sphere { center, .. } => middle - center,
-            Level::Cylinder { origin, axis, .. } => {
-                let q = middle - origin;
-                q.component_perpendicular_to(axis)
+            Level::Plane(PlaneEquation { normal, .. }) => {
+                return Some(([normal.x, normal.y, normal.z], 0.0));
             }
-            Level::Cone { .. } | Level::Torus { .. } => return None,
+            Level::Sphere(SphereEquation { center, .. }) => middle - center,
+            Level::Cylinder(CylinderEquation { origin, axis, .. }) => {
+                (middle - origin).component_perpendicular_to(axis)
+            }
+            Level::Cone(_) | Level::Torus(_) => return None,
         };
         let distance = away.magnitude();
         let spread = 2.0 * half / distance;

@@ -4,6 +4,7 @@
 //! in `results`. The user-facing overview is in the crate documentation.
 
 mod exact;
+pub(crate) mod implicit;
 pub(crate) mod numeric;
 mod results;
 pub(crate) mod routing;

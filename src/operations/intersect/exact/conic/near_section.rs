@@ -1,6 +1,6 @@
-//! A circle or an ellipse that lies within a few tolerances of a cone all
-//! along: where it is within the tolerance, certified by the cones at
-//! the tolerance on either side.
+//! A circle or an ellipse that lies within a few tolerances of a sphere,
+//! a cylinder or a cone all along: where it is within the tolerance,
+//! certified by the surfaces at the tolerance on either side.
 //!
 //! Along such a conic the substituted equation is nearly flat, its
 //! values within a few tolerances of zero over the whole turn, so its
@@ -10,29 +10,31 @@
 //! samples within the tolerance read as the whole conic on the cone where
 //! it leaves it in between.
 //!
-//! The points at the tolerance from the cone lie on two cones: with `h`
-//! the height along the axis from the apex and `ρ` the distance from the
-//! axis, the signed distance to the double cone is `ρ cos φ − |h| sin φ`,
-//! and its level `±δ` is the double cone of the same axis and half-angle
-//! with its apex moved by `δ / sin φ` along the axis, one way or the
-//! other for each nappe. The conic's roots on those two cones split it
-//! into stretches each wholly within the tolerance or wholly beyond it,
-//! which the distance at the stretch's middle tells. Those roots are well
-//! conditioned: each cone meets the conic where it crosses the
-//! tolerance, at a slope the conic's own rounding does not hide.
+//! The points at the tolerance from the surface lie on quadrics of the
+//! same kind (see [`QuadricEquation::offset_sections`]): the concentric
+//! spheres and the coaxial cylinders of radius `r ± δ`, and for a cone,
+//! whose signed distance is `ρ cos φ − |h| sin φ` with `h` the height
+//! along the axis from the apex and `ρ` the distance from the axis, the
+//! double cones of the same axis and half-angle with the apex moved by
+//! `δ / sin φ` along the axis, one way or the other for each nappe. The
+//! conic's roots on those quadrics split it into stretches each wholly
+//! within the tolerance or wholly beyond it, which the distance at the
+//! stretch's middle tells. Those roots are well conditioned: each offset
+//! quadric meets the conic where it crosses the tolerance, at a slope the
+//! conic's own rounding does not hide.
 //!
 //! The answer follows the stretches. A conic within the tolerance all
-//! along lies on the cone. Each run of stretches within the tolerance
-//! holds its crossings of the cone, found where the distance changes
+//! along lies on the surface. Each run of stretches within the tolerance
+//! holds its crossings of the surface, found where the distance changes
 //! sign, or, with none, one touching point where the conic comes nearest.
 
-use super::{Conic, ConicShape, cone_section};
-use crate::math::numeric::solve_trig;
+use super::{Conic, ConicShape, Quadric, section_candidates};
+use crate::operations::intersect::implicit::QuadricEquation;
 use crate::operations::intersect::{ConicSurfaceHit, ConicSurfaceIntersection};
-use crate::{Cone, InlineList, Point, Tolerance, Vector};
+use crate::{InlineList, Tolerance};
 use std::f64::consts::TAU;
 
-/// How many tolerances from the cone the conic may stray, at the five
+/// How many tolerances from the surface the conic may stray, at the five
 /// samples, for the stretches to decide: beyond it the substituted
 /// equation is steep enough for its roots to answer.
 const NEAR: f64 = 64.0;
@@ -47,19 +49,19 @@ const STEPS: usize = 64;
 const RUN_SAMPLES: usize = 64;
 
 /// The answer for a circle or an ellipse within [`NEAR`] tolerances of
-/// `cone` at five samples, from its stretches within the tolerance; `None`
-/// for any other conic, which the substituted equation answers.
-pub(super) fn closed_conic_near_cone<C: Conic>(
+/// `quadric` at five samples, from its stretches within the tolerance;
+/// `None` for any other conic, which the substituted equation answers.
+pub(super) fn closed_conic_near<C: Conic, Q: Quadric>(
     conic: &C,
-    cone: &Cone,
+    quadric: &Q,
     tol: Tolerance,
 ) -> Option<ConicSurfaceIntersection> {
-    let ConicShape::Ellipse { a, b } = conic.shape() else {
+    if !matches!(conic.shape(), ConicShape::Ellipse { .. }) {
         return None;
-    };
+    }
     let band = tol.confusion;
-    let distance = SignedDistance::new(cone);
-    let at = |t: f64| distance.at(conic.point_at(t));
+    let equation = quadric.equation();
+    let at = |t: f64| equation.signed_distance(conic.point_at(t));
     if !conic
         .shape()
         .samples()
@@ -68,7 +70,7 @@ pub(super) fn closed_conic_near_cone<C: Conic>(
     {
         return None;
     }
-    let edges = band_edges(conic, cone, a, b, band, tol);
+    let edges = band_edges(conic, quadric, band, tol);
     let within = |t: f64| at(t).abs() <= band;
     if edges.is_empty() {
         return Some(if within(0.0) {
@@ -133,13 +135,11 @@ fn unwrapped(start: f64, end: f64) -> f64 {
     end
 }
 
-/// The parameters in `[0, 2π)` where the conic of semi-axes `a` and `b`
-/// meets the cones at `band` on either side of `cone`, sorted.
-fn band_edges<C: Conic>(
+/// The parameters in `[0, 2π)` where the closed conic meets the quadrics
+/// at `band` on either side of `quadric`, sorted.
+fn band_edges<C: Conic, Q: Quadric>(
     conic: &C,
-    cone: &Cone,
-    a: f64,
-    b: f64,
+    quadric: &Q,
     band: f64,
     tol: Tolerance,
 ) -> InlineList<f64, 8> {
@@ -149,15 +149,12 @@ fn band_edges<C: Conic>(
         frame.x_direction().vector(),
         frame.y_direction().vector(),
     );
-    let axis = cone.frame().z_direction().vector();
-    let (sine, cosine) = cone.half_angle().abs().sin_cos();
-    let shift = axis * (band / sine);
-    let apex = cone.apex();
     let mut edges = InlineList::<f64, 8>::new();
-    for moved in [apex + shift, apex - shift] {
-        let section = cone_section(moved, axis, cosine * cosine, origin, x, y);
-        let (a2, b2, c1, d1, e) = section.ellipse_substitute(a, b);
-        for &(t, _) in &solve_trig(a2, b2, c1, d1, e, tol, |_| false) {
+    for &section in &quadric.equation().offset_sections(band, origin, x, y) {
+        // The full trigonometric solve: the first-order one of a circle on
+        // a sphere reads equations this flat as no equation at all.
+        let candidates = section_candidates(conic, section, Q::LINEAR, |_, _| None, |_| false, tol);
+        for &(t, _) in &candidates {
             edges.push(t.rem_euclid(TAU));
         }
     }
@@ -166,7 +163,7 @@ fn band_edges<C: Conic>(
 }
 
 /// The contacts of the run `[low, high]` within the tolerance: each
-/// crossing of the cone in it, found where the distance changes sign
+/// crossing of the surface in it, found where the distance changes sign
 /// between [`RUN_SAMPLES`] samples, else the touching point where it
 /// comes nearest.
 fn push_contacts<C: Conic>(
@@ -249,36 +246,6 @@ fn nearest(at: &impl Fn(f64) -> f64, low: f64, high: f64) -> f64 {
         }
     }
     0.5 * (left + right)
-}
-
-/// The signed distance to a double cone: positive outside, away from
-/// the axis.
-struct SignedDistance {
-    apex: Point,
-    axis: Vector,
-    sine: f64,
-    cosine: f64,
-}
-
-impl SignedDistance {
-    fn new(cone: &Cone) -> SignedDistance {
-        let (sine, cosine) = cone.half_angle().abs().sin_cos();
-        SignedDistance {
-            apex: cone.apex(),
-            axis: cone.frame().z_direction().vector(),
-            sine,
-            cosine,
-        }
-    }
-
-    /// `ρ cos φ − |h| sin φ`, with `h` the height of `point` along the
-    /// axis from the apex and `ρ` its distance from the axis.
-    fn at(&self, point: Point) -> f64 {
-        let w = point - self.apex;
-        let h = w.dot(self.axis);
-        let rho = (w - self.axis * h).magnitude();
-        rho * self.cosine - h.abs() * self.sine
-    }
 }
 
 #[cfg(test)]
