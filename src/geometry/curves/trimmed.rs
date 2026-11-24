@@ -448,7 +448,7 @@ impl TrimmedCurve<Circle> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point, TrimmedCurve, Vector};
+    /// use geomcore::{Point, Tolerance, TrimmedCurve, Vector};
     /// use std::f64::consts::PI;
     ///
     /// // Three quarters of the unit circle, clockwise seen from +z.
@@ -456,6 +456,7 @@ impl TrimmedCurve<Circle> {
     ///     Point::new(1.0, 0.0, 0.0),
     ///     Point::new(-1.0, 0.0, 0.0),
     ///     Point::new(0.0, 1.0, 0.0),
+    ///     Tolerance::DEFAULT,
     /// )
     /// .unwrap();
     /// assert!((arc.sweep_angle() - 1.5 * PI).abs() < 1e-12);
@@ -465,12 +466,12 @@ impl TrimmedCurve<Circle> {
         start: Point,
         middle: Point,
         end: Point,
+        tol: Tolerance,
     ) -> Result<Self, ArcConstructionError> {
         if !start.is_finite() || !middle.is_finite() || !end.is_finite() {
             return Err(ArcConstructionError::NonFinite);
         }
-        let circle = Circle::from_three_points(start, middle, end)?;
-        let tol = Tolerance::DEFAULT;
+        let circle = Circle::from_three_points(start, middle, end, tol)?;
         let sweep = sweep_to(circle.parameter_of(end, tol), circle.radius(), tol);
         Ok(Self::from_parts(circle, 0.0, sweep))
     }
@@ -564,7 +565,7 @@ impl TrimmedCurve2D<Circle2D> {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Point2D, TrimmedCurve2D};
+    /// use geomcore::{Point2D, Tolerance, TrimmedCurve2D};
     /// use std::f64::consts::PI;
     ///
     /// // The lower half of the unit circle, clockwise.
@@ -572,6 +573,7 @@ impl TrimmedCurve2D<Circle2D> {
     ///     Point2D::new(-1.0, 0.0),
     ///     Point2D::new(0.0, 1.0),
     ///     Point2D::new(1.0, 0.0),
+    ///     Tolerance::DEFAULT,
     /// )
     /// .unwrap();
     /// assert!(!arc.basis().is_counterclockwise());
@@ -581,9 +583,9 @@ impl TrimmedCurve2D<Circle2D> {
         start: Point2D,
         middle: Point2D,
         end: Point2D,
+        tol: Tolerance,
     ) -> Result<Self, ArcConstructionError> {
-        let circle = Circle2D::from_three_points(start, middle, end)?;
-        let tol = Tolerance::DEFAULT;
+        let circle = Circle2D::from_three_points(start, middle, end, tol)?;
         let sweep = sweep_to(circle.parameter_of(end, tol), circle.radius(), tol);
         Ok(Self::from_parts(circle, 0.0, sweep))
     }

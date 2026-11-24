@@ -9,6 +9,22 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Breaking
+
+- The constructors that decide whether their points are degenerate take
+  the caller's `tol: Tolerance` as their last argument, instead of reading
+  `Tolerance::DEFAULT` (#473): `Circle::from_three_points`,
+  `Plane::from_three_points`, `Ellipse::from_center_and_points`,
+  `Hyperbola::from_center_and_points`, `Cone::from_two_points_and_radii`,
+  `Parabola::from_focus_and_directrix`, `TrimmedCurve::arc_through`, and
+  the 2D forms of each. A model of another size scales its tolerance and
+  gets the same answers (ADR 0051). Pass `Tolerance::DEFAULT` to keep the
+  previous behaviour. In Python `tol` is optional and defaults to
+  `Tolerance.default()`.
+- `Ellipse::from_center_and_points` and its 2D form refuse a minor radius
+  below `tol.confusion` instead of below the literal `1e-7`. The 3D form no
+  longer repeats that check on the plane normal, which has the same length.
+
 ## [0.50.0] - 2026-11-23
 
 Near a contact, every closed form now follows one rule (ADR 0057): two

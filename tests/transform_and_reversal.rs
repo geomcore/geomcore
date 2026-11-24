@@ -13,8 +13,8 @@ use common::samples::{
 };
 use geomcore::prelude::*;
 use geomcore::{
-    Axis, Axis2D, Circle2D, Cone, Curve, Curve2D, Frame, Point, Point2D, Surface, Transform,
-    Transform2D, TransformError, TrimmedCurve, TrimmedCurve2D, Vector, Vector2D,
+    Axis, Axis2D, Circle2D, Cone, Curve, Curve2D, Frame, Point, Point2D, Surface, Tolerance,
+    Transform, Transform2D, TransformError, TrimmedCurve, TrimmedCurve2D, Vector, Vector2D,
 };
 use std::fmt::Debug;
 
@@ -438,8 +438,13 @@ fn test_a_mirror_turns_circles_and_arcs_clockwise_and_a_reversal_turns_them_back
     assert!(mirrored.reversed().is_counterclockwise());
 
     let start = Point2D::new(2.0, 0.0);
-    let arc = TrimmedCurve2D::arc_through(start, Point2D::new(0.0, 2.0), Point2D::new(-2.0, 0.0))
-        .unwrap();
+    let arc = TrimmedCurve2D::arc_through(
+        start,
+        Point2D::new(0.0, 2.0),
+        Point2D::new(-2.0, 0.0),
+        Tolerance::DEFAULT,
+    )
+    .unwrap();
     assert!(arc.basis().is_counterclockwise());
     let mirrored_arc = arc.transformed(mirror).unwrap();
     assert!(!mirrored_arc.basis().is_counterclockwise());

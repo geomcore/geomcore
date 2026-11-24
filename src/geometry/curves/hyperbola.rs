@@ -113,6 +113,13 @@ pub type Hyperbola = GenericHyperbola<Point>;
 pub type Hyperbola2D = GenericHyperbola<Point2D>;
 
 impl<P: TierPoint> GenericHyperbola<P> {
+    /// The hyperbolic angle of `point` on the branch, in closed form: what
+    /// [`PointExtrema::parameter_of`] returns, without a tolerance it would
+    /// not read.
+    pub(crate) fn angle_of(&self, point: P) -> f64 {
+        elementary::hyperbola_parameter(&self.frame, self.minor_radius, point)
+    }
+
     /// Creates a hyperbola from a frame, a semi-major radius, and a
     /// semi-minor radius directly.
     ///
@@ -390,18 +397,19 @@ impl Hyperbola {
     /// # Errors
     ///
     /// Returns [`HyperbolaConstructionError::ConfusedPoints`] if any pair
-    /// among `{s1, s2, center}` is within `Tolerance::DEFAULT.confusion`; or
+    /// among `{s1, s2, center}` is within `tol.confusion`; or
     /// [`HyperbolaConstructionError::CollinearPoints`] if `s2` lies on the
     /// line `(center, x_axis)`, or `x_axis` is parallel to `s2 - center`.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola, Point};
+    /// use geomcore::{Hyperbola, Point, Tolerance};
     /// let hyperbola = Hyperbola::from_center_and_points(
     ///     Point::ORIGIN,
     ///     Point::new(2.0, 0.0, 0.0),
     ///     Point::new(0.0, 1.0, 0.0),
+    ///     Tolerance::DEFAULT,
     /// )
     /// .unwrap();
     /// assert_eq!(hyperbola.major_radius(), 2.0);
@@ -411,10 +419,11 @@ impl Hyperbola {
         center: Point,
         s1: Point,
         s2: Point,
+        tol: Tolerance,
     ) -> Result<Hyperbola, HyperbolaConstructionError> {
-        if center.distance(s1) < Tolerance::DEFAULT.confusion
-            || center.distance(s2) < Tolerance::DEFAULT.confusion
-            || s1.distance(s2) < Tolerance::DEFAULT.confusion
+        if center.distance(s1) < tol.confusion
+            || center.distance(s2) < tol.confusion
+            || s1.distance(s2) < tol.confusion
         {
             return Err(HyperbolaConstructionError::ConfusedPoints);
         }
@@ -428,12 +437,12 @@ impl Hyperbola {
         let perp = v2 - proj * x_axis;
         let d2 = perp.magnitude();
 
-        if d2 < Tolerance::DEFAULT.confusion {
+        if d2 < tol.confusion {
             return Err(HyperbolaConstructionError::CollinearPoints);
         }
 
         let normal = x_axis.cross(v2);
-        if normal.magnitude() < Tolerance::DEFAULT.confusion {
+        if normal.magnitude() < tol.confusion {
             return Err(HyperbolaConstructionError::CollinearPoints);
         }
 
@@ -527,18 +536,19 @@ impl Hyperbola2D {
     /// # Errors
     ///
     /// Returns [`HyperbolaConstructionError::ConfusedPoints`] if any pair
-    /// among `{s1, s2, center}` is within `Tolerance::DEFAULT.confusion`; or
+    /// among `{s1, s2, center}` is within `tol.confusion`; or
     /// [`HyperbolaConstructionError::CollinearPoints`] if `s2` lies on the
     /// line `(center, x_axis)`.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Hyperbola2D, Point2D};
+    /// use geomcore::{Hyperbola2D, Point2D, Tolerance};
     /// let hyperbola = Hyperbola2D::from_center_and_points(
     ///     Point2D::ORIGIN,
     ///     Point2D::new(2.0, 0.0),
     ///     Point2D::new(0.0, 1.0),
+    ///     Tolerance::DEFAULT,
     /// )
     /// .unwrap();
     /// assert_eq!(hyperbola.major_radius(), 2.0);
@@ -548,10 +558,11 @@ impl Hyperbola2D {
         center: Point2D,
         s1: Point2D,
         s2: Point2D,
+        tol: Tolerance,
     ) -> Result<Hyperbola2D, HyperbolaConstructionError> {
-        if center.distance(s1) < Tolerance::DEFAULT.confusion
-            || center.distance(s2) < Tolerance::DEFAULT.confusion
-            || s1.distance(s2) < Tolerance::DEFAULT.confusion
+        if center.distance(s1) < tol.confusion
+            || center.distance(s2) < tol.confusion
+            || s1.distance(s2) < tol.confusion
         {
             return Err(HyperbolaConstructionError::ConfusedPoints);
         }
@@ -563,7 +574,7 @@ impl Hyperbola2D {
         let v2 = s2 - center;
         let cross = x_axis.cross(v2);
         let d2 = cross.abs();
-        if d2 < Tolerance::DEFAULT.confusion {
+        if d2 < tol.confusion {
             return Err(HyperbolaConstructionError::CollinearPoints);
         }
         let y_axis = if cross < 0.0 {
@@ -645,7 +656,7 @@ impl_for_both_tiers! {
         /// `asinh(((point - center) . y_dir) / minor_radius)`. Unbounded (no
         /// wrapping).
         fn parameter_of(&self, point: P, _tol: Tolerance) -> f64 {
-            elementary::hyperbola_parameter(&self.frame, self.minor_radius, point)
+            self.angle_of(point)
         }
 
         fn contains(&self, point: P, tol: Tolerance) -> bool {
