@@ -12,6 +12,7 @@
 //! parameter matches the curve's only at the range ends, the knots between
 //! pieces and the middle of each piece.
 
+use crate::math::parameter_range::ParameterRange;
 use std::f64::consts::TAU;
 use std::fmt;
 
@@ -100,7 +101,13 @@ fn place<P: TierPoint>(
 /// when the range spans a whole turn.
 fn arc_net(first: f64, last: f64) -> PlaneNet {
     let mut net = conic::circle_arc(first, last);
-    if last - first >= TAU * (1.0 - 1e-12) {
+    if (ParameterRange {
+        first,
+        last,
+        period: Some(TAU),
+    })
+    .spans_whole_period()
+    {
         net.close();
     }
     net

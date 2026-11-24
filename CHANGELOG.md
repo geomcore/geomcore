@@ -9,6 +9,17 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Breaking
+
+- `ParametricSurface` has a required method,
+  `highest_derivative_order(&self) -> u32` (#471): the highest total
+  order `du + dv` that `derivative` evaluates, `u32::MAX` on the plane,
+  cylinder, cone, sphere and torus and 2 on the other surfaces. A
+  surface type of your own that implements `ParametricSurface` adds it.
+  `derivative` panics above it, as before, and a caller can now check
+  first. The Python binding reads it instead of its own copy of the
+  rule, which would have given a new elementary surface 2.
+
 ### Changed
 
 - The tight bounding box of a B-spline or Bézier curve is solved for

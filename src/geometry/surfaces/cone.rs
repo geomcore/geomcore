@@ -488,6 +488,11 @@ impl ParametricSurface for Cone {
         }
     }
 
+    /// The cone evaluates every order.
+    fn highest_derivative_order(&self) -> u32 {
+        u32::MAX
+    }
+
     fn u_bounds(&self) -> (f64, f64) {
         (0.0, TAU)
     }

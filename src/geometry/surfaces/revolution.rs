@@ -546,6 +546,11 @@ impl ParametricSurface for RevolutionSurface {
         }
     }
 
+    /// The revolution surface evaluates up to `du + dv = 2`.
+    fn highest_derivative_order(&self) -> u32 {
+        2
+    }
+
     fn u_bounds(&self) -> (f64, f64) {
         (0.0, TAU)
     }
