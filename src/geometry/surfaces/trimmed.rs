@@ -406,6 +406,12 @@ impl<S: ParametricSurface> ParametricSurface for TrimmedSurface<S> {
         self.basis.derivative(u, v, du, dv)
     }
 
+    /// A trimmed surface evaluates its basis.
+    #[inline]
+    fn highest_derivative_order(&self) -> u32 {
+        self.basis.highest_derivative_order()
+    }
+
     #[inline]
     fn first_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
         self.basis.first_derivatives(u, v)

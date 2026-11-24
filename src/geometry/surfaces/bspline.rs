@@ -2118,6 +2118,11 @@ impl ParametricSurface for BSplineSurface {
         }
     }
 
+    /// The B-spline surface evaluates up to `du + dv = 2`.
+    fn highest_derivative_order(&self) -> u32 {
+        2
+    }
+
     fn first_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
         let (s, su, sv) = self.surface_first_derivatives(u, v);
         (s, [su, sv])
