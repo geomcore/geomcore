@@ -50,8 +50,9 @@ use super::*;
 use crate::Direction;
 use crate::math::numeric::solve_trig;
 use crate::math::numeric::trigonometric::{
-    TrigonometricPolynomial, angular_distance, basis, common_zeros, wrap,
+    TrigonometricPolynomial, angular_distance, basis, common_zeros,
 };
+use crate::math::parameter_range::wrap_angle;
 use crate::{Circle, Transform, Transformable};
 
 /// `F(u, v)`, the other surface's equation on the torus's parameters.
@@ -1275,13 +1276,13 @@ fn sweep(
             } else {
                 Slot::OpensAhead
             };
-            (wrap(turn.angles[0]), turn.angles[1], slot)
+            (wrap_angle(turn.angles[0]), turn.angles[1], slot)
         })
         .chain(
             touching
                 .iter()
                 .filter(|t| t.crossing)
-                .map(|t| (wrap(t.angles[0]), t.angles[1], Slot::Crossing)),
+                .map(|t| (wrap_angle(t.angles[0]), t.angles[1], Slot::Crossing)),
         )
         .collect();
     critical.sort_by(|a, b| a.0.total_cmp(&b.0));
@@ -1537,7 +1538,7 @@ fn split(
         if inside.is_empty() {
             out.push(Piece {
                 u: [start, end],
-                cut: wrap(cut),
+                cut: wrap_angle(cut),
                 count,
                 first_branch: 0,
             });
@@ -1587,7 +1588,7 @@ fn crossings(equation: &Equation, cut: f64, start: f64, end: f64) -> Option<Vec<
     let mut inside = Vec::new();
     for &(u, _) in &roots_along(equation, cut) {
         // In `[start, start + 2π)`, the stretch's end at most there.
-        let u = start + (u - start).rem_euclid(TAU);
+        let u = crate::math::parameter_range::wrap_into_period(u, start, TAU);
         if u <= start + SAME_EVENT || u >= start + TAU - SAME_EVENT || (u - end).abs() <= SAME_EVENT
         {
             return None;
