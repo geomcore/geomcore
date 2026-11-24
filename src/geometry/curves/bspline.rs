@@ -1549,6 +1549,14 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     pub(crate) fn span_bezier_points(&self, u: f64, points: &mut [[f64; 4]]) {
         math::span_bezier(&self.knots, self.pole_view(), u, points);
     }
+
+    /// Visits the Bézier pieces of the curve over its bounds, from the
+    /// lower one: `visit(x, y, points)` for the piece over `[x, y]`, its
+    /// homogeneous control points as in [`span_bezier_points`](Self::span_bezier_points).
+    /// One sweep of knot insertion, cheaper than a span at a time.
+    pub(crate) fn for_each_bezier_piece(&self, visit: impl FnMut(f64, f64, &[[f64; 4]])) {
+        editing::homogeneous_curve_pieces(&self.knots, &self.poles, self.weights.as_deref(), visit);
+    }
 }
 
 impl BSplineCurve2D {

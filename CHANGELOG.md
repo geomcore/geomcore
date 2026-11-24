@@ -9,6 +9,15 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Changed
+
+- The tight bounding box of a B-spline or Bézier curve is solved for
+  rather than bounded (#465): each coordinate's extremes are found where
+  its derivative changes sign on a Bézier piece, and the pieces come from
+  one sweep of knot insertion instead of a matrix per span. About four
+  times faster, and each side now lies within a few roundings of the
+  curve (it was within `tol.confusion`). The box still holds the curve.
+
 ## [0.50.0] - 2026-11-23
 
 Near a contact, every closed form now follows one rule (ADR 0057): two

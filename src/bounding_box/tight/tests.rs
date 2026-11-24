@@ -181,3 +181,193 @@ fn an_elementary_box_is_already_tight() {
     let torus = Torus::new(Point::ORIGIN, Vector::X, 3.0, 1.0).unwrap();
     assert_eq!(torus.tight_bounding_box(TOL), torus.bounding_box());
 }
+
+/// The extremes of `value` over `[first, last]`: its largest and smallest
+/// at the ends and at the local extremes of `samples` evenly spaced
+/// values, each refined by golden section between its sampled neighbours.
+fn refined_extremes(value: impl Fn(f64) -> f64, (first, last): (f64, f64)) -> (f64, f64) {
+    let samples = 4000;
+    let at = |k: usize| first + (last - first) * (k as f64 / samples as f64);
+    let values: Vec<f64> = (0..=samples).map(|k| value(at(k))).collect();
+    let refine = |k: usize, sign: f64| {
+        let (mut a, mut b) = (at(k.saturating_sub(1)), at((k + 1).min(samples)));
+        let ratio = 0.5 * (5f64.sqrt() - 1.0);
+        for _ in 0..80 {
+            let (c, d) = (b - ratio * (b - a), a + ratio * (b - a));
+            if sign * value(c) > sign * value(d) {
+                b = d;
+            } else {
+                a = c;
+            }
+        }
+        sign * value(0.5 * (a + b))
+    };
+    let (mut low, mut high) = (
+        values[0].min(values[samples]),
+        values[0].max(values[samples]),
+    );
+    for k in 1..samples {
+        if values[k] >= values[k - 1] && values[k] >= values[k + 1] {
+            high = high.max(refine(k, 1.0)).max(values[k]);
+        }
+        if values[k] <= values[k - 1] && values[k] <= values[k + 1] {
+            low = low.min(-refine(k, -1.0)).min(values[k]);
+        }
+    }
+    (low, high)
+}
+
+/// Checks that each side of the tight box of `curve` holds the curve and
+/// is within `1e-12` of it, relative to the box's size.
+fn assert_solved(curve: &BSplineCurve) {
+    let tight = curve.tight_bounding_box(TOL).unwrap();
+    let (low, high) = (tight.min_corner(), tight.max_corner());
+    let scale = 1.0f64.max(low.x.abs().max(low.y.abs()).max(low.z.abs()));
+    let scale = scale.max(high.x.abs().max(high.y.abs()).max(high.z.abs()));
+    for (k, (side_low, side_high)) in [(low.x, high.x), (low.y, high.y), (low.z, high.z)]
+        .into_iter()
+        .enumerate()
+    {
+        let coordinate = |t: f64| {
+            let p = curve.point_at(t);
+            [p.x, p.y, p.z][k]
+        };
+        let (expected_low, expected_high) = refined_extremes(coordinate, curve.bounds());
+        assert!(
+            side_low <= expected_low,
+            "axis {k}: {side_low} > {expected_low}"
+        );
+        assert!(
+            side_high >= expected_high,
+            "axis {k}: {side_high} < {expected_high}"
+        );
+        assert!(
+            expected_low - side_low <= 1e-12 * scale,
+            "axis {k}: {side_low} short of {expected_low}"
+        );
+        assert!(
+            side_high - expected_high <= 1e-12 * scale,
+            "axis {k}: {side_high} past {expected_high}"
+        );
+    }
+}
+
+/// A clamped curve of `degree` with `count` poles scattered by a fixed
+/// sequence, rational with scattered weights if `rational`.
+fn scattered_curve(degree: usize, count: usize, rational: bool, seed: u64) -> BSplineCurve {
+    let mut state = seed;
+    let mut next = || {
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        (state >> 11) as f64 / (1u64 << 53) as f64
+    };
+    let poles: Vec<Point> = (0..count)
+        .map(|i| Point::new(i as f64 + next(), 4.0 * next() - 2.0, 3.0 * next() - 1.0))
+        .collect();
+    let spans = count - degree;
+    let knots: Vec<f64> = (0..=spans).map(|i| i as f64).collect();
+    let mut multiplicities = vec![1u32; spans + 1];
+    multiplicities[0] = degree as u32 + 1;
+    multiplicities[spans] = degree as u32 + 1;
+    if rational {
+        let weights: Vec<f64> = (0..count).map(|_| 0.2 + 3.0 * next()).collect();
+        BSplineCurve::new_rational(degree, poles, weights, knots, multiplicities, false).unwrap()
+    } else {
+        BSplineCurve::new(degree, poles, knots, multiplicities, false).unwrap()
+    }
+}
+
+#[test]
+fn a_curve_of_each_degree_is_boxed_to_its_solved_extremes() {
+    for degree in 1..=7 {
+        for rational in [false, true] {
+            for seed in 0..4 {
+                assert_solved(&scattered_curve(degree, degree + 6, rational, seed));
+            }
+        }
+    }
+}
+
+#[test]
+fn an_extreme_at_a_knot_or_an_end_is_reached() {
+    // A polyline peaking at its interior knot, and a cubic with a corner
+    // (a knot of full multiplicity) at its peak.
+    let polyline = BSplineCurve::new(
+        1,
+        vec![
+            Point::ORIGIN,
+            Point::new(1.0, 2.0, 0.5),
+            Point::new(2.0, 0.0, 1.0),
+        ],
+        vec![0.0, 1.0, 2.0],
+        vec![2, 1, 2],
+        false,
+    )
+    .unwrap();
+    assert_solved(&polyline);
+    let corner = BSplineCurve::new(
+        3,
+        vec![
+            Point::ORIGIN,
+            Point::new(0.3, 1.0, 0.0),
+            Point::new(0.7, 1.8, 0.2),
+            Point::new(1.0, 2.0, 0.4),
+            Point::new(1.3, 1.8, 0.2),
+            Point::new(1.7, 1.0, 0.0),
+            Point::new(2.0, 0.0, 0.0),
+        ],
+        vec![0.0, 1.0, 2.0],
+        vec![4, 3, 4],
+        false,
+    )
+    .unwrap();
+    assert_solved(&corner);
+    let tight = corner.tight_bounding_box(TOL).unwrap();
+    assert!((tight.max_corner().y - 2.0).abs() <= 1e-13);
+}
+
+#[test]
+fn a_stationary_coordinate_that_is_not_extreme_is_passed_over() {
+    // x = (2t − 1)³ is stationary at t = 1/2 without peaking there: its
+    // derivative's double root changes no sign.
+    let poles = vec![
+        Point::new(-1.0, 0.0, 0.0),
+        Point::new(1.0, 1.0, 0.0),
+        Point::new(-1.0, 2.0, 0.0),
+        Point::new(1.0, 3.0, 0.0),
+    ];
+    let polynomial =
+        BSplineCurve::new(3, poles.clone(), vec![0.0, 1.0], vec![4, 4], false).unwrap();
+    let rational = BSplineCurve::new_rational(
+        3,
+        poles,
+        vec![1.0, 2.0, 2.0, 1.0],
+        vec![0.0, 1.0],
+        vec![4, 4],
+        false,
+    )
+    .unwrap();
+    for curve in [polynomial, rational] {
+        assert_solved(&curve);
+        let tight = curve.tight_bounding_box(TOL).unwrap();
+        assert!((tight.min_corner().x + 1.0).abs() <= 1e-13);
+        assert!((tight.max_corner().x - 1.0).abs() <= 1e-13);
+    }
+}
+
+#[test]
+fn a_curve_far_from_the_origin_is_boxed_to_its_extremes() {
+    let near = scattered_curve(3, 12, true, 7);
+    let offset = Vector::new(1e5, -3e4, 2e5);
+    let far = BSplineCurve::new_rational(
+        3,
+        near.poles().iter().map(|&p| p + offset).collect(),
+        near.weights().unwrap().to_vec(),
+        near.knots().to_vec(),
+        near.multiplicities().to_vec(),
+        false,
+    )
+    .unwrap();
+    assert_solved(&far);
+}

@@ -356,8 +356,8 @@ impl_for_both_tiers! {
             bounding_box::spline_box(self, (first, last))
         }
 
-        fn tight_range_box(&self, first: f64, last: f64, tol: Tolerance) -> BoundingBoxOf<P> {
-            bounding_box::tight_spline_box(self, (first, last), tol)
+        fn tight_range_box(&self, first: f64, last: f64, _tol: Tolerance) -> BoundingBoxOf<P> {
+            bounding_box::tight_spline_box(self, (first, last))
         }
 
         fn for_each_run<F>(
@@ -403,8 +403,8 @@ impl_for_both_tiers! {
             bounding_box::spline_box(self.bspline(), (first, last))
         }
 
-        fn tight_range_box(&self, first: f64, last: f64, tol: Tolerance) -> BoundingBoxOf<P> {
-            bounding_box::tight_spline_box(self.bspline(), (first, last), tol)
+        fn tight_range_box(&self, first: f64, last: f64, _tol: Tolerance) -> BoundingBoxOf<P> {
+            bounding_box::tight_spline_box(self.bspline(), (first, last))
         }
 
         fn for_each_run<F>(
