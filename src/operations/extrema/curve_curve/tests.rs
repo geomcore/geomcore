@@ -487,12 +487,12 @@ fn test_a_plateau_of_the_grid_is_one_minimum_whatever_its_rounding() {
         1.5,
     ];
     assert_eq!(
-        grid_minima(&values, [3, 4], [false, false], rounding),
+        grid_minima(&values, [3, 4], [false, false], rounding, |_, _| false),
         vec![(0, 0), (2, 3)]
     );
     // Without the floor the noise splits the plateau.
     assert_eq!(
-        grid_minima(&values, [3, 4], [false, false], 0.0),
+        grid_minima(&values, [3, 4], [false, false], 0.0, |_, _| false),
         vec![(0, 0), (0, 2), (2, 3)]
     );
 }

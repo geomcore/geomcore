@@ -243,7 +243,8 @@ impl Samples {
         let measured: Vec<(f64, T)> = self.points.iter().map(|&p| measure(p)).collect();
         let distances: Vec<f64> = measured.iter().map(|&(distance, _)| distance).collect();
         let rounding = distance_rounding(coordinate_size(self.points.iter().chain(&other.points)));
-        grid_minima(&distances, self.shape, self.wrap, rounding)
+        let same_points = |p: usize, q: usize| self.points[p].distance(self.points[q]) <= rounding;
+        grid_minima(&distances, self.shape, self.wrap, rounding, same_points)
             .into_iter()
             .map(|(i, j)| {
                 let k = i * self.shape[1] + j;

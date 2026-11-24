@@ -20,6 +20,17 @@ the Python distribution are versioned in lockstep.
   first. When `discretize_into` panics on a buffer of the wrong length,
   the buffers now hold unspecified values; before, they were untouched.
 
+### Fixed
+
+- Curve–surface and surface–surface extrema find a minimum beside a
+  sphere's pole again (#494). Since 0.50.0 a run of equal sampled
+  distances counted as one valley and seeded one refinement, and a
+  sphere's pole row is such a run: its samples are one point. Seeded at
+  the angle 0 on the pole, the refinement could not turn towards a
+  minimum beside it, so a sphere above a B-spline patch could report no
+  minimum at all. Samples that are the same point no longer join one
+  valley; each seeds its own refinement, as before 0.50.0.
+
 ## [0.50.0] - 2026-11-23
 
 Near a contact, every closed form now follows one rule (ADR 0057): two
