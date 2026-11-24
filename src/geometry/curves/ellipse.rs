@@ -682,11 +682,25 @@ impl_for_both_tiers! {
                 || self.project_point(point, tol).distance <= tol.confusion
         }
 
+        /// The nearest point alone, from the monotone equation of its
+        /// Lagrange multiplier ([`elementary::ellipse_nearest`]) rather than
+        /// every stationary point of [`extrema`](Self::extrema).
         fn project_point(&self, point: P, tol: Tolerance) -> CurveProjection<P> {
-            self.extrema(point, tol)
-                .into_iter()
-                .next()
-                .unwrap_or(CurveProjection::UNDEFINED)
+            if !point.is_finite() {
+                return CurveProjection::UNDEFINED;
+            }
+            let rel = point - self.center();
+            let x = rel.dot(self.frame.x_direction());
+            let y = rel.dot(self.frame.y_direction());
+            let t = elementary::ellipse_nearest(self.major_radius, self.minor_radius, x, y);
+            // Measured at the solved parameter, reported in bounds, as
+            // `extrema` does: the seam snap moves the parameter, not the foot.
+            let foot = self.point_at(t);
+            CurveProjection {
+                parameter: self.parameter_in_bounds(t, tol),
+                point: foot,
+                distance: projection::snap_distance(foot.distance(point), tol.confusion),
+            }
         }
     }
 }

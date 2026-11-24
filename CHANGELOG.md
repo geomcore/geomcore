@@ -9,6 +9,15 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+### Changed
+
+- Point projection on an ellipse is about ten times faster (#462):
+  `project_point` solves for the nearest point alone, from the monotone
+  equation of its Lagrange multiplier (Eberly), instead of finding every
+  stationary point and keeping the nearest. About 95% fewer
+  instructions, also in the projections onto ellipse extrusions. The
+  nearest point is never farther than before; `extrema` is unchanged.
+
 ## [0.50.0] - 2026-11-23
 
 Near a contact, every closed form now follows one rule (ADR 0057): two
