@@ -21,6 +21,7 @@ use crate::geometry::curves::{
 };
 use crate::geometry::surfaces::uv_curve::from_curve::{OnSurfaceCheck, meridian_arc_to_uv};
 use crate::geometry::surfaces::{ParametricSurface, Restriction};
+use crate::math::parameter_range::ParameterRange;
 use crate::operations::intersect::results::{
     CurveSurfaceIntersection, CurveSurfaceOverlap, IntersectionCurve, SurfaceSurfaceIntersection,
 };
@@ -247,7 +248,14 @@ fn clipped(
     }
     if let Some(period) = piece.curve.period()
         && kept.len() >= 2
-        && (range.1 - range.0 - period).abs() <= tol.parametric
+        // The range of an intersection is computed, so a whole period is
+        // whole within the tolerance.
+        && (ParameterRange {
+            first: range.0,
+            last: range.1,
+            period: Some(period),
+        })
+        .spans_whole_period_within(tol)
         && kept[0].0 == range.0
         && kept[kept.len() - 1].1 == range.1
     {
