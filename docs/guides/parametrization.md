@@ -194,9 +194,9 @@ handle.
     import geomcore_viewer as gv
 
     view = gv.Viewer("A circle on a cylinder")
-    s = view.add(cylinder, label="S")
+    s = view.add(surface, label="S")
     view.add(circle, label="C")
-    view.pcurve(cylinder.curve_3d_to_uv(circle), s, label="C in (u, v)")
+    view.pcurve(surface.curve_3d_to_uv(circle), s, label="C in (u, v)")
     ```
 
 === "Rust"

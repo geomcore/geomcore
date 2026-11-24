@@ -26,9 +26,9 @@ height: 640
 
     The 0.5 release draws objects from geomcore 0.44 through 0.47 and
     declares that range, so pip resolves a compatible geomcore with it.
-    If the project you want to inspect pins geomcore 0.48, install the
-    pair in an environment of its own and pin the kernel the viewer
-    accepts:
+    For the Python viewer examples on this site, use a separate
+    environment with the supported kernel version. The other examples
+    in the documentation use geomcore 0.50.
 
     ```sh
     pip install "geomcore==0.47.*" geomcore-viewer
