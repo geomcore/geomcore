@@ -11,6 +11,11 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- Each elementary surface's implicit equation is written once (#504).
+  The conic and line intersections, the marching seeds and the reading
+  of conics lying close to a surface derived it again, the cone's four
+  times and the torus's five.
+
 - Point projection onto a rational B-spline surface is faster, still
   proven global (part of #501). A subpatch whose convexity is not
   settled is split in four at once instead of in two: the interval
@@ -21,6 +26,14 @@ the Python distribution are versioned in lockstep.
   surface of revolution, and 5% on marching a sphere against a B-spline
   torus. Polynomial patches split in two as before; in four they would
   cost 5% more.
+
+### Fixed
+
+- A circle or an ellipse lying within a few tolerances of a sphere or a
+  cylinder all along is read by its stretches within the tolerance, as
+  one lying close to a cone has been since #497 (#504). Its crossings no
+  longer merge into one point, a dip within the tolerance is found, and
+  only a conic within the tolerance all along lies on the surface.
 
 ## [0.52.0] - 2026-11-24
 
