@@ -94,7 +94,7 @@ incremental = false
 members = [".", "geomcore-py"]
 
 [workspace.package]
-version = "0.50.0"
+version = "0.51.0"
 
 [[bench]]
 name = "bspline_surface_projection"
