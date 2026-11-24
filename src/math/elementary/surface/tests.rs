@@ -462,6 +462,13 @@ fn test_derivatives_of_any_order_match_differences() {
 
 // ---- inversion feet ----
 
+/// The parameters and the foot of an inversion.
+fn read(
+    inversion: Inversion<impl Fn() -> (f64, f64), impl Fn() -> Option<Point>>,
+) -> ((f64, f64), Option<Point>) {
+    (inversion.parameters(), inversion.foot())
+}
+
 /// Where an inversion gives a foot, it is the point at its parameters
 /// within rounding of the scale, and no farther from the inverted point:
 /// on direct and indirect frames near and far from the origin, on and off
@@ -500,42 +507,50 @@ fn test_inversion_feet_are_the_points_at_their_parameters() {
         queries.push(frame.point_at(3.0, 0.0, 0.0));
         queries.push(frame.point_at(0.0, 0.5, 0.0));
         queries.push(frame.point_at(2.0, 0.0, 0.0));
-        let check =
-            |name: &str, q: Point, inversion: Inversion, evaluate: &dyn Fn(f64, f64) -> Point| {
-                let Some(foot) = inversion.foot else { return 0 };
-                let at = evaluate(inversion.u, inversion.v);
-                assert!(
-                    foot.distance(at) <= 1e-13 * scale,
-                    "{name} foot at {q:?}: {foot:?} vs {at:?}"
-                );
-                assert!(
-                    foot.distance(q) <= at.distance(q) + 1e-13 * scale,
-                    "{name} foot farther at {q:?}"
-                );
-                1
-            };
+        let check = |name: &str,
+                     q: Point,
+                     ((u, v), foot): ((f64, f64), Option<Point>),
+                     evaluate: &dyn Fn(f64, f64) -> Point| {
+            let Some(foot) = foot else { return 0 };
+            let at = evaluate(u, v);
+            assert!(
+                foot.distance(at) <= 1e-13 * scale,
+                "{name} foot at {q:?}: {foot:?} vs {at:?}"
+            );
+            assert!(
+                foot.distance(q) <= at.distance(q) + 1e-13 * scale,
+                "{name} foot farther at {q:?}"
+            );
+            1
+        };
         for &q in &queries {
-            checked += check("plane", q, plane_inversion(&frame, q), &|u, v| {
+            checked += check("plane", q, read(plane_inversion(&frame, q)), &|u, v| {
                 plane_d0(&frame, u, v)
             });
             checked += check(
                 "cylinder",
                 q,
-                cylinder_inversion(&frame, 2.0, q),
+                read(cylinder_inversion(&frame, 2.0, q)),
                 &|u, v| cylinder_d0(&frame, 2.0, u, v),
             );
             for (r, a) in [(2.0, 0.4), (0.0, 0.7), (1.0, 1.2)] {
-                checked += check("cone", q, cone_inversion(&frame, r, a, q), &|u, v| {
+                checked += check("cone", q, read(cone_inversion(&frame, r, a, q)), &|u, v| {
                     cone_d0(&frame, r, a, u, v)
                 });
             }
-            checked += check("sphere", q, sphere_inversion(&frame, 2.0, q), &|u, v| {
-                sphere_d0(&frame, 2.0, u, v)
-            });
+            checked += check(
+                "sphere",
+                q,
+                read(sphere_inversion(&frame, 2.0, q)),
+                &|u, v| sphere_d0(&frame, 2.0, u, v),
+            );
             for (maj, min) in [(3.0, 1.0), (1.0, 1.0), (0.5, 1.0)] {
-                checked += check("torus", q, torus_inversion(&frame, maj, min, q), &|u, v| {
-                    torus_d0(&frame, maj, min, u, v)
-                });
+                checked += check(
+                    "torus",
+                    q,
+                    read(torus_inversion(&frame, maj, min, q)),
+                    &|u, v| torus_d0(&frame, maj, min, u, v),
+                );
             }
         }
     }

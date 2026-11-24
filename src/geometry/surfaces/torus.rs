@@ -10,7 +10,9 @@ use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::SurfaceIsoError;
 use crate::geometry::surfaces::iso::{check_iso_param, iso_circle};
-use crate::geometry::surfaces::parametric_surface::{closed_form_normal, inverted_projection};
+use crate::geometry::surfaces::parametric_surface::{
+    closed_form_normal, inverted_contains, inverted_projection,
+};
 use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
@@ -301,6 +303,15 @@ impl ParametricSurface for Torus {
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
         inverted_projection(
+            self,
+            point,
+            tol,
+            elementary::torus_inversion(&self.frame, self.major_radius, self.minor_radius, point),
+        )
+    }
+
+    fn contains(&self, point: Point, tol: Tolerance) -> bool {
+        inverted_contains(
             self,
             point,
             tol,

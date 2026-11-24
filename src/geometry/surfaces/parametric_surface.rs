@@ -985,16 +985,34 @@ pub(crate) fn inverted_projection<S: ParametricSurface + ?Sized>(
     surface: &S,
     point: Point,
     tol: Tolerance,
-    inversion: Inversion,
+    inversion: Inversion<impl Fn() -> (f64, f64), impl Fn() -> Option<Point>>,
 ) -> SurfaceProjection {
-    let Inversion { u, v, foot } = inversion;
-    let foot = foot.unwrap_or_else(|| surface.point_at(u, v));
+    let (u, v) = inversion.parameters();
+    let foot = inversion.foot().unwrap_or_else(|| surface.point_at(u, v));
     SurfaceProjection {
         u,
         v,
         point: foot,
         distance: crate::operations::projection::snap_distance(foot.distance(point), tol.confusion),
     }
+}
+
+/// [`ParametricSurface::contains`] of an elementary surface from the
+/// [`Inversion`] of `point` on it: whether the foot of
+/// [`inverted_projection`] lies within `tol.confusion`, read without the
+/// parameters where the inversion gives the foot.
+#[inline]
+pub(crate) fn inverted_contains<S: ParametricSurface + ?Sized>(
+    surface: &S,
+    point: Point,
+    tol: Tolerance,
+    inversion: Inversion<impl Fn() -> (f64, f64), impl Fn() -> Option<Point>>,
+) -> bool {
+    let foot = inversion.foot().unwrap_or_else(|| {
+        let (u, v) = inversion.parameters();
+        surface.point_at(u, v)
+    });
+    foot.distance(point) <= tol.confusion
 }
 
 /// [`ParametricSurface::normal`] of a surface whose unit normal has a
