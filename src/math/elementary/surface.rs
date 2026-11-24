@@ -315,17 +315,19 @@ pub(crate) fn cone_inversion(
     // Below the apex the point's radial coordinate along `u` is `-ρ`.
     let side = if radius_here < 0.0 { -1.0 } else { 1.0 };
     let v_at = move |radial: f64| sine * (radial - reference_radius) + cosine * z;
+    // Off the axis both the parameters and the foot read the distance
+    // from it.
+    let rho = x.hypot(y);
     Inversion {
         parameters: move || {
             if on_axis {
                 (0.0, v_at(x))
             } else {
                 let u = wrap_to_turn((side * y).atan2(side * x));
-                (u, v_at(side * x.hypot(y)))
+                (u, v_at(side * rho))
             }
         },
         foot: move || {
-            let rho = x.hypot(y);
             (!on_axis && divides(rho)).then(|| {
                 let v = v_at(side * rho);
                 let scale = side * (reference_radius + v * sine) / rho;
