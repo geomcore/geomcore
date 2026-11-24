@@ -1,5 +1,6 @@
 use super::*;
-use crate::{Circle, Frame};
+use crate::operations::intersect::implicit::Implicit;
+use crate::{Circle, Cone, Cylinder, Frame, Point, Sphere, Vector};
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 
@@ -111,7 +112,7 @@ fn test_a_dip_within_the_tolerance_is_a_touching_point() {
     let hits = hits(&circle, &cone);
     assert_eq!(hits.len(), 1, "{hits:?}");
     assert_eq!(hits[0].multiplicity, 2);
-    let distance = SignedDistance::new(&cone).at(hits[0].point).abs();
+    let distance = cone.equation().signed_distance(hits[0].point).abs();
     assert!(distance <= TOL.confusion, "{distance}");
 }
 
@@ -188,20 +189,20 @@ fn test_a_crossing_near_the_seam_is_found_where_it_is() {
     );
 }
 
-/// No answer for `conic` against `cone` is contradicted by the distance
+/// No answer for `conic` against `quadric` is contradicted by the distance
 /// sampled densely along it: every point lies within the tolerance,
 /// every clear sign change has a point beside it, every stretch that
 /// comes within 0.99 tolerances holds a point, and only a conic within
-/// the tolerance all along lies on the cone.
-fn grade<C: Conic>(conic: &C, cone: &Cone, context: &str) {
+/// the tolerance all along lies on the surface.
+fn grade<C: Conic, Q: Quadric>(conic: &C, quadric: &Q, context: &str) {
     const SAMPLES: usize = 20_000;
     let band = TOL.confusion;
-    let distance = SignedDistance::new(cone);
-    let at = |t: f64| distance.at(conic.point_at(t));
+    let equation = quadric.equation();
+    let at = |t: f64| equation.signed_distance(conic.point_at(t));
     let values: Vec<f64> = (0..SAMPLES)
         .map(|k| at(TAU * k as f64 / SAMPLES as f64))
         .collect();
-    match super::super::intersect_conic_quadric(conic, cone, TOL) {
+    match super::super::intersect_conic_quadric(conic, quadric, TOL) {
         ConicSurfaceIntersection::Coincident => {
             let worst = values.iter().fold(0f64, |m, v| m.max(v.abs()));
             assert!(
@@ -215,7 +216,7 @@ fn grade<C: Conic>(conic: &C, cone: &Cone, context: &str) {
         }
         ConicSurfaceIntersection::Hits(hits) => {
             for h in &hits {
-                let d = distance.at(h.point).abs();
+                let d = equation.signed_distance(h.point).abs();
                 assert!(
                     d <= band * (1.0 + 1e-6),
                     "{context}: hit {} off by {d}",
@@ -354,6 +355,92 @@ fn test_near_elliptic_sections_of_a_cone_agree_with_the_sampled_distance() {
             &ellipse,
             &cone,
             &format!("ellipse {case}: angle {angle}, tilt {tilt}, height {height}"),
+        );
+    }
+}
+
+/// Random circles cut from spheres and moved off them by up to two
+/// tolerances: see [`grade`]. The plane `z = h` meets the sphere of
+/// radius `R` in the circle of radius `√(R² − h²)`.
+#[test]
+fn test_near_sections_of_a_sphere_agree_with_the_sampled_distance() {
+    let mut random = sequence();
+    let band = TOL.confusion;
+    for case in 0..2000 {
+        let radius = 10f64.powf(-5.0 + 7.0 * random());
+        let height = radius * (2.0 * random() - 1.0);
+        let sphere = Sphere::new(Point::ORIGIN, radius).unwrap();
+        let jitter = |r: f64| (2.0 * r - 1.0) * 2.0 * band;
+        let across = (radius * radius - height * height).sqrt() + jitter(random());
+        if across <= band {
+            continue;
+        }
+        let normal = Vector::new(
+            jitter(random()) / across.max(1.0),
+            jitter(random()) / across.max(1.0),
+            1.0,
+        );
+        let center = Point::new(
+            jitter(random()),
+            jitter(random()),
+            height + jitter(random()),
+        );
+        let Ok(circle) = Circle::new(center, normal, across) else {
+            continue;
+        };
+        grade(
+            &circle,
+            &sphere,
+            &format!("circle {case}: radius {radius}, height {height}"),
+        );
+    }
+}
+
+/// Random ellipses cut from cylinders by tilted planes, circles among
+/// them, and moved off them by up to two tolerances: see [`grade`]. The
+/// plane through the origin at the tilt `β` from the cross-section meets
+/// the cylinder of radius `R` in the ellipse of semi-axes `R / cos β`
+/// and `R`.
+#[test]
+fn test_near_sections_of_a_cylinder_agree_with_the_sampled_distance() {
+    let mut random = sequence();
+    let band = TOL.confusion;
+    for case in 0..2000 {
+        let radius = 10f64.powf(-5.0 + 7.0 * random());
+        let tilt = if random() < 0.3 { 0.0 } else { 1.4 * random() };
+        let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, radius).unwrap();
+        let jitter = |r: f64| (2.0 * r - 1.0) * 2.0 * band;
+        let (sine, cosine) = tilt.sin_cos();
+        let minor = radius + jitter(random());
+        let major = minor / cosine;
+        if minor <= band {
+            continue;
+        }
+        let center = Point::new(jitter(random()), jitter(random()), jitter(random()));
+        let normal = Vector::new(-sine, jitter(random()) / major.max(1.0), cosine);
+        let x_direction = Vector::new(cosine, 0.0, sine);
+        let ellipse = if tilt == 0.0 {
+            match Circle::new(center, normal, minor) {
+                Ok(circle) => {
+                    grade(
+                        &circle,
+                        &cylinder,
+                        &format!("circle {case}: radius {radius}"),
+                    );
+                    continue;
+                }
+                Err(_) => continue,
+            }
+        } else {
+            crate::Ellipse::new(center, normal, x_direction, major, minor)
+        };
+        let Ok(ellipse) = ellipse else {
+            continue;
+        };
+        grade(
+            &ellipse,
+            &cylinder,
+            &format!("ellipse {case}: radius {radius}, tilt {tilt}"),
         );
     }
 }

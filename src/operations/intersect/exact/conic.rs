@@ -28,13 +28,14 @@ use crate::math::numeric::{
     QuadraticSolution, RealRoot, roots_with_tangency, solve_quadratic, solve_trig,
     solve_trig_linear,
 };
+use crate::operations::intersect::implicit::{Implicit, QuadricEquation};
 use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
     ConicConicIntersection, ConicSurfaceHit, ConicSurfaceIntersection, CurveCurveHit,
 };
 use crate::{
     Circle, Cone, Cylinder, Ellipse, Frame, Hyperbola, InlineList, IntersectExact, Parabola, Plane,
-    Point, Sphere, Tolerance, Torus, Vector,
+    Point, Sphere, Tolerance, Torus,
 };
 
 /// The shape of a conic in its own frame: what its parametrization
@@ -166,14 +167,13 @@ impl Conic for Hyperbola {
     }
 }
 
-/// A plane, sphere, cylinder or cone, through its section by a plane.
-pub(crate) trait Quadric: ParametricSurface + Sized {
+/// A plane, sphere, cylinder or cone, through its section by a plane
+/// (see [`QuadricEquation`]).
+pub(crate) trait Quadric:
+    ParametricSurface + Implicit<Equation: QuadricEquation> + Sized
+{
     /// Whether every section is first degree, which only the plane's is.
     const LINEAR: bool = false;
-
-    /// The section by the plane through `origin` spanned by the
-    /// orthonormal `x` and `y`, in the coordinates `p = origin + αx + βy`.
-    fn section(&self, origin: Point, x: Vector, y: Vector) -> ImplicitConic;
 
     /// For a circle or ellipse of semi-axes `a`, `b` centered at `origin`
     /// whose section leaves a first-order trigonometric equation, the
@@ -191,37 +191,10 @@ pub(crate) trait Quadric: ParametricSurface + Sized {
         matches!(shape, ConicShape::Ellipse { .. })
             && conic_lies_on(conic, self, shape.samples(), tol)
     }
-
-    /// The whole answer for a conic that lies within a few tolerances of
-    /// the surface all along, where the substituted equation is too flat
-    /// for its roots to say where the conic is within the tolerance (see
-    /// [`near_section`]); `None` for any other conic, or a quadric
-    /// without the analysis.
-    #[inline]
-    fn near_section<C: Conic>(
-        &self,
-        _conic: &C,
-        _tol: Tolerance,
-    ) -> Option<ConicSurfaceIntersection> {
-        None
-    }
 }
 
 impl Quadric for Plane {
     const LINEAR: bool = true;
-
-    #[inline]
-    fn section(&self, origin: Point, x: Vector, y: Vector) -> ImplicitConic {
-        let n = self.normal_direction();
-        ImplicitConic {
-            a2: 0.0,
-            b2: 0.0,
-            c2: 0.0,
-            d1: x.dot(n),
-            e1: y.dot(n),
-            f0: (origin - self.frame().origin()).dot(n),
-        }
-    }
 
     #[inline]
     fn linear_trig_scale(&self, origin: Point, a: f64, b: f64) -> Option<f64> {
@@ -248,21 +221,6 @@ impl Quadric for Plane {
 }
 
 impl Quadric for Sphere {
-    /// `|p - c|² - r²`.
-    #[inline]
-    fn section(&self, origin: Point, x: Vector, y: Vector) -> ImplicitConic {
-        let w = origin - self.center();
-        let r = self.radius();
-        ImplicitConic {
-            a2: 1.0,
-            b2: 1.0,
-            c2: 0.0,
-            d1: 2.0 * x.dot(w),
-            e1: 2.0 * y.dot(w),
-            f0: w.dot(w) - r * r,
-        }
-    }
-
     /// On a circle, `α² + β²` is constant, so the section's second-degree
     /// terms fold into the constant.
     #[inline]
@@ -276,46 +234,13 @@ impl Quadric for Sphere {
     }
 }
 
-impl Quadric for Cylinder {
-    /// `|p - o|² - ((p - o)·d)² - r²` for the axis `(o, d)`.
-    #[inline]
-    fn section(&self, origin: Point, x: Vector, y: Vector) -> ImplicitConic {
-        let d = self.axis().direction();
-        let w = origin - self.axis().origin();
-        let r = self.radius();
-        let (xd, yd, wd) = (x.dot(d), y.dot(d), w.dot(d));
-        ImplicitConic {
-            a2: 1.0 - xd * xd,
-            b2: 1.0 - yd * yd,
-            c2: -2.0 * xd * yd,
-            d1: 2.0 * (x.dot(w) - wd * xd),
-            e1: 2.0 * (y.dot(w) - wd * yd),
-            f0: w.dot(w) - wd * wd - r * r,
-        }
-    }
-}
+impl Quadric for Cylinder {}
 
 impl Quadric for Cone {
-    /// `((p - apex)·d)² - cos²φ |p - apex|²` for the axis direction `d`
-    /// and the half-angle `φ`: both nappes.
-    #[inline]
-    fn section(&self, origin: Point, x: Vector, y: Vector) -> ImplicitConic {
-        let cos = self.half_angle().cos();
-        cone_section(
-            self.apex(),
-            self.frame().z_direction().vector(),
-            cos * cos,
-            origin,
-            x,
-            y,
-        )
-    }
-
     /// A cone holds the circles and ellipses that are its plane sections,
     /// and also parabolas and hyperbolas. A circle or an ellipse reaches
-    /// this only when [`near_section`](Quadric::near_section) declined it,
-    /// a sample more than a few tolerances from the cone: it does not lie
-    /// on it.
+    /// this only when [`near_section::closed_conic_near`] declined it, a sample more than a
+    /// few tolerances from the cone: it does not lie on it.
     // Left to the compiler, whether it is inlined into
     // `intersect_conic_quadric` turns on changes elsewhere in the crate:
     // 2% of a hyperbola against a cone, its points' `sinh` and `cosh`
@@ -325,39 +250,6 @@ impl Quadric for Cone {
         let shape = conic.shape();
         !matches!(shape, ConicShape::Ellipse { .. })
             && conic_lies_on(conic, self, shape.samples(), tol)
-    }
-
-    #[inline]
-    fn near_section<C: Conic>(
-        &self,
-        conic: &C,
-        tol: Tolerance,
-    ) -> Option<ConicSurfaceIntersection> {
-        near_section::closed_conic_near_cone(conic, self, tol)
-    }
-}
-
-/// The section of the double cone of `apex`, unit `axis` and squared
-/// half-angle cosine `c2`, `((p − apex)·axis)² − c2 |p − apex|²`, by the
-/// plane through `origin` spanned by the orthonormal `x` and `y`.
-#[inline]
-fn cone_section(
-    apex: Point,
-    axis: Vector,
-    c2: f64,
-    origin: Point,
-    x: Vector,
-    y: Vector,
-) -> ImplicitConic {
-    let w = origin - apex;
-    let (xd, yd, wd) = (x.dot(axis), y.dot(axis), w.dot(axis));
-    ImplicitConic {
-        a2: xd * xd - c2,
-        b2: yd * yd - c2,
-        c2: 2.0 * xd * yd,
-        d1: 2.0 * (wd * xd - c2 * x.dot(w)),
-        e1: 2.0 * (wd * yd - c2 * y.dot(w)),
-        f0: wd * wd - c2 * w.dot(w),
     }
 }
 
@@ -432,7 +324,9 @@ pub(crate) fn intersect_conic_quadric<C: Conic, S: Quadric>(
     quadric: &S,
     tol: Tolerance,
 ) -> ConicSurfaceIntersection {
-    if let Some(near) = quadric.near_section(conic, tol) {
+    if !S::LINEAR
+        && let Some(near) = near_section::closed_conic_near(conic, quadric, tol)
+    {
         return near;
     }
     if quadric.holds(conic, tol) {
@@ -440,7 +334,7 @@ pub(crate) fn intersect_conic_quadric<C: Conic, S: Quadric>(
     }
     let frame = conic.frame();
     let origin = frame.origin();
-    let section = quadric.section(
+    let section = quadric.equation().section(
         origin,
         frame.x_direction().vector(),
         frame.y_direction().vector(),
@@ -487,38 +381,12 @@ pub(crate) fn intersect_circle_torus(
         return ConicSurfaceIntersection::Coincident;
     }
     let frame = circle.frame();
-    let axis = torus.frame().z_direction();
-    let (major, minor, radius) = (torus.major_radius(), torus.minor_radius(), circle.radius());
-    let (x, y) = (frame.x_direction(), frame.y_direction());
-    let w = frame.origin() - torus.center();
-    // |Q|² and Q·a as k0 + k1 cos t + k2 sin t.
-    let squared = [
-        w.dot(w) + radius * radius,
-        2.0 * radius * w.dot(x),
-        2.0 * radius * w.dot(y),
-    ];
-    let height = [w.dot(axis), radius * x.dot(axis), radius * y.dot(axis)];
-    let shifted = [
-        squared[0] + major * major - minor * minor,
-        squared[1],
-        squared[2],
-    ];
-    let four_major_squared = 4.0 * major * major;
-    // (k0 + k1 cos t + k2 sin t)² as [cos 2t, sin 2t, cos t, sin t, 1].
-    let square = |[k0, k1, k2]: [f64; 3]| {
-        [
-            (k1 * k1 - k2 * k2) / 2.0,
-            k1 * k2,
-            2.0 * k0 * k1,
-            2.0 * k0 * k2,
-            k0 * k0 + (k1 * k1 + k2 * k2) / 2.0,
-        ]
-    };
-    let (outer, along_axis) = (square(shifted), square(height));
-    let radial = [0.0, 0.0, squared[1], squared[2], squared[0]];
-    let [a2, b2, c1, d1, e] = std::array::from_fn(|k| {
-        outer[k] - four_major_squared * radial[k] + four_major_squared * along_axis[k]
-    });
+    let [a2, b2, c1, d1, e] = torus.equation().along_circle(
+        frame.origin(),
+        frame.x_direction().vector(),
+        frame.y_direction().vector(),
+        circle.radius(),
+    );
     let touches = |t: f64| torus.contains(circle.point_at(t), tol);
     let candidates = solve_trig(a2, b2, c1, d1, e, tol, touches);
     let mut hits = verify_conic_hits(circle, torus, &candidates, tol);
@@ -853,12 +721,12 @@ where
 /// coplanar line/circle solves.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct ImplicitConic {
-    a2: f64,
-    b2: f64,
-    c2: f64,
-    d1: f64,
-    e1: f64,
-    f0: f64,
+    pub(crate) a2: f64,
+    pub(crate) b2: f64,
+    pub(crate) c2: f64,
+    pub(crate) d1: f64,
+    pub(crate) e1: f64,
+    pub(crate) f0: f64,
 }
 
 impl ImplicitConic {

@@ -6,6 +6,7 @@ use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::{
     QuadraticSolution, quadratic_centre, roots_with_tangency, solve_quadratic,
 };
+use crate::operations::intersect::implicit::{Implicit, QuadricEquation};
 use crate::operations::intersect::{intersect_circle_torus, intersect_conic_quadric};
 use crate::{
     Circle, Cone, Cylinder, Ellipse, Hyperbola, IntersectExact, Line, Parabola, Plane, Point,
@@ -188,10 +189,10 @@ impl IntersectExact<Sphere> for Line {
     fn intersect_exact(&self, sphere: &Sphere, tol: Tolerance) -> LineQuadricIntersection {
         let d = self.direction();
         let t0 = -d.dot(self.origin() - sphere.center());
-        let w = self.point_at(t0) - sphere.center();
-        // A is exactly 1: the direction is unit by construction.
-        let qb = 2.0 * d.dot(w);
-        let sol = solve_quadratic(1.0, qb, w.dot(w) - sphere.radius().powi(2), tol)
+        // The leading coefficient is exactly 1: the direction is unit by
+        // construction.
+        let (qa, qb, qc) = sphere.equation().along_line(self.point_at(t0), d.vector());
+        let sol = solve_quadratic(qa, qb, qc, tol)
             .touching_at(-0.5 * qb, |s| sphere.contains(self.point_at(t0 + s), tol));
         match sol.shifted(t0) {
             QuadraticSolution::Two(t1, t2) => {
@@ -232,29 +233,20 @@ impl IntersectExact<Cylinder> for Line {
     /// }
     /// ```
     fn intersect_exact(&self, cylinder: &Cylinder, tol: Tolerance) -> LineQuadricIntersection {
-        let d = self.direction();
-        let a = cylinder.axis().direction();
-        let da = d.dot(a);
-        let qa = 1.0 - da * da;
+        let equation = cylinder.equation();
+        // The quadratic about the line point at parameter t0.
+        let along = |t0: f64| equation.along_line(self.point_at(t0), self.direction().vector());
+        let (qa, qb0, _) = along(0.0);
         // `qa` is the squared sine of the line's angle to the axis, so
         // the line is parallel to it below the squared angular tolerance.
         let tol = Tolerance {
             angular: tol.angular * tol.angular,
             ..tol
         };
-        // Coefficients about the line point at parameter t0.
-        let coeffs = |t0: f64| {
-            let w = self.point_at(t0) - cylinder.axis().origin();
-            let wa = w.dot(a);
-            (
-                2.0 * (d.dot(w) - da * wa),
-                w.dot(w) - wa * wa - cylinder.radius().powi(2),
-            )
-        };
         // Centred at the closest approach to the axis; tangent when that
         // point lies within tolerance of the cylinder.
-        let t0 = quadratic_centre(qa, coeffs(0.0).0, tol);
-        let (qb, qc) = coeffs(t0);
+        let t0 = quadratic_centre(qa, qb0, tol);
+        let (_, qb, qc) = along(t0);
         let sol = solve_quadratic(qa, qb, qc, tol).touching_at(-qb / (2.0 * qa), |s| {
             cylinder.contains(self.point_at(t0 + s), tol)
         });
@@ -303,23 +295,13 @@ impl IntersectExact<Cone> for Line {
     /// }
     /// ```
     fn intersect_exact(&self, cone: &Cone, tol: Tolerance) -> LineQuadricIntersection {
-        let d = self.direction();
-        let a = cone.frame().z_direction();
-        let cos_phi = cone.half_angle().cos();
-        let da = d.dot(a);
-        let qa = da * da - cos_phi * cos_phi;
-        // Coefficients about the line point at parameter t0.
-        let coeffs = |t0: f64| {
-            let m = self.point_at(t0) - cone.apex();
-            let ma = m.dot(a);
-            (
-                2.0 * (da * ma - cos_phi * cos_phi * d.dot(m)),
-                ma * ma - cos_phi * cos_phi * m.dot(m),
-            )
-        };
+        let equation = cone.equation();
+        // The quadratic about the line point at parameter t0.
+        let along = |t0: f64| equation.along_line(self.point_at(t0), self.direction().vector());
+        let (qa, qb0, _) = along(0.0);
         // Centred at the midpoint of the two roots.
-        let t0 = quadratic_centre(qa, coeffs(0.0).0, tol);
-        let (qb, qc) = coeffs(t0);
+        let t0 = quadratic_centre(qa, qb0, tol);
+        let (_, qb, qc) = along(t0);
         let hit = |t: f64| (t, self.point_at(t));
         // Tangent when the vertex of the quadratic lies within tolerance
         // of the cone.
@@ -386,26 +368,9 @@ impl IntersectExact<Torus> for Line {
     /// }
     /// ```
     fn intersect_exact(&self, torus: &Torus, tol: Tolerance) -> LineTorusIntersection {
-        let a = torus.frame().z_direction();
-        let (major, minor) = (torus.major_radius(), torus.minor_radius());
         let d = self.direction();
         let t0 = -d.dot(self.origin() - torus.center());
-        let w = self.point_at(t0) - torus.center();
-        let wd = w.dot(d);
-        let (da, wa) = (d.dot(a), w.dot(a));
-        let b1 = 2.0 * wd;
-        let c1 = w.dot(w) + major * major - minor * minor;
-        let qa = 1.0 - da * da;
-        let qb = 2.0 * (wd - wa * da);
-        let qc = w.dot(w) - wa * wa;
-        let rr = 4.0 * major * major;
-        let coeffs = [
-            c1 * c1 - rr * qc,
-            2.0 * b1 * c1 - rr * qb,
-            b1 * b1 + 2.0 * c1 - rr * qa,
-            2.0 * b1,
-            1.0,
-        ];
+        let coeffs = torus.equation().along_line(self.point_at(t0), d.vector());
         let touches = |s: f64| torus.contains(self.point_at(t0 + s), tol);
         let mut hits: Vec<LineTorusHit> = roots_with_tangency(&coeffs, tol, touches)
             .iter()
