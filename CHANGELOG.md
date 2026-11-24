@@ -9,6 +9,16 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.52.0] - 2026-11-24
+
+Contacts read where the curve really is. A circle or an ellipse lying
+within a few tolerances of a cone all along is split into the stretches
+the cones at the tolerance on either side certify, so crossings no
+longer merge, dips within the tolerance are found, and only a curve
+within the tolerance all along lies on the cone. A point near a needle
+ellipse's seam keeps its own parameter unless the seam point is within
+confusion of it.
+
 ### Fixed
 
 - A point found near an ellipse's seam is reported at its own parameter
@@ -4284,7 +4294,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.51.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.52.0...HEAD
+[0.52.0]: https://github.com/geomcore/geomcore/compare/v0.51.0...v0.52.0
 [0.51.0]: https://github.com/geomcore/geomcore/compare/v0.50.0...v0.51.0
 [0.50.0]: https://github.com/geomcore/geomcore/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/geomcore/geomcore/compare/v0.48.0...v0.49.0
