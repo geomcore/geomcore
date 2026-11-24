@@ -23,10 +23,16 @@ use super::{DiscretizationCriteria, smallest_count};
 use crate::base::tier::TierPoint;
 use crate::geometry::curves::GenericBSplineCurve;
 use crate::geometry::curves::Run;
+use crate::math::bspline::curve::SMALL;
 use std::f64::consts::{FRAC_PI_2, PI};
 
 /// Control points of the highest supported degree, 25.
 const CAPACITY: usize = 26;
+
+/// Control points of the degrees below 8, which cover the curves seen in
+/// practice: a piece sized for them copies a third as much as one sized
+/// for degree 25 on every halving and evaluation.
+const SMALL_CAPACITY: usize = SMALL;
 
 /// How many times a span may be halved.
 const MAX_DEPTH: u32 = 30;
@@ -45,23 +51,20 @@ const MIN_SPEED_RATIO: f64 = 1e-6;
 /// its steps.
 const SPLIT_GAIN: f64 = 0.85;
 
-/// Coefficients of the polynomial giving a rational piece's tangent
-/// direction, of degree `2 × 25 − 1`.
-const DIRECTION_CAPACITY: usize = 2 * (CAPACITY - 1);
-
 /// A homogeneous control point `(x w, y w, z w, w)`, `z = 0` for a 2D
 /// curve: every norm and difference below is then the planar one.
 type Homogeneous = [f64; 4];
 
 /// A polynomial piece over the parameter interval `[first, last]`, in
-/// Bernstein form over `[0, 1]`.
+/// Bernstein form over `[0, 1]`, its control points held in an array of
+/// `N >= degree + 1` slots.
 #[derive(Clone, Copy)]
-struct Piece {
+struct Piece<const N: usize> {
     first: f64,
     last: f64,
     degree: usize,
     rational: bool,
-    points: [Homogeneous; CAPACITY],
+    points: [Homogeneous; N],
 }
 
 fn lerp(a: Homogeneous, b: Homogeneous, s: f64) -> Homogeneous {
@@ -77,13 +80,13 @@ fn second_difference(p: &[Homogeneous], i: usize) -> [f64; 3] {
     std::array::from_fn(|c| p[i + 2][c] - 2.0 * p[i + 1][c] + p[i][c])
 }
 
-impl Piece {
+impl<const N: usize> Piece<N> {
     fn control(&self) -> &[Homogeneous] {
         &self.points[..=self.degree]
     }
 
     /// The two pieces either side of the fraction `s`, by de Casteljau.
-    fn split(&self, s: f64) -> (Piece, Piece) {
+    fn split(&self, s: f64) -> (Self, Self) {
         let n = self.degree;
         let mut t = self.points;
         let (mut left, mut right) = (*self, *self);
@@ -101,7 +104,7 @@ impl Piece {
     }
 
     /// The piece restricted to `[first, last]` inside its interval.
-    fn restricted(&self, first: f64, last: f64) -> Piece {
+    fn restricted(&self, first: f64, last: f64) -> Self {
         let length = self.last - self.first;
         let mut piece = *self;
         if first > self.first {
@@ -157,7 +160,7 @@ impl Piece {
                 norm(std::array::from_fn(|c| q[c] - centroid[c]))
             })
             .fold(0.0, f64::max);
-        let mut offsets = [[0.0; 4]; CAPACITY];
+        let mut offsets = [[0.0; 4]; N];
         for (x, h) in offsets.iter_mut().zip(p) {
             *x = [
                 h[0] - centroid[0] * h[3],
@@ -181,16 +184,27 @@ impl Piece {
     /// `W²`, `W` being positive), a polynomial of degree `2n − 1` whose
     /// Bernstein coefficients come from the products of the homogeneous
     /// control points' differences and weights (see [`Context`]).
-    fn turning(&self, context: &Context) -> Option<f64> {
+    fn turning<const D: usize, const R: usize>(
+        &self,
+        context: &Context,
+        scratch: &mut Scratch<D, R>,
+    ) -> Option<f64> {
         let p = self.control();
         let n = self.degree;
-        let mut directions = [[0.0; 3]; DIRECTION_CAPACITY];
+        let Scratch {
+            directions,
+            cross,
+            dot,
+        } = scratch;
         if !self.rational {
-            for (i, d) in directions.iter_mut().enumerate().take(n) {
+            let directions = &mut directions[..n];
+            for (i, d) in directions.iter_mut().enumerate() {
                 *d = std::array::from_fn(|c| p[i + 1][c] - p[i][c]);
             }
-            return turning(&directions[..n], context);
+            return turning(directions, context, cross, dot);
         }
+        let directions = &mut directions[..2 * n];
+        directions.fill([0.0; 3]);
         let products = &context.direction_products;
         for i in 0..n {
             let difference: Homogeneous = std::array::from_fn(|c| p[i + 1][c] - p[i][c]);
@@ -202,11 +216,15 @@ impl Piece {
                 }
             }
         }
-        turning(&directions[..2 * n], context)
+        turning(directions, context, cross, dot)
     }
 
     /// The piece's bounds for the criteria.
-    fn bounds(&self, context: &Context) -> Bounds {
+    fn bounds<const D: usize, const R: usize>(
+        &self,
+        context: &Context,
+        scratch: &mut Scratch<D, R>,
+    ) -> Bounds {
         let chord_constant = self.chord_constant();
         let chord = chord_segments(chord_constant, context.criteria.max_chord_deviation);
         let Some(limit) = context.criteria.angle_limit() else {
@@ -216,7 +234,7 @@ impl Piece {
                 segments: Some(chord),
             };
         };
-        let turning = self.turning(context);
+        let turning = self.turning(context, scratch);
         let segments = turning.map(|turning| {
             let angle = smallest_count(turning / limit, |k| angle_deviation(turning, k) <= limit);
             chord.max(angle)
@@ -230,10 +248,11 @@ impl Piece {
 
     /// Visits the leaves of the halving of this piece, of `bounds`, each
     /// as a run.
-    fn visit_leaves<P: TierPoint, F>(
+    fn visit_leaves<P: TierPoint, F, const D: usize, const R: usize>(
         &self,
         bounds: Bounds,
         context: &Context,
+        scratch: &mut Scratch<D, R>,
         depth: u32,
         min_segments: usize,
         visit: &mut F,
@@ -246,7 +265,8 @@ impl Piece {
         };
         if may_split {
             let (left, right) = self.split(0.5);
-            let (left_bounds, right_bounds) = (left.bounds(context), right.bounds(context));
+            let left_bounds = left.bounds(context, scratch);
+            let right_bounds = right.bounds(context, scratch);
             let halves = left_bounds.segments.zip(right_bounds.segments);
             let worth = match (bounds.segments, halves) {
                 (None, _) => true,
@@ -254,8 +274,22 @@ impl Piece {
                 (Some(_), None) => false,
             };
             if worth {
-                left.visit_leaves(left_bounds, context, depth + 1, min_segments, visit);
-                right.visit_leaves(right_bounds, context, depth + 1, min_segments, visit);
+                left.visit_leaves(
+                    left_bounds,
+                    context,
+                    scratch,
+                    depth + 1,
+                    min_segments,
+                    visit,
+                );
+                right.visit_leaves(
+                    right_bounds,
+                    context,
+                    scratch,
+                    depth + 1,
+                    min_segments,
+                    visit,
+                );
                 return;
             }
         }
@@ -266,7 +300,7 @@ impl Piece {
             .max(min_segments);
         let turning = match criteria.angle_limit() {
             Some(_) => bounds.turning,
-            None => self.turning(context),
+            None => self.turning(context, scratch),
         };
         let run = Run {
             first: self.first,
@@ -295,7 +329,7 @@ struct Bounds {
 /// Entries of a row of binomial coefficients, up to `C(98, k)`: the product
 /// of two tangent directions of a rational piece of degree 25, each of
 /// degree `2 × 25 − 1`.
-const ROW: usize = 2 * DIRECTION_CAPACITY - 1;
+const ROW: usize = products(CAPACITY);
 
 /// The products of Bernstein polynomials of degrees `p` and `q`:
 /// `B_i^p B_j^q = C(p, i) C(q, j) / C(p + q, i + j) B_{i+j}^{p+q}`.
@@ -359,6 +393,43 @@ impl<'a> Context<'a> {
     }
 }
 
+/// The working buffers of [`Piece::turning`], made once per curve (on the
+/// stack: discretizing allocates nothing), so a call clears only the
+/// coefficients its degree uses.
+///
+/// For pieces of up to `N` control points, `D` is `directions(N)` and `R`
+/// is `products(N)`.
+struct Scratch<const D: usize, const R: usize> {
+    /// The Bernstein coefficients of the tangent's direction `D`.
+    directions: [[f64; 3]; D],
+    /// Those of `D × D'`.
+    cross: [[f64; 3]; R],
+    /// Those of `D · D`.
+    dot: [f64; R],
+}
+
+/// Coefficients of a tangent's direction on a piece of up to `n` control
+/// points: `2 (n − 1)` on a rational piece, whose direction has degree
+/// `2 (n − 1) − 1`.
+const fn directions(n: usize) -> usize {
+    2 * (n - 1)
+}
+
+/// Coefficients of the products of two such directions.
+const fn products(n: usize) -> usize {
+    2 * directions(n) - 1
+}
+
+impl<const D: usize, const R: usize> Scratch<D, R> {
+    fn new() -> Self {
+        Self {
+            directions: [[0.0; 3]; D],
+            cross: [[0.0; 3]; R],
+            dot: [0.0; R],
+        }
+    }
+}
+
 /// The turning of a curve over `[0, 1]` whose tangent has the direction
 /// of the polynomial `D` with Bernstein coefficients `d`, of degree `m`,
 /// the direction turning at the rate `|D × D'| / |D|²`.
@@ -372,7 +443,14 @@ impl<'a> Context<'a> {
 /// largest norm of the first over the smallest of the second, if
 /// positive. The second leaves out the change of `D` along itself, which
 /// does not turn the tangent.
-fn turning(d: &[[f64; 3]], context: &Context) -> Option<f64> {
+///
+/// `cross` and `dot` are working buffers of at least `2m + 1` entries.
+fn turning(
+    d: &[[f64; 3]],
+    context: &Context,
+    cross: &mut [[f64; 3]],
+    dot: &mut [f64],
+) -> Option<f64> {
     let m = d.len().checked_sub(1)?;
     // The mean of the coefficients' directions, not of the coefficients:
     // a few large ones would pull it away from the others.
@@ -390,8 +468,10 @@ fn turning(d: &[[f64; 3]], context: &Context) -> Option<f64> {
         return None;
     }
     let mut change = 0.0f64;
-    let mut cross = [[0.0; 3]; ROW];
-    let mut dot = [0.0; ROW];
+    let cross = &mut cross[..2 * m];
+    cross.fill([0.0; 3]);
+    let dot = &mut dot[..=2 * m];
+    dot.fill(0.0);
     for j in 0..m {
         let difference: [f64; 3] = std::array::from_fn(|c| d[j + 1][c] - d[j][c]);
         change = change.max(norm(difference));
@@ -411,14 +491,10 @@ fn turning(d: &[[f64; 3]], context: &Context) -> Option<f64> {
         }
     }
     let by_speed = m as f64 * change / slowest;
-    let slowest_squared = dot[..=2 * m].iter().copied().fold(f64::INFINITY, f64::min);
+    let slowest_squared = dot.iter().copied().fold(f64::INFINITY, f64::min);
     if slowest_squared > 0.0 {
         let squared = |v: &[f64; 3]| v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
-        let fastest_turn = cross[..2 * m]
-            .iter()
-            .map(squared)
-            .fold(0.0, f64::max)
-            .sqrt();
+        let fastest_turn = cross.iter().map(squared).fold(0.0, f64::max).sqrt();
         Some(by_speed.min(fastest_turn / slowest_squared))
     } else {
         Some(by_speed)
@@ -464,17 +540,50 @@ pub(crate) fn spline_runs<P: TierPoint, F>(
     last: f64,
     criteria: &DiscretizationCriteria,
     min_segments: usize,
+    visit: F,
+) where
+    F: FnMut(Run, &dyn Fn(f64) -> P),
+{
+    if spline.degree() < SMALL_CAPACITY {
+        runs_of_pieces::<
+            SMALL_CAPACITY,
+            { directions(SMALL_CAPACITY) },
+            { products(SMALL_CAPACITY) },
+            P,
+            F,
+        >(spline, first, last, criteria, min_segments, visit);
+    } else {
+        runs_of_pieces::<CAPACITY, { directions(CAPACITY) }, { products(CAPACITY) }, P, F>(
+            spline,
+            first,
+            last,
+            criteria,
+            min_segments,
+            visit,
+        );
+    }
+}
+
+/// [`spline_runs`] on pieces of up to `N` control points, with the
+/// turning's buffers of `D` and `R` coefficients (see [`Scratch`]).
+fn runs_of_pieces<const N: usize, const D: usize, const R: usize, P: TierPoint, F>(
+    spline: &GenericBSplineCurve<P>,
+    first: f64,
+    last: f64,
+    criteria: &DiscretizationCriteria,
+    min_segments: usize,
     mut visit: F,
 ) where
     F: FnMut(Run, &dyn Fn(f64) -> P),
 {
     let context = Context::new(criteria, spline.degree(), spline.is_rational());
-    let mut piece = Piece {
+    let mut scratch = Scratch::<D, R>::new();
+    let mut piece = Piece::<N> {
         first: 0.0,
         last: 0.0,
         degree: spline.degree(),
         rational: spline.is_rational(),
-        points: [[0.0; 4]; CAPACITY],
+        points: [[0.0; 4]; N],
     };
     // A span overlapping an end of the range by a rounding error, as
     // when a range overshoots a knot, would make a segment of no
@@ -489,7 +598,7 @@ pub(crate) fn spline_runs<P: TierPoint, F>(
         piece.first = span_start;
         piece.last = span_end;
         let piece = piece.restricted(a, b);
-        let bounds = piece.bounds(&context);
-        piece.visit_leaves(bounds, &context, 0, min_segments, &mut visit);
+        let bounds = piece.bounds(&context, &mut scratch);
+        piece.visit_leaves(bounds, &context, &mut scratch, 0, min_segments, &mut visit);
     });
 }
