@@ -23,6 +23,27 @@ how to inspect the result in a browser from Python or Rust.
     Add the dependency to a Cargo project. See the
     [Rust API reference](https://docs.rs/geomcore).
 
+The viewer is a separate install. The Python package currently draws
+geomcore 0.44 through 0.47, so install the pair explicitly and let pip
+resolve a version both accept:
+
+=== "Python"
+
+    ```sh
+    pip install "geomcore==0.47.*" geomcore-viewer
+    ```
+
+=== "Rust"
+
+    ```sh
+    cargo add geomcore-viewer --features geomcore
+    ```
+
+    The Rust client 0.6 builds against geomcore 0.48. It does not start
+    the viewer server itself: run `geomcore-viewer serve` once from the
+    Python package. See [Visualize with the viewer](viewer.md) for the
+    compatibility notes and the server setup.
+
 ## 2. Evaluate a point
 
 A circle is stored as a centre, a normal and a radius. Its parameter is
@@ -94,9 +115,8 @@ the numeric fallback and how to read `method` and `completeness`.
 ## 5. See it
 
 Here is the same circle and ellipse, computed by the kernel and drawn by
-the hosted viewer. Drag to pan, scroll to zoom, hover an object for its
-parameters, and press `2` or `3` to switch between the plane and 3D
-views. Click a hit to copy its coordinates.
+the hosted viewer in 2D. Drag to pan, scroll to zoom, and hover an
+object for its parameters. Click a hit to copy its coordinates.
 
 ```viewer
 scene: assets/scenes/getting-started.json

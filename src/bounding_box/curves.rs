@@ -16,9 +16,10 @@ use crate::geometry::curves::{
     GenericHyperbola, GenericLine, GenericParabola, ParametricCurve, ParametricCurve2D,
     QuarticBranch, RangeOperations, TrimmedCurve,
 };
-use crate::geometry::curves::{curve_dispatch, elementary_curve_dispatch};
+use crate::geometry::curves::{bounded_curve_types, curve_dispatch, elementary_curve_dispatch};
 use crate::math::bspline::curve as math;
 use crate::math::numeric::{bernstein, brent_minimum};
+use crate::math::parameter_range::wrap_into_period;
 use crate::{Point, Tolerance};
 use std::f64::consts::{PI, TAU};
 
@@ -62,7 +63,7 @@ pub(crate) fn trigonometric_box<P: TierPoint>(
     } else {
         let ends = BoundingBoxOf::<P>::new(point_at(first), point_at(last));
         (low, high) = (lanes(ends.min_corner()), lanes(ends.max_corner()));
-        let reached = |t: f64| first + (t - first).rem_euclid(TAU) <= last;
+        let reached = |t: f64| wrap_into_period(t, first, TAU) <= last;
         for k in 0..P::DIM {
             let peak = b.coordinate(k).atan2(a.coordinate(k));
             if reached(peak) {
@@ -234,15 +235,15 @@ pub(crate) fn spline_box<P: TierPoint>(
     .expect("a range meets at least one knot span")
 }
 
-/// The box of `spline` over `[first, last]`, each side within
-/// `tol.confusion` of the curve: the extremes of each coordinate over its
-/// Bézier pieces, by branch and bound.
+/// The box of `spline` over `[first, last]`, each side within a few
+/// roundings of the curve (on it, at a clamped polynomial curve's own end point): the
+/// extremes of each coordinate over its Bézier pieces, solved for.
 pub(crate) fn tight_spline_box<P: TierPoint>(
     spline: &GenericBSplineCurve<P>,
     range: (f64, f64),
-    tol: Tolerance,
 ) -> BoundingBoxOf<P> {
-    Nets::of_curve(spline, range).coordinate_box::<P>(tol.confusion)
+    let exact_ends = spline.ends_are_poles() && range == spline.knot_bounds();
+    Nets::of_curve(spline, range).curve_coordinate_box::<P>(exact_ends)
 }
 
 impl_for_both_tiers! {
@@ -289,12 +290,7 @@ macro_rules! box_over_bounds {
     )*};
 }
 
-box_over_bounds!(
-    GenericCircle,
-    GenericEllipse,
-    GenericBSplineCurve,
-    GenericBezierCurve
-);
+bounded_curve_types!(box_over_bounds!());
 
 /// A quartic branch runs to infinity.
 impl HasBoundingBox for QuarticBranch {

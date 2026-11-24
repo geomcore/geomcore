@@ -44,8 +44,8 @@ height: 420
   one `intersect` call that routes each pair to its exact closed form or
   to a numeric search and says which ran, and whether every hit was
   found.
-- **Curves on surfaces** — the exact UV curve where one exists, and one
-  B-spline within a deviation everywhere else, in both directions.
+- **Curves on surfaces** — map between 3D curves and surface parameters
+  in both directions, using exact conversion or B-spline approximation.
 - **B-spline fitting and editing** — interpolation, least-squares
   approximation, knot insertion and removal, degree elevation,
   splitting and exact conversions from the elementary shapes.

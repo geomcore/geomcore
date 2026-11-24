@@ -8,11 +8,11 @@ use crate::geometry::curves::ParametricCurve;
 use crate::geometry::surfaces::{BSplineSurface, ParametricSurface};
 use crate::math::numeric::boxtree::boxes_apart;
 use crate::math::numeric::solve_3x3;
+use crate::math::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::bezier_pieces::{
     CurvePieces, apart_along, bounding_box, box_size, dot, euclidean, largest_coordinate,
     meets_at_most_once, net_normal, norm, stretches_along_rows, sub,
 };
-use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::subdivision::{
     Node, OnceExhausted, PairTests, Subdivision, Visit, interval,
 };
@@ -21,6 +21,7 @@ use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
     Completeness, CurveSurfaceHit, CurveSurfaceRegion, curve_surface_multiplicity,
 };
+use crate::operations::search_domain::{u_domain, v_domain};
 use crate::{HasBoundingBox, Point, Tolerance};
 use std::ops::Deref;
 
@@ -202,11 +203,7 @@ fn search_pieces(
         curve,
         surface,
         tol,
-        ranges: [
-            range,
-            ParameterDomain::from_bounds(surface.u_bounds(), surface.u_period()),
-            ParameterDomain::from_bounds(surface.v_bounds(), surface.v_period()),
-        ],
+        ranges: [range, u_domain(surface), v_domain(surface)],
         found: Vec::new(),
     };
     let unsettled = pairs.search(&mut tests, splits_per_pair);

@@ -10,6 +10,7 @@ use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::SurfaceIsoError;
 use crate::geometry::surfaces::iso::{check_iso_param, iso_line};
+use crate::geometry::surfaces::parametric_surface::closed_form_normal;
 use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
@@ -121,7 +122,7 @@ impl Plane {
     ///
     /// Fails with [`PlaneConstructionError::ConfusedPoints`] if `p1` and
     /// `p2` are coincident (or too close to distinguish); otherwise, if the
-    /// three points are collinear (`|(p2-p1) x (p3-p1)| <= Tolerance::DEFAULT.confusion *
+    /// three points are collinear (`|(p2-p1) x (p3-p1)| <= tol.confusion *
     /// max(|p2-p1|, |p3-p1|)`), returns
     /// [`PlaneConstructionError::CollinearPoints`].
     ///
@@ -138,11 +139,12 @@ impl Plane {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::{Plane, Point, Vector};
+    /// use geomcore::{Plane, Point, Tolerance, Vector};
     /// let plane = Plane::from_three_points(
     ///     Point::ORIGIN,
     ///     Point::new(1.0, 0.0, 0.0),
     ///     Point::new(0.0, 1.0, 0.0),
+    ///     Tolerance::DEFAULT,
     /// )
     /// .unwrap();
     /// assert_eq!(plane.axis().direction(), Vector::Z);
@@ -151,16 +153,16 @@ impl Plane {
         p1: Point,
         p2: Point,
         p3: Point,
+        tol: Tolerance,
     ) -> Result<Plane, PlaneConstructionError> {
-        if p1.distance(p2) < Tolerance::DEFAULT.confusion {
+        if p1.distance(p2) < tol.confusion {
             return Err(PlaneConstructionError::ConfusedPoints);
         }
 
         let v12 = p2 - p1;
         let v13 = p3 - p1;
         let normal = v12.cross(v13);
-        if normal.magnitude() <= Tolerance::DEFAULT.confusion * v12.magnitude().max(v13.magnitude())
-        {
+        if normal.magnitude() <= tol.confusion * v12.magnitude().max(v13.magnitude()) {
             return Err(PlaneConstructionError::CollinearPoints);
         }
 
@@ -374,6 +376,14 @@ fn arbitrary_perpendicular_frame(origin: Point, normal: Vector) -> Frame {
 }
 
 impl ParametricSurface for Plane {
+    /// The frame's `z` direction, oriented as `x_dir × y_dir`: the plane's
+    /// partials are its unit `x` and `y` directions at every finite
+    /// parameter.
+    fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Direction> {
+        let normal = self.normal_direction();
+        closed_form_normal(self, u, v, tol, [1.0; 3], || normal.vector())
+    }
+
     #[inline]
     fn point_at(&self, u: f64, v: f64) -> Point {
         elementary::plane_d0(&self.frame, u, v)
@@ -401,6 +411,11 @@ impl ParametricSurface for Plane {
             0 => panic!("derivative: du + dv must be >= 1 (use point_at for the (0, 0) order)"),
             _ => elementary::plane_derivative(&self.frame, du, dv),
         }
+    }
+
+    /// The plane evaluates every order.
+    fn highest_derivative_order(&self) -> u32 {
+        u32::MAX
     }
 
     fn u_bounds(&self) -> (f64, f64) {

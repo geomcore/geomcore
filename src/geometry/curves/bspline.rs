@@ -1295,6 +1295,19 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         self.knots.bounds()
     }
 
+    /// Whether the curve's end points, as evaluated, are its first and last
+    /// poles exactly: it is polynomial (a rational curve divides its
+    /// weighted pole by the weight, which rounds) and clamped, its end knots
+    /// of multiplicity `degree + 1`.
+    pub(crate) fn ends_are_poles(&self) -> bool {
+        let multiplicities = self.knots.multiplicities();
+        let full = self.degree() as u32 + 1;
+        self.weights.is_none()
+            && !self.knots.is_periodic()
+            && multiplicities.first() == Some(&full)
+            && multiplicities.last() == Some(&full)
+    }
+
     /// [`from_parts`](Self::from_parts) for parts given by the caller,
     /// checked finite first: a NaN or infinite pole or weight would build
     /// a curve of NaN.
@@ -1548,6 +1561,14 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     /// plane).
     pub(crate) fn span_bezier_points(&self, u: f64, points: &mut [[f64; 4]]) {
         math::span_bezier(&self.knots, self.pole_view(), u, points);
+    }
+
+    /// Visits the Bézier pieces of the curve over its bounds, from the
+    /// lower one: `visit(x, y, points)` for the piece over `[x, y]`, its
+    /// homogeneous control points as in [`span_bezier_points`](Self::span_bezier_points).
+    /// One sweep of knot insertion, cheaper than a span at a time.
+    pub(crate) fn for_each_bezier_piece(&self, visit: impl FnMut(f64, f64, &[[f64; 4]])) {
+        editing::homogeneous_curve_pieces(&self.knots, &self.poles, self.weights.as_deref(), visit);
     }
 }
 

@@ -2,10 +2,9 @@
 
 A curve that lies on a surface has an exact 2D image in the surface's
 parameter space — the *UV curve*, also called a pcurve.
-`surface.curve_3d_to_uv` computes it in closed form where one exists
-(lines and circles on the five elementary surfaces, any curve on a
-plane); `curve_3d_to_uv_within` gives one B-spline within a deviation
-anywhere else. A surface intersection hands over the UV curves of its
+Use `surface.curve_3d_to_uv` to map a supported 3D curve into UV
+coordinates, or `surface.uv_curve_to_3d` to lift a supported UV curve
+onto the surface. The `_within` variants approximate bounded curves. A surface intersection hands over the UV curves of its
 curves on both surfaces already (see
 [Intersection](intersection.md#the-curves-in-each-surfaces-parameters)).
 Adapted from
@@ -108,14 +107,27 @@ scene: assets/scenes/param-torus.json
 title: Three curves on a torus and their images in (u, v)
 ```
 
+## Lift a UV curve into 3D
+
+Use `uv_curve_to_3d` for exact conversion. On a plane, the lift preserves
+the curve type and its parameter. A straight line along one surface
+parameter follows an isoparametric curve, such as a cylinder's circular
+section at constant `v`. Some UV curves on spline surfaces also compose
+exactly into a B-spline. If the exact method rejects the pair, use the
+approximation below.
+
 ## Within a deviation
 
 Where no closed form exists, `curve_3d_to_uv_within` gives one UV curve:
 a degree-5 B-spline in the 3D curve's own parameter, whose image on the
 surface lies within the asked deviation of the 3D curve at the same
 parameter. It does not jump at a seam: a curve that goes once around a
-cylinder ends one period of `u` from where it starts. It mirrors
-`uv_curve_to_3d_within`. A curve that starts or ends at a sphere's pole
+cylinder ends one period of `u` from where it starts. Use `uv_curve_to_3d_within` for the reverse direction. Both methods
+require finite curve bounds and can fail if they cannot reach the
+requested deviation. Trim an unbounded curve first. The 3D-to-UV method
+also rejects collapsed curves and curves that stray too far from the
+surface. Check `is_proven()` to distinguish a proven bound from a
+sampled deviation. A curve that starts or ends at a sphere's pole
 or a cone's apex, where every `u` is the same point, takes the limit of
 `u` from inside the curve: a meridian keeps its own `u` up to the pole.
 
@@ -182,16 +194,22 @@ handle.
     import geomcore_viewer as gv
 
     view = gv.Viewer("A circle on a cylinder")
-    s = view.add(cylinder, label="S")
+    s = view.add(surface, label="S")
     view.add(circle, label="C")
-    view.pcurve(cylinder.curve_3d_to_uv(circle), s, label="C in (u, v)")
+    view.pcurve(surface.curve_3d_to_uv(circle), s, label="C in (u, v)")
     ```
 
 === "Rust"
 
     ```rust
-    use geomcore_viewer::{Geom, Opts};
+    use geomcore::prelude::*;
+    use geomcore::{Circle, Cylinder, Point, Tolerance, Vector};
+    use geomcore_viewer::{Geom, Opts, Viewer};
 
+    let mut view = Viewer::new("A circle on a cylinder")?;
+    let cylinder = Cylinder::new(Point::ORIGIN, Vector::Z, 2.0)?;
+    let circle = Circle::new(Point::new(0.0, 0.0, 1.0), Vector::Z, 2.0)?;
+    let tol = Tolerance::DEFAULT;
     let s = view.add(Geom::from(&cylinder), Opts::new().label("S"))?;
     view.add(&circle, Opts::new().label("C"))?;
     view.pcurve(&cylinder.curve_3d_to_uv(&circle.into(), tol)?, &s, Opts::new().label("C in (u, v)"))?;

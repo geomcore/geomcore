@@ -9,6 +9,115 @@ the Python distribution are versioned in lockstep.
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-11-24
+
+A performance release. The elementary surfaces read their normals and
+projection feet in closed form, an ellipse solves for its nearest point
+alone, a B-spline curve's tight box is solved for rather than bounded,
+and point projection onto a B-spline surface keeps each patch's net and
+distance bound once used; second derivatives and discretization of
+B-spline curves take far fewer instructions. Results are unchanged or
+closer. Constructors that judge degeneracy take the caller's tolerance,
+and a parameter wrapped into its period no longer lands on the period's
+end.
+
+### Breaking
+
+- `ParametricSurface` has a required method,
+  `highest_derivative_order(&self) -> u32` (#471): the highest total
+  order `du + dv` that `derivative` evaluates, `u32::MAX` on the plane,
+  cylinder, cone, sphere and torus and 2 on the other surfaces. A
+  surface type of your own that implements `ParametricSurface` adds it.
+  `derivative` panics above it, as before, and a caller can now check
+  first. The Python binding reads it instead of its own copy of the
+  rule, which would have given a new elementary surface 2.
+
+- The constructors that decide whether their points are degenerate take
+  the caller's `tol: Tolerance` as their last argument, instead of reading
+  `Tolerance::DEFAULT` (#473): `Circle::from_three_points`,
+  `Plane::from_three_points`, `Ellipse::from_center_and_points`,
+  `Hyperbola::from_center_and_points`, `Cone::from_two_points_and_radii`,
+  `Parabola::from_focus_and_directrix`, `TrimmedCurve::arc_through`, and
+  the 2D forms of each. A model of another size scales its tolerance and
+  gets the same answers (ADR 0051). Pass `Tolerance::DEFAULT` to keep the
+  previous behaviour. In Python `tol` is optional and defaults to
+  `Tolerance.default()`.
+- `Ellipse::from_center_and_points` and its 2D form refuse a minor radius
+  below `tol.confusion` instead of below the literal `1e-7`. The 3D form no
+  longer repeats that check on the plane normal, which has the same length.
+
+### Changed
+
+- Point projection onto a B-spline surface is faster, still proven
+  global (part of #464): each knot-span patch keeps its Bernstein net and
+  the boxes bounding its distance once first used, so a patch is ruled
+  out in a few operations instead of rebuilding its net, and a patch
+  searched copies the net instead of rebuilding it. About 40% fewer
+  instructions on a polynomial bicubic surface, 20% on a rational one,
+  and up to 10% on the projections and marches onto B-spline surfaces
+  that run through it.
+- The tight bounding box of a B-spline or Bézier curve is solved for
+  rather than bounded (#465): each coordinate's extremes are found where
+  its derivative changes sign on a Bézier piece, and the pieces come from
+  one sweep of knot insertion instead of a matrix per span. About four
+  times faster, and each side now lies within a few roundings of the
+  curve (it was within `tol.confusion`). The box still holds the curve.
+- Point projection on an ellipse is about ten times faster (#462):
+  `project_point` solves for the nearest point alone, from the monotone
+  equation of its Lagrange multiplier (Eberly), instead of finding every
+  stationary point and keeping the nearest. About 95% fewer
+  instructions, also in the projections onto ellipse extrusions. The
+  nearest point is never farther than before; `extrema` is unchanged.
+- Point projection on cylinders, cones, spheres and tori is faster
+  (#463): the nearest point is read from the point's local coordinates
+  instead of by evaluating its parameters, which saves the trigonometry.
+  20–34% less time, and about 23–27% fewer instructions on cones,
+  spheres and tori. On the axis, at the poles and on a torus's
+  tube-centre circle the projection evaluates its parameters as before.
+  Parameters and nearest points agree with the previous ones within
+  rounding.
+- The unit normals of planes, cylinders, cones, spheres and tori are
+  faster (#461): `normal` reads them in closed form wherever the
+  partials span a tangent plane, about 42% fewer instructions and 25–50%
+  less time. At the apex, the poles, the pinch points, on degenerate
+  shapes and at non-finite parameters the recovery answers as before.
+  Results agree with the cross product of the partials within 1e-15.
+- B-spline second derivatives are faster (#460). `eval_d2` on a
+  non-periodic curve of degree 1 to 3 computes the basis functions and
+  their first and second derivatives in one unrolled pass, as `eval_d1`
+  already did: about 45% fewer instructions on a cubic curve. Every
+  Newton step that reads a curve's second derivative benefits: curve
+  offsets, swept projections, curve–curve extrema and curve–surface
+  intersections take 2–11% fewer instructions. Results are bit-for-bit
+  unchanged.
+- Discretizing a B-spline or Bézier curve is faster (#466), with the
+  same output bit for bit: `discretize_into` takes about 55% fewer
+  instructions, `point_count` and `discretize` about 20–25% fewer. Pieces
+  below degree 8 no longer carry buffers sized for degree 25, the bound
+  on the tangent's turning clears only the coefficients it uses, and
+  filling writes the points while it counts them instead of counting
+  first. When `discretize_into` panics on a buffer of the wrong length,
+  the buffers now hold unspecified values; before, they were untouched.
+
+### Fixed
+
+- A parameter wrapped into a period no longer comes back as the end of the
+  period (#467). For an angle a hair below the start, such as `-1e-17`,
+  `start + (u − start).rem_euclid(period)` rounds to `start + period`,
+  so a point on the seam could be reported at both `0` and `2π`. Every
+  place that brings a parameter into its period now goes through one
+  rule, which folds the end back to the start. The quartic and octic
+  curves, the numeric searches and the B-spline knot filter use it. Any
+  other parameter keeps its value bit for bit.
+- Curve–surface and surface–surface extrema find a minimum beside a
+  sphere's pole again (#494). Since 0.50.0 a run of equal sampled
+  distances counted as one valley and seeded one refinement, and a
+  sphere's pole row is such a run: its samples are one point. Seeded at
+  the angle 0 on the pole, the refinement could not turn towards a
+  minimum beside it, so a sphere above a B-spline patch could report no
+  minimum at all. Samples that are the same point no longer join one
+  valley; each seeds its own refinement, as before 0.50.0.
+
 ## [0.50.0] - 2026-11-23
 
 Near a contact, every closed form now follows one rule (ADR 0057): two
@@ -4146,7 +4255,8 @@ Behaviour, in Rust and Python alike:
 - Golden-fixture validation of all numeric results at 1e-7 tolerance, and
   criterion throughput benchmarks (`docs/benchmarks.md`).
 
-[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.50.0...HEAD
+[Unreleased]: https://github.com/geomcore/geomcore/compare/v0.51.0...HEAD
+[0.51.0]: https://github.com/geomcore/geomcore/compare/v0.50.0...v0.51.0
 [0.50.0]: https://github.com/geomcore/geomcore/compare/v0.49.0...v0.50.0
 [0.49.0]: https://github.com/geomcore/geomcore/compare/v0.48.0...v0.49.0
 [0.48.0]: https://github.com/geomcore/geomcore/compare/v0.47.0...v0.48.0

@@ -1,15 +1,14 @@
 # Visualize with the viewer
 
 [`geomcore-viewer`](https://github.com/geomcore/geomcore-viewer) draws
-the curves and surfaces `geomcore` computes. It is a local browser
-viewer with a Babylon.js 3D pane and a PixiJS 2D pane, plus an inset for
-curves in a surface's `(u, v)` parameters. Objects travel as their
-analytic definitions: the viewer evaluates them with the kernel's own
-parametrizations, so a circle stays a circle and a B-spline refines as
-you zoom.
+the curves and surfaces `geomcore` computes. Each scene opens in 2D
+or 3D. When you draw a curve in a surface's `(u, v)` parameters, its
+parametric plot sits beside the 3D view or below it in narrow embeds.
+The viewer evaluates analytic geometry directly, so curves and
+surfaces refine as you zoom.
 
-Here is the hosted viewer running the demo scene. Drag to pan, scroll to
-zoom, hover an object for its parameters, and use the keys below.
+Drag to orbit the demo scene, right-drag to pan, and scroll to zoom.
+Hover an object to inspect it.
 
 ```viewer
 title: The viewer's demo scene
@@ -24,11 +23,11 @@ height: 640
     pip install geomcore-viewer
     ```
 
-    The 0.5 release draws objects from geomcore 0.44 through 0.47 and
+    The Python package draws objects from geomcore 0.44 through 0.47 and
     declares that range, so pip resolves a compatible geomcore with it.
-    If the project you want to inspect pins geomcore 0.48, install the
-    pair in an environment of its own and pin the kernel the viewer
-    accepts:
+    For the Python viewer examples on this site, use a separate
+    environment with the supported kernel version. The other examples
+    in the documentation use geomcore 0.50.
 
     ```sh
     pip install "geomcore==0.47.*" geomcore-viewer
@@ -42,10 +41,10 @@ height: 640
     ```toml
     [dependencies]
     geomcore = "0.48"
-    geomcore-viewer = { version = "0.5", features = ["geomcore"] }
+    geomcore-viewer = { version = "0.6", features = ["geomcore"] }
     ```
 
-    The Rust client 0.5 builds its `geomcore` feature against geomcore
+    The Rust client 0.6 builds its `geomcore` feature against geomcore
     0.48. It never starts the server itself: run `geomcore-viewer serve`
     from the Python package once, or start any Python script that uses
     the viewer. If no server answers, the client warns once and keeps the
@@ -122,7 +121,7 @@ in one place:
 ````markdown
 ```viewer
 scene: assets/scenes/projection-feet.json
-title: Ellipse with the four projection feet of one query point
+title: Two distance minima on an ellipse for one query point
 height: 480
 ```
 ````
@@ -166,10 +165,11 @@ unless `u=`/`v=` narrows it. The full option list is in the
 | `F` | fit the scene, and keep following it as it changes |
 | `P` | presentation mode: header and panel hidden, lines and labels larger |
 | `T` | light / dark theme, remembered by the browser |
-| `2` / `3` | plane view / 3D view |
 | `U` | show or hide the `(u, v)` pane |
 | `←` / `→` | previous / next lesson step |
-| `Esc` | leave presentation mode, else clear the selection |
+| `Esc` | close the object list in narrow embeds, leave presentation mode, or clear the selection |
+
+In a narrow embed, select **Objects** to open the object list.
 
 In the plane view, hover an object for its type, label, parameter `t`
 and `(x, y)`; click a point to copy its coordinates. In 3D, drag to

@@ -9,12 +9,12 @@ use crate::math::numeric::{brent_minimum, newton_3d, solve_3x3};
 use crate::operations::intersect::numeric::curve_curve::SHARPEST_TOUCH_RADIUS_IN_CONFUSIONS;
 use crate::operations::intersect::numeric::curve_surface_hull::CurveSurfaceHits;
 use crate::operations::intersect::numeric::marching::{REACH, anchor, own_size};
-use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::{overlap_runs, pairs_with_bspline};
 use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{
     CurveSurfaceHit, CurveSurfaceIntersection, curve_surface_multiplicity,
 };
+use crate::operations::search_domain::{curve_domain, u_domain, v_domain};
 use crate::{Frame, HasBoundingBox, Point, Tolerance, Transform, Transformable};
 
 /// The window an unbounded curve defined outside the crate is seeded
@@ -507,7 +507,7 @@ fn range_reaching_extrusion(
 /// periodic curve has every parameter on it, wrapped into its period:
 /// an overlap takes out the hits within its range of parameters.
 fn on_curve<C: ParametricCurve>(curve: &C, t: f64, tol: Tolerance) -> Option<f64> {
-    let domain = ParameterDomain::of(curve);
+    let domain = curve_domain(curve);
     if domain.is_periodic() {
         return Some(domain.wrap_period(t));
     }
@@ -590,8 +590,8 @@ where
         .collect();
     order.truncate(KEEP);
     order.extend(other_dips);
-    let u_domain = ParameterDomain::from_bounds(surface.u_bounds(), surface.u_period());
-    let v_domain = ParameterDomain::from_bounds(surface.v_bounds(), surface.v_period());
+    let u_domain = u_domain(surface);
+    let v_domain = v_domain(surface);
     let mut hits: Vec<CurveSurfaceHit> = Vec::new();
     // Seeds converging onto one point keep one hit. Near-tangent seeds
     // reach distinct points of one grazing contact, and those stay: the

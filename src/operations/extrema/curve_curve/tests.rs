@@ -1,6 +1,7 @@
 use super::*;
 use crate::Transformable;
 use crate::geometry::curves::BSplineCurve;
+use crate::operations::search_domain::curve_domain;
 use crate::{IntersectExact, Line, Point, Vector};
 
 #[test]
@@ -408,7 +409,7 @@ fn test_minima_on_one_valley_are_merged_along_the_valley() {
     let tol = Tolerance::DEFAULT;
     let circle = crate::Circle::new(Point::ORIGIN, Vector::Z, 1.0).unwrap();
     let piece = crate::TrimmedCurve::new(circle, 1.0, 5.5).unwrap();
-    let (da, db) = (ParameterDomain::of(&circle), ParameterDomain::of(&piece));
+    let (da, db) = (curve_domain(&circle), curve_domain(&piece));
     let at = |u: f64| curve_pair_extremum(&circle, &piece, u, u);
     let (near_start, near_end) = (at(1.5), at(5.0));
     assert!(one_valley(
@@ -487,12 +488,12 @@ fn test_a_plateau_of_the_grid_is_one_minimum_whatever_its_rounding() {
         1.5,
     ];
     assert_eq!(
-        grid_minima(&values, [3, 4], [false, false], rounding),
+        grid_minima(&values, [3, 4], [false, false], rounding, |_, _| false),
         vec![(0, 0), (2, 3)]
     );
     // Without the floor the noise splits the plateau.
     assert_eq!(
-        grid_minima(&values, [3, 4], [false, false], 0.0),
+        grid_minima(&values, [3, 4], [false, false], 0.0, |_, _| false),
         vec![(0, 0), (0, 2), (2, 3)]
     );
 }

@@ -11,6 +11,7 @@ use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
+use std::sync::OnceLock;
 
 use crate::geometry::surfaces::iso::{SurfaceIsoError, check_iso_param};
 use crate::geometry::surfaces::{BezierSurface, ParametricSurface};
@@ -102,6 +103,16 @@ struct PatchTree {
     u_spans: (Vec<usize>, Vec<f64>),
     v_spans: (Vec<usize>, Vec<f64>),
     tree: BoxTree,
+    /// Each patch's net and distance bound, built on first use.
+    nets: Box<[OnceLock<PatchNet>]>,
+}
+
+/// A knot-span patch's Bernstein net (laid out as [`math::patch_bezier`])
+/// and the boxes bounding its distance from any point.
+#[derive(Clone)]
+struct PatchNet {
+    net: Box<[f64]>,
+    bound: math::NetBound,
 }
 
 impl PatchTree {
@@ -1854,6 +1865,23 @@ impl BSplineSurface {
         );
     }
 
+    /// The net and distance bound of patch `k` of `patches`, built on
+    /// first use.
+    fn cached_patch<'p>(&self, patches: &'p PatchTree, k: usize) -> &'p PatchNet {
+        patches.nets[k].get_or_init(|| {
+            let (rows, cols, h) = self.patch_net_shape();
+            let size = rows * cols * h;
+            let (mut scratch, mut net) = (vec![0.0; size], vec![0.0; size]);
+            self.write_patch_net(patches, k, &mut scratch, &mut net);
+            let mut points = Vec::with_capacity(rows * cols);
+            math::net_points(&net, h, &mut points);
+            PatchNet {
+                bound: math::NetBound::new(&points, rows, cols),
+                net: net.into(),
+            }
+        })
+    }
+
     /// The patch bounding-box hierarchy, built on first use.
     fn patch_tree(&self) -> &PatchTree {
         self.patches.get_or_init(|| {
@@ -1866,8 +1894,10 @@ impl BSplineSurface {
                 &u_breaks,
                 &v_breaks,
             );
+            let count = (u_breaks.len() - 1) * (v_breaks.len() - 1);
             PatchTree {
                 tree: BoxTree::new(&boxes, v_breaks.len() - 1),
+                nets: (0..count).map(|_| OnceLock::new()).collect(),
                 u_spans: self.u_knots.span_bezier_matrices(&u_breaks),
                 v_spans: self.v_knots.span_bezier_matrices(&v_breaks),
                 u_creases: self.u_knots.crease_breaks(&u_breaks),
@@ -2007,7 +2037,7 @@ impl BSplineSurface {
         let (u, v) = (to_global(s, 0), to_global(t, 1));
         let wrap = |x: f64, periodic: bool, lo: f64, hi: f64| {
             if periodic {
-                lo + (x - lo).rem_euclid(hi - lo)
+                crate::math::parameter_range::wrap_into_period(x, lo, hi - lo)
             } else {
                 x
             }
@@ -2042,37 +2072,20 @@ impl ParametricSurface for BSplineSurface {
         let patches = self.patch_tree();
         let mut search = PatchSearch::new(self, point, patches.resolution(point), false);
         // Every patch that may hold the closest point, by their pole boxes
-        // then their Bernstein nets (whose corners tighten the bound),
-        // searched closest control point first. Only the first keeps its
-        // net while waiting, the others' written again when searched.
+        // then their nets' bounds (whose corners tighten the bound),
+        // searched closest control point first.
         let mut roots = Vec::with_capacity(RESERVED_SLOTS);
-        let mut first: Option<Subpatch> = None;
         patches.tree.nearest_first(point, |k| {
-            if let Some(root) = search.root(patches, k) {
-                roots.push((root.key, root.lower, k));
-                let freed = if first.is_none_or(|held| root.key < held.key) {
-                    first.replace(root)
-                } else {
-                    Some(root)
-                };
-                if let Some(freed) = freed {
-                    search.free.push(freed.slot);
-                }
+            if let Some((key, lower)) = search.root_bound(patches, k) {
+                roots.push((key, lower, k));
             }
             search.best.0
         });
-        // A stable sort, so that the first held stays first among ties.
         roots.sort_by(|a, b| a.0.total_cmp(&b.0));
-        for (index, (key, lower, k)) in roots.into_iter().enumerate() {
+        for (key, lower, k) in roots {
             if lower < search.best.0 - search.resolution {
-                let slot = match first {
-                    Some(held) if index == 0 => held.slot,
-                    _ => {
-                        let slot = search.slot();
-                        search.write_root(patches, k, slot);
-                        slot
-                    }
-                };
+                let slot = search.slot();
+                search.write_root(patches, k, slot);
                 let (rect, creases) = patches.patch(k);
                 let root = Subpatch {
                     lower,
@@ -2116,6 +2129,11 @@ impl ParametricSurface for BSplineSurface {
                 panic!("derivative: order du={du}, dv={dv} is not supported (du + dv must be <= 2)")
             }
         }
+    }
+
+    /// The B-spline surface evaluates up to `du + dv = 2`.
+    fn highest_derivative_order(&self) -> u32 {
+        2
     }
 
     fn first_derivatives(&self, u: f64, v: f64) -> (Point, [Vector; 2]) {
@@ -2356,12 +2374,44 @@ impl<'a> PatchSearch<'a> {
 
     /// Writes the net of the whole patch `k` of `patches` at `slot`.
     fn write_root(&mut self, patches: &PatchTree, k: usize, slot: usize) {
-        self.surface.write_patch_net(
-            patches,
-            k,
-            &mut self.scratch,
-            &mut self.nets[slot..slot + self.size],
-        );
+        let cached = self.surface.cached_patch(patches, k);
+        self.nets[slot..slot + self.size].copy_from_slice(&cached.net);
+    }
+
+    /// The visiting order and distance lower bound of the whole patch `k`
+    /// of `patches`, as [`Self::node`] gives them, from its cached net and
+    /// bound; `None` if it is farther than the closest point so far. Its
+    /// corners, on the surface, may become that point.
+    fn root_bound(&mut self, patches: &PatchTree, k: usize) -> Option<(f64, f64)> {
+        let cached = self.surface.cached_patch(patches, k);
+        let (rows, cols, h) = (self.rows, self.cols, self.h);
+        let q = [self.point.x, self.point.y, self.point.z];
+        let euclidean = |i: usize| {
+            let c = &cached.net[i * h..(i + 1) * h];
+            if h == 4 {
+                [c[0] / c[3], c[1] / c[3], c[2] / c[3]]
+            } else {
+                [c[0], c[1], c[2]]
+            }
+        };
+        let squared = |x: [f64; 3]| (0..3).map(|c| (x[c] - q[c]).powi(2)).sum::<f64>();
+        let rect = patches.patch(k).0;
+        for (s, t) in [(0, 0), (0, 1), (1, 0), (1, 1)] {
+            let p = euclidean(s * (rows - 1) * cols + t * (cols - 1));
+            let distance = Point::new(p[0], p[1], p[2]).distance(self.point);
+            if distance < self.best.0 {
+                self.best = (distance, rect[s], rect[2 + t]);
+            }
+        }
+        let lower = cached.bound.distance(q);
+        if lower >= self.best.0 - self.resolution {
+            return None;
+        }
+        let key = (0..rows * cols)
+            .map(|i| squared(euclidean(i)))
+            .fold(f64::INFINITY, f64::min)
+            .sqrt();
+        Some((key, lower))
     }
 
     /// Searches the patch over `rect`, with the subpatch `root` over all of

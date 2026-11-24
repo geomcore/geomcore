@@ -70,11 +70,14 @@ pub trait HasBoundingBox {
     /// unbounded.
     ///
     /// The box of an elementary shape is [`bounding_box`](Self::bounding_box),
-    /// which already touches it. A B-spline's is found by halving its
-    /// Bézier pieces until their control points come that close, and a
-    /// revolution surface's from its profile's, at the cost of a few
-    /// hundred evaluations of the pieces' control points: for a collision
-    /// pre-check, against `bounding_box`, which holds the control points.
+    /// which already touches it. A B-spline curve's is solved for, each
+    /// coordinate's extremes where its derivative vanishes on a Bézier
+    /// piece, and is as tight as rounding allows. A B-spline surface's is
+    /// found by halving its Bézier patches until their control points come
+    /// within `tol.confusion`, and a revolution surface's likewise from its
+    /// profile's pieces, at the cost of a few hundred evaluations of the
+    /// control points: for a collision pre-check, against `bounding_box`,
+    /// which holds the control points.
     ///
     /// ```
     /// use geomcore::prelude::*;

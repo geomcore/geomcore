@@ -1,5 +1,11 @@
 //! Tight boxes of B-spline shapes: the extremes of a measure over the
-//! shape's Bernstein nets, found by branch and bound.
+//! shape's Bernstein nets, solved for on a curve and found by branch and
+//! bound on a surface.
+//!
+//! A curve's coordinate is extreme over a Bézier piece at the piece's ends
+//! or where its derivative changes sign: a polynomial in Bernstein form
+//! (the numerator `x′w − x w′` on a rational piece), whose sign changes
+//! halving brackets and Newton steps refine.
 //!
 //! Each net holds its piece in the convex hull of its Euclidean control
 //! points (weights are positive), and its corner points lie on the shape.
@@ -43,6 +49,31 @@ impl Nets {
     ) -> Nets {
         let degree = spline.degree();
         let mut points = Vec::new();
+        let (start, end) = spline.knot_bounds();
+        if start <= first && last <= end {
+            // The range within one period: one sweep over the pieces.
+            let mut cut = [[0.0; 4]; math::LARGE];
+            spline.for_each_bezier_piece(|x, y, piece| {
+                let (a, b) = (x.max(first), y.min(last));
+                if a >= b {
+                    return;
+                }
+                if a > x || b < y {
+                    let cut = &mut cut[..piece.len()];
+                    cut.copy_from_slice(piece);
+                    bernstein::restrict(cut, (a - x) / (y - x), (b - x) / (y - x));
+                    points.extend(cut.iter().flatten());
+                } else {
+                    points.extend(piece.iter().flatten());
+                }
+            });
+            return Nets {
+                rows: 1,
+                cols: degree + 1,
+                values: 4,
+                points,
+            };
+        }
         let mut piece = [[0.0; 4]; math::LARGE];
         spline.for_each_span_in(first, last, |(start, end), (a, b)| {
             spline.span_bezier_points(0.5 * (start + end), &mut piece);
@@ -145,6 +176,52 @@ impl Nets {
         largest
     }
 
+    /// The box of the first `P::DIM` coordinates of the curve whose nets
+    /// these are ([`of_curve`](Self::of_curve)): its sides are the
+    /// coordinates' extremes, at the pieces' ends and where the
+    /// coordinates' derivatives change sign. `exact_ends` if the first and
+    /// last control points are the curve's own end points, as evaluated
+    /// (a clamped polynomial curve over its whole range): a side either sets is
+    /// kept, every other is moved out by a few roundings of the
+    /// coordinates, so that the box holds the curve as evaluated.
+    pub(crate) fn curve_coordinate_box<P: TierPoint>(&self, exact_ends: bool) -> BoundingBoxOf<P> {
+        let size = self.cols * 4;
+        let mut low = [0.0; 4];
+        let mut high = [0.0; 4];
+        let first = &self.points[..4];
+        let last = &self.points[self.points.len() - 4..];
+        for k in 0..P::DIM {
+            // The pieces' ends lie on the curve: the box they span settles
+            // most pieces, whose control points already lie inside it.
+            let (mut lowest, mut highest) = (f64::INFINITY, f64::NEG_INFINITY);
+            for piece in self.points.chunks_exact(size) {
+                for end in [&piece[..4], &piece[size - 4..]] {
+                    let value = end[k] / end[3];
+                    lowest = lowest.min(value);
+                    highest = highest.max(value);
+                }
+            }
+            for piece in self.points.chunks_exact(size) {
+                widen_to_extremes(piece, k, &mut lowest, &mut highest);
+            }
+            let margin = EXTREME_ROUNDING * lowest.abs().max(highest.abs());
+            let exact = |side: f64| {
+                exact_ends && (side == first[k] / first[3] || side == last[k] / last[3])
+            };
+            low[k] = if exact(lowest) {
+                lowest
+            } else {
+                lowest - margin
+            };
+            high[k] = if exact(highest) {
+                highest
+            } else {
+                highest + margin
+            };
+        }
+        BoundingBoxOf::<P>::from_corners(P::point_of(low), P::point_of(high))
+    }
+
     /// The box of the shape's first `dimension` coordinates, each side
     /// within `tolerance` of the shape.
     pub(crate) fn coordinate_box<P: TierPoint>(&self, tolerance: f64) -> BoundingBoxOf<P> {
@@ -156,6 +233,170 @@ impl Nets {
         }
         BoundingBoxOf::<P>::from_corners(P::point_of(low), P::point_of(high))
     }
+}
+
+/// How far, in multiples of the largest coordinate, a solved extreme may
+/// fall short of the curve: the rounding of evaluating a piece of up to
+/// degree 25 at a root, the root's own error being of second order.
+const EXTREME_ROUNDING: f64 = 64.0 * f64::EPSILON;
+
+/// Widens `[lowest, highest]` to the extremes of coordinate `k` over the
+/// Bézier piece `piece`, homogeneous `(x w, y w, z w, w)` control points
+/// flattened, unless its control coordinates already lie inside.
+fn widen_to_extremes(piece: &[f64], k: usize, lowest: &mut f64, highest: &mut f64) {
+    let degree = piece.len() / 4 - 1;
+    let coordinate = |i: usize| piece[4 * i + k] / piece[4 * i + 3];
+    if (0..=degree).all(|i| (*lowest..=*highest).contains(&coordinate(i))) {
+        return;
+    }
+    let mut slope = [0.0; 2 * math::LARGE];
+    let (count, tiny) = derivative_numerator(piece, k, &mut slope);
+    let slope = &mut slope[..count];
+    let mut include = |s: f64| {
+        let value = coordinate_at(piece, k, s);
+        *lowest = lowest.min(value);
+        *highest = highest.max(value);
+    };
+    // Rising roots of the slope are the coordinate's minima, and rising
+    // roots of its negation its maxima.
+    for _ in 0..2 {
+        let visit = |s0, s1, s| include(root_in(slope, (s0, s1), s));
+        // Halving's scratch is zeroed at each level: sized to the degree.
+        if count <= math::SMALL {
+            bernstein::rising_roots::<{ math::SMALL }>(slope, tiny, visit);
+        } else {
+            bernstein::rising_roots::<{ 2 * math::LARGE }>(slope, tiny, visit);
+        }
+        slope.iter_mut().for_each(|c| *c = -*c);
+    }
+}
+
+/// Writes to `slope` the Bernstein coefficients of a polynomial with the
+/// sign of coordinate `k`'s derivative over `piece`: the coordinate's
+/// differences on a polynomial piece, `x′w − x w′` (of degree `2p − 1`, up
+/// to the factor `p`) on a rational one. Returns the coefficient count and
+/// the size below which a coefficient is rounding.
+fn derivative_numerator(piece: &[f64], k: usize, slope: &mut [f64]) -> (usize, f64) {
+    let degree = piece.len() / 4 - 1;
+    let x = |i: usize| piece[4 * i + k];
+    let w = |i: usize| piece[4 * i + 3];
+    let largest = |f: &dyn Fn(usize) -> f64| (0..=degree).fold(0.0f64, |m, i| m.max(f(i).abs()));
+    if (1..=degree).all(|i| w(i) == w(0)) {
+        for (i, c) in slope[..degree].iter_mut().enumerate() {
+            *c = x(i + 1) - x(i);
+        }
+        return (degree, 4.0 * f64::EPSILON * largest(&x));
+    }
+    let mut numerators = [0.0; math::LARGE];
+    let mut weights = [0.0; math::LARGE];
+    let mut numerator_steps = [0.0; math::LARGE];
+    let mut weight_steps = [0.0; math::LARGE];
+    for i in 0..=degree {
+        numerators[i] = x(i);
+        weights[i] = w(i);
+        if i < degree {
+            numerator_steps[i] = x(i + 1) - x(i);
+            weight_steps[i] = w(i + 1) - w(i);
+        }
+    }
+    let (numerators, weights) = (&mut numerators[..=degree], &mut weights[..=degree]);
+    let numerator_steps = &mut numerator_steps[..degree];
+    let weight_steps = &mut weight_steps[..degree];
+    for c in [
+        &mut *numerators,
+        &mut *weights,
+        &mut *numerator_steps,
+        &mut *weight_steps,
+    ] {
+        bernstein::scale(c);
+    }
+    let out = &mut slope[..2 * degree];
+    out.fill(0.0);
+    bernstein::add_product(numerator_steps, weights, 1.0, out);
+    bernstein::add_product(numerators, weight_steps, -1.0, out);
+    bernstein::unscale(out);
+    (2 * degree, 16.0 * f64::EPSILON * largest(&x) * largest(&w))
+}
+
+/// The root of the polynomial with Bernstein coefficients `c` in
+/// `[s0, s1]`, from `guess`: Newton steps kept inside the sign change,
+/// halving where a step would leave it. `guess` when the ends do not
+/// change sign (a root on a cut, or roots halving could not separate).
+fn root_in(c: &[f64], (mut s0, mut s1): (f64, f64), guess: f64) -> f64 {
+    let (at_start, _) = value_and_slope(c, s0);
+    let (at_end, _) = value_and_slope(c, s1);
+    if at_start == 0.0 {
+        return s0;
+    }
+    if at_end == 0.0 {
+        return s1;
+    }
+    if (at_start > 0.0) == (at_end > 0.0) {
+        return guess;
+    }
+    let rising = at_end > 0.0;
+    let mut s = guess.clamp(s0, s1);
+    for _ in 0..64 {
+        let (value, slope) = value_and_slope(c, s);
+        if value == 0.0 {
+            return s;
+        }
+        if (value > 0.0) == rising {
+            s1 = s;
+        } else {
+            s0 = s;
+        }
+        let newton = s - value / slope;
+        let next = if newton > s0 && newton < s1 {
+            newton
+        } else {
+            0.5 * (s0 + s1)
+        };
+        if (next - s).abs() <= 2.0 * f64::EPSILON || s1 - s0 <= 2.0 * f64::EPSILON {
+            return next;
+        }
+        s = next;
+    }
+    s
+}
+
+/// The value and derivative at `s` of the polynomial with Bernstein
+/// coefficients `c`.
+fn value_and_slope(c: &[f64], s: f64) -> (f64, f64) {
+    let degree = c.len() - 1;
+    if degree == 0 {
+        return (c[0], 0.0);
+    }
+    let value = nested_bernstein(degree, |i| c[i], s);
+    let slope = degree as f64 * nested_bernstein(degree - 1, |i| c[i + 1] - c[i], s);
+    (value, slope)
+}
+
+/// Coordinate `k` of `piece` at `s`, the homogeneous coordinate over the
+/// weight.
+fn coordinate_at(piece: &[f64], k: usize, s: f64) -> f64 {
+    let degree = piece.len() / 4 - 1;
+    nested_bernstein(degree, |i| piece[4 * i + k], s)
+        / nested_bernstein(degree, |i| piece[4 * i + 3], s)
+}
+
+/// The polynomial of `degree` with Bernstein coefficients `c(i)` at `s` in
+/// `[0, 1]`, by nested multiplication (Schumaker and Volk): as accurate as
+/// de Casteljau's subdivision at a degree's cost rather than its square,
+/// and without scratch space.
+fn nested_bernstein(degree: usize, c: impl Fn(usize) -> f64, s: f64) -> f64 {
+    if degree == 0 {
+        return c(0);
+    }
+    let complement = 1.0 - s;
+    let (mut power, mut binomial) = (1.0, 1.0);
+    let mut sum = c(0) * complement;
+    for i in 1..degree {
+        power *= s;
+        binomial = binomial * (degree - i + 1) as f64 / i as f64;
+        sum = (sum + power * binomial * c(i)) * complement;
+    }
+    sum + power * s * c(degree)
 }
 
 #[cfg(test)]

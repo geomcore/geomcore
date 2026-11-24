@@ -278,3 +278,66 @@ fn test_a_minimum_held_on_the_edges_of_two_pieces_is_found_at_any_placement() {
         assert!(close(edge.second_parameters.0, 5.65), "{edge:?}");
     }
 }
+
+/// The bicubic patch of the `surface_extrema` bench.
+fn bench_patch() -> BSplineSurface {
+    let poles = (0..6)
+        .map(|i| {
+            (0..6)
+                .map(|j| Point::new(i as f64, j as f64, ((i * j) as f64 * 0.7).sin()))
+                .collect()
+        })
+        .collect();
+    let (knots, mults) = (vec![0.0, 1.0, 2.0, 3.0], vec![4, 1, 1, 4]);
+    BSplineSurface::new(
+        3,
+        3,
+        poles,
+        knots.clone(),
+        mults.clone(),
+        knots,
+        mults,
+        false,
+        false,
+    )
+    .unwrap()
+}
+
+/// The sphere's nearest point to the patch lies beside its south pole,
+/// at the angle `u = 2.385`. The pole row of the sphere's samples is one
+/// point, so its distances tie: each node of the row seeds its own
+/// refinement, where one seed at `u = 0` could not turn towards the
+/// minimum, the pole not depending on `u`.
+#[test]
+fn test_a_minimum_beside_a_pole_is_found_at_any_placement() {
+    use crate::Transform;
+    let patch = bench_patch();
+    let sphere = Sphere::new(
+        Point::new(1.6929150333663001, 1.2147972718622762, 3.9484666689592385),
+        0.517_335_384_684_499_1,
+    )
+    .unwrap();
+    for distance in [0.0, 1e3, 1e7] {
+        let moved = Transform::translation(Vector::new(distance, -2.0 * distance, distance));
+        let (first, second) = (
+            patch.clone().transformed(moved).unwrap(),
+            sphere.transformed(moved).unwrap(),
+        );
+        let extrema = surface_surface_extrema(&first, &second, TOL);
+        assert_eq!(extrema.len(), 1, "at {distance}: {extrema:?}");
+        let minimum = extrema[0];
+        assert!(
+            (minimum.distance - 2.800_561_826).abs() < 1e-6,
+            "{minimum:?}"
+        );
+        assert!(
+            (minimum.first_parameters.0 - 0.738_061_33).abs() < 1e-6,
+            "{minimum:?}"
+        );
+        assert!(
+            (minimum.first_parameters.1 - 0.591_491_69).abs() < 1e-6,
+            "{minimum:?}"
+        );
+        assert_consistent(&first, &second, &extrema);
+    }
+}

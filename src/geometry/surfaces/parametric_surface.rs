@@ -71,15 +71,15 @@ pub trait ParametricSurface {
     fn point_at(&self, u: f64, v: f64) -> Point;
 
     /// Evaluates the partial derivative of order `(du, dv)` at parameters
-    /// `(u, v)`: `(1, 0)` is `∂S/∂u`, `(1, 1)` is `∂²S/∂u∂v`, and so on.
-    /// The plane, cylinder, cone, sphere and torus evaluate every order;
-    /// the other surfaces evaluate `du + dv <= 2`.
+    /// `(u, v)`: `(1, 0)` is `∂S/∂u`, `(1, 1)` is `∂²S/∂u∂v`, and so on,
+    /// up to `du + dv` of
+    /// [`highest_derivative_order`](Self::highest_derivative_order).
     ///
     /// # Panics
     ///
     /// Panics if `du + dv == 0` (use [`point_at`](Self::point_at) for
-    /// the position itself), or if `du + dv > 2` on a surface other than
-    /// the plane, cylinder, cone, sphere and torus.
+    /// the position itself), or if `du + dv` exceeds
+    /// [`highest_derivative_order`](Self::highest_derivative_order).
     ///
     /// # Examples
     ///
@@ -91,6 +91,22 @@ pub trait ParametricSurface {
     /// assert!((sphere.derivative(0.0, 0.0, 1, 0) - Vector::new(0.0, 2.0, 0.0)).magnitude() < 1e-15);
     /// ```
     fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector;
+
+    /// The highest total order `du + dv` that
+    /// [`derivative`](Self::derivative) evaluates: `u32::MAX` on the plane,
+    /// cylinder, cone, sphere and torus, which evaluate every order, and 2
+    /// on the other surfaces.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Point, Sphere};
+    ///
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    /// assert_eq!(sphere.highest_derivative_order(), u32::MAX);
+    /// ```
+    fn highest_derivative_order(&self) -> u32;
 
     /// Evaluates the point and the first derivatives `[Su, Sv]` at
     /// parameters `(u, v)`.
@@ -220,36 +236,7 @@ pub trait ParametricSurface {
     /// assert!((pole - Vector::Z).magnitude() < 1e-12);
     /// ```
     fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Direction> {
-        let bounds = [self.u_bounds(), self.v_bounds()];
-        match normal_recovery(self, u, v, bounds, tol) {
-            Recovery::Unique(normal) => return Some(normal),
-            // Disputed: the singularity admits no unique normal, and
-            // rung 3 must not substitute a nearby one for it.
-            Recovery::Disputed => return None,
-            // Absent: nothing recovered here at all; step off instead.
-            Recovery::Absent => {}
-        }
-        // Rung 3: step off to nearby parameters, first defined normal wins.
-        const STEP_FRACTIONS: [f64; 4] = [1e-7, 1e-6, 1e-5, 1e-4];
-        const DIAGONALS: [(f64, f64); 4] = [(1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)];
-        let [u_width, v_width] = bounds.map(|range| tol.reference_width(range));
-        let (u_period, v_period) = (self.u_period(), self.v_period());
-        for fraction in STEP_FRACTIONS {
-            for (u_sign, v_sign) in DIAGONALS {
-                let (Some(stepped_u), Some(stepped_v)) = (
-                    shift_parameter(u, u_sign * fraction * u_width, bounds[0], u_period),
-                    shift_parameter(v, v_sign * fraction * v_width, bounds[1], v_period),
-                ) else {
-                    continue;
-                };
-                if let Some(normal) =
-                    normal_from_derivatives(self, stepped_u, stepped_v, bounds, tol)
-                {
-                    return Some(normal);
-                }
-            }
-        }
-        None
+        recovered_normal(self, u, v, tol)
     }
 
     /// Returns the surface's `u` parameter bounds as `(first, last)`.
@@ -948,6 +935,77 @@ enum Parameter {
     V,
 }
 
+/// The default [`ParametricSurface::normal`]: the unit normal from the
+/// first partials, recovered at singular points from the second partials
+/// or from nearby parameters (rungs 1 to 3).
+pub(crate) fn recovered_normal<S: ParametricSurface + ?Sized>(
+    surface: &S,
+    u: f64,
+    v: f64,
+    tol: Tolerance,
+) -> Option<Direction> {
+    let bounds = [surface.u_bounds(), surface.v_bounds()];
+    match normal_recovery(surface, u, v, bounds, tol) {
+        Recovery::Unique(normal) => return Some(normal),
+        // Disputed: the singularity admits no unique normal, and
+        // rung 3 must not substitute a nearby one for it.
+        Recovery::Disputed => return None,
+        // Absent: nothing recovered here at all; step off instead.
+        Recovery::Absent => {}
+    }
+    // Rung 3: step off to nearby parameters, first defined normal wins.
+    const STEP_FRACTIONS: [f64; 4] = [1e-7, 1e-6, 1e-5, 1e-4];
+    const DIAGONALS: [(f64, f64); 4] = [(1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)];
+    let [u_width, v_width] = bounds.map(|range| tol.reference_width(range));
+    let (u_period, v_period) = (surface.u_period(), surface.v_period());
+    for fraction in STEP_FRACTIONS {
+        for (u_sign, v_sign) in DIAGONALS {
+            let (Some(stepped_u), Some(stepped_v)) = (
+                shift_parameter(u, u_sign * fraction * u_width, bounds[0], u_period),
+                shift_parameter(v, v_sign * fraction * v_width, bounds[1], v_period),
+            ) else {
+                continue;
+            };
+            if let Some(normal) =
+                normal_from_derivatives(surface, stepped_u, stepped_v, bounds, tol)
+            {
+                return Some(normal);
+            }
+        }
+    }
+    None
+}
+
+/// [`ParametricSurface::normal`] of a surface whose unit normal has a
+/// closed form: `closed()` where the first partials, of lengths
+/// `su_length` and `sv_length` with a cross product of length
+/// `cross_length`, span a tangent plane (rung 1 would succeed), and the
+/// recovery of [`recovered_normal`] everywhere else, non-finite
+/// parameters among them. `closed()` is the
+/// unit vector along `Su × Sv` there.
+#[inline]
+pub(crate) fn closed_form_normal<S: ParametricSurface + ?Sized>(
+    surface: &S,
+    u: f64,
+    v: f64,
+    tol: Tolerance,
+    [su_length, sv_length, cross_length]: [f64; 3],
+    closed: impl FnOnce() -> Vector,
+) -> Option<Direction> {
+    let widths = [
+        tol.reference_width(surface.u_bounds()),
+        tol.reference_width(surface.v_bounds()),
+    ];
+    if u.is_finite()
+        && v.is_finite()
+        && partials_span_a_plane(su_length, sv_length, cross_length, widths, tol)
+    {
+        Some(Direction::from_unit_vector(closed()))
+    } else {
+        recovered_normal(surface, u, v, tol)
+    }
+}
+
 /// Rungs 1–2 of [`ParametricSurface::normal`]: the unitized cross product
 /// of the first partials, falling back to second-derivative substitution
 /// at a singular point. `bounds` are the surface's `[u_bounds, v_bounds]`.
@@ -1247,7 +1305,9 @@ fn shift_parameter(
 ) -> Option<f64> {
     let shifted = parameter + step;
     if let Some(period) = period {
-        Some(bounds.0 + (shifted - bounds.0).rem_euclid(period))
+        Some(crate::math::parameter_range::wrap_into_period(
+            shifted, bounds.0, period,
+        ))
     } else {
         (bounds.0 <= shifted && shifted <= bounds.1).then_some(shifted)
     }

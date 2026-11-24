@@ -19,6 +19,14 @@ name = "eval_throughput"
 harness = false
 
 [[bench]]
+name = "conic_projection"
+harness = false
+
+[[bench]]
+name = "elementary_projection"
+harness = false
+
+[[bench]]
 name = "intersect_dispatch"
 harness = false
 
@@ -86,4 +94,8 @@ incremental = false
 members = [".", "geomcore-py"]
 
 [workspace.package]
-version = "0.50.0"
+version = "0.51.0"
+
+[[bench]]
+name = "bspline_surface_projection"
+harness = false

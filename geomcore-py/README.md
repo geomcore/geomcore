@@ -47,8 +47,9 @@ Windows, for Python 3.11+ (abi3: one wheel covers every version).
   and surfaces extruded or revolved from a curve. `TrimmedCurve` and
   `TrimmedSurface` restrict any of them to a range; `QuarticBranch` is a
   piece of the closed-form quartic two quadrics meet in.
-- **Intersections** with `a.intersect(b)` between any two curves or
-  surfaces, in either order. The result holds the hits with their
+- **Intersections** with `a.intersect(b)` between two curves in the same
+  dimension, a 3D curve and an surface, or two surfaces, in
+  either order. The result holds the hits with their
   parameters, point and multiplicity, the overlaps, the surface–surface
   curves and contact points, the `method` that ran (`EXACT` closed form
   or `NUMERIC` search) and its `completeness`. A result is a sequence of

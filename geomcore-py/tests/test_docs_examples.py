@@ -13,8 +13,12 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
+DOCS = ROOT / "docs"
+# Keep unpublished planning and agent notes out of the example suite.
 PAGES = [ROOT / "README.md", ROOT / "geomcore-py" / "README.md"] + sorted(
-    (ROOT / "docs").rglob("*.md")
+    page
+    for page in DOCS.rglob("*.md")
+    if page.relative_to(DOCS).parts[0] not in {"agents", "superpowers"}
 )
 FENCE = re.compile(r"^(?P<indent>[ \t]*)```(?P<language>[\w+-]*)[ \t]*$")
 HAS_VIEWER = importlib.util.find_spec("geomcore_viewer") is not None

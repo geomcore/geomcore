@@ -16,9 +16,9 @@ geometries.
 
 ## The foot-point condition
 
-A foot point is where the curve meets its own tangent at a right angle
-— the distance is stationary exactly where $(C(u) - P) \cdot C'(u) =
-0$. On the ten [elementary](../geometry/elementary.md) geometries this
+At an interior stationary point, the vector from the query point to
+the curve is perpendicular to the tangent. Its parameter satisfies
+$(C(u) - P) \cdot C'(u) = 0$. On the ten [elementary](../geometry/elementary.md) geometries this
 stationarity equation has a closed form (quartic/cubic on the conics,
 an `atan2` on the rest), so projection is exact. On B-splines there is
 no closed form: the kernel subdivides Bézier pieces with a bounding-box
@@ -30,14 +30,13 @@ minimum found, however close two basins sit.
 <figcaption>Four feet on an ellipse: one query point, four stationary points, one nearest.</figcaption>
 </figure>
 
-An ellipse already shows why `extrema` (all minima) and
-`project_point` (the nearest) are different calls: a single point can
-have four feet, and the nearest is only one of them. Computed live
-below — `extrema` on a 3×2 ellipse from a near-centre query, four feet:
+The diagram shows four stationary points. For the query below, the
+3 × 2 ellipse has two distance minima. `extrema` returns both,
+nearest first, and `project_point` returns the nearest.
 
 ```viewer
 scene: assets/scenes/projection-feet.json
-title: Ellipse with the four projection feet of one query point
+title: Two distance minima on an ellipse for one query point
 ```
 
 <figure class="geom-fig">
@@ -54,15 +53,12 @@ pointer or topology.
 The Python examples on this page share these shapes:
 
 ```python
-import numpy
 from geomcore import Circle, Ellipse, Line, Point, Sphere, Vector
 
 circle = Circle(Point(0, 0, 0), Vector.unit_z(), 2.0)
 sphere = Sphere(Point(0, 0, 0), 2.0)
 ellipse = Ellipse(Point(0, 0, 0), Vector.unit_z(), Vector.unit_x(), 3.0, 2.0)
 line = Line(Point(0, 0, 3), Vector.unit_x())
-us = numpy.linspace(0.0, 6.0, 7)
-vs = numpy.linspace(-1.0, 1.0, 7)
 ```
 
 === "Python"
@@ -124,13 +120,17 @@ returns first, `extrema` returns whole.
 === "Python"
 
     ```python
-    minima = ellipse.extrema(Point(4, 1, 0))   # [CurveProjection, ...] nearest first
+    query = Point(0.5, 0.2, 0.0)
+    minima = ellipse.extrema(query)
+    assert len(minima) == 2
+    assert minima[0].point.distance(ellipse.project_point(query).point) < 1e-7
     ```
 
 === "Rust"
 
     ```rust
-    let minima = ellipse.extrema(Point::new(4.0, 1.0, 0.0), tol);
+    let minima = ellipse.extrema(Point::new(0.5, 0.2, 0.0), tol);
+    assert_eq!(minima.len(), 2);
     ```
 
 On seams the parameters are normalised into `bounds()`; a hit within
@@ -149,6 +149,8 @@ imported only when these are called (`pip install geomcore[numpy]`).
 ```python
 import numpy
 
+us = numpy.linspace(0.0, 6.0, 7)
+vs = numpy.linspace(-1.0, 1.0, 7)
 queries = numpy.random.default_rng(0).normal(size=(100_000, 3))
 parameters, points, distances = circle.project_points_array(queries)
 # parameters (N,), points (N, 3), distances (N,); a surface gives (N, 2) parameters

@@ -1,6 +1,7 @@
 //! The local minima of the distance between a curve and a surface
 //! ([`CurveSurfaceExtrema`]).
 
+use crate::operations::search_domain::curve_domain;
 use std::cell::OnceCell;
 use std::f64::consts::TAU;
 use std::ops::Deref;
@@ -8,6 +9,7 @@ use std::ops::Deref;
 use crate::geometry::curves::{ElementaryCurve, ParametricCurve};
 use crate::geometry::surfaces::{ElementarySurface, ParametricSurface};
 use crate::math::numeric::newton_min_1d;
+use crate::math::parameter_domain::ParameterDomain;
 use crate::operations::extrema::curve_curve::{
     closest_from, curve_size, flat_minimum, is_box_minimum,
 };
@@ -17,7 +19,6 @@ use crate::operations::extrema::surface_search::{
     surface_domains, surface_size,
 };
 use crate::operations::extrema::{Extremum, parameters_apart};
-use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::{Completeness, CurveSurfaceRegion};
 use crate::{Circle, Cylinder, Line, Plane, Point, Sphere, Tolerance};
 
@@ -416,7 +417,7 @@ fn circle_plane(circle: &Circle, plane: &Plane, tol: Tolerance) -> Vec<f64> {
     };
     angles
         .into_iter()
-        .map(|angle| angle.rem_euclid(TAU))
+        .map(crate::math::parameter_range::wrap_angle)
         .collect()
 }
 
@@ -426,7 +427,7 @@ where
     C: ParametricCurve,
     S: ParametricSurface,
 {
-    let curve_domain = ParameterDomain::of(curve);
+    let curve_domain = curve_domain(curve);
     let surface_domains = surface_domains(surface);
     let [u0, v0] = reference_parameters(surface_domains);
     let scale = pair_scale(
