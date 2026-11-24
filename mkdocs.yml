@@ -43,6 +43,7 @@ nav:
   - Tutorials:
     - Getting started: getting-started.md
   - How-to guides:
+    - Build and place geometry: guides/construction.md
     - Visualize with the viewer: viewer.md
     - Projection & containment: guides/projection.md
     - Intersection: guides/intersection.md

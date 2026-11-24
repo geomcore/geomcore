@@ -1,10 +1,14 @@
 # Throughput baseline
 
-Informational numbers from `benches/eval_throughput.rs` (criterion), recorded so
-future optimization work has a concrete starting point. They are not a
-correctness gate and are expected to shift as internals evolve.
+Run `cargo bench --bench eval_throughput` to measure current evaluation
+throughput. For the CI regression check, see the
+[instruction budget](#instruction-budget). The timings below are
+historical measurements, with the workload and environment recorded
+where available.
 
-Machine: Linux 6.17, x86-64 desktop, single thread, `cargo bench` defaults
+## Position evaluation
+
+Linux 6.17, x86-64 desktop, single thread, `cargo bench` defaults
 (2026-07-02).
 
 | workload | input size | time / batch | throughput |
@@ -12,17 +16,6 @@ Machine: Linux 6.17, x86-64 desktop, single thread, `cargo bench` defaults
 | `Circle::points_at` | 100 000 params | ~1.13 ms | ~88 M evals/s |
 | `BSplineCurve::points_at` (degree 3, 20 poles, clamped) | 100 000 params | ~10.5 ms | ~9.5 M evals/s |
 | `BSplineSurface::points_at` (bicubic, 6×6 poles) | 100 000 (u, v) pairs | ~26.1 ms | ~3.8 M evals/s |
-
-The internals behind `points_at` are deliberately plain scalar loops in this
-proof-of-concept; the array-in/array-out API shape exists so that future bulk
-optimizations (SoA layouts, SIMD, parallel evaluation) can land behind the same
-signatures without breaking callers.
-
-Reproduce with:
-
-```sh
-cargo bench --bench eval_throughput
-```
 
 ## Points with derivatives
 
@@ -65,7 +58,7 @@ intersection evaluate through `first_derivatives` and `second_derivatives`, whic
 its time projecting seeds onto the surface and was unchanged (see
 [below](#curvesurface-intersection-on-b-splines) for its B-spline path).
 
-# Intersection entry point
+## Intersection entry point
 
 `benches/intersect_dispatch.rs` times batches of 1024 intersections of one
 pair kind four ways: the typed call (`IntersectExact::intersect_exact`),
@@ -546,7 +539,7 @@ Reproduce with:
 cargo bench --bench intersect_dispatch -- intersect_routed
 ```
 
-# Conic–quadric intersections
+## Conic–quadric intersections
 
 `benches/conic_quadric.rs` times batches of 1024 typed `Intersect::intersect`
 calls for each of the 16 pairs of a conic (circle, ellipse, parabola,
@@ -583,7 +576,7 @@ Reproduce with:
 cargo bench --bench conic_quadric
 ```
 
-# Discretization
+## Discretization
 
 `benches/discretization.rs` discretizes 3000 model-like trimmed curves: two thirds
 cubic B-splines with 1 to 7 spans, one third quarter-circle arcs (half
@@ -622,7 +615,7 @@ Reproduce with:
 cargo bench --bench discretization
 ```
 
-# Curve–surface intersection on B-splines
+## Curve–surface intersection on B-splines
 
 `benches/intersect_curve_surface.rs` times the numeric curve–surface
 search for 64 cubic B-spline curves against one bicubic B-spline surface (6×6 poles
@@ -655,7 +648,7 @@ Reproduce with:
 cargo bench --bench intersect_curve_surface
 ```
 
-# Curve–curve intersection and extrema on B-splines
+## Curve–curve intersection and extrema on B-splines
 
 `benches/intersect_curve_curve.rs` times the numeric curve–curve search
 (through the routed `intersect` since 0.36, through the free function
@@ -692,7 +685,7 @@ Reproduce with:
 cargo bench --bench intersect_curve_curve
 ```
 
-# Marching intersection
+## Marching intersection
 
 `benches/marching_intersection.rs` times the routed `intersect` on two
 bicubic B-spline surfaces (6×6 poles over `[0, 5]^2`, knots `[0, 1, 2,
@@ -835,7 +828,7 @@ Reproduce with:
 cargo bench --bench marching_intersection
 ```
 
-# Mixed elementary and B-spline intersections
+## Mixed elementary and B-spline intersections
 
 The same two benches time an elementary shape against a B-spline,
 converted to its exact rational B-spline and searched by Bézier piece
@@ -880,7 +873,7 @@ cargo bench --bench intersect_curve_surface -- "cylinder|circle_bspline_surface"
 cargo bench --bench intersect_curve_curve -- "_bspline$" --warm-up-time 1 --measurement-time 3
 ```
 
-# 2D curve–curve intersections
+## 2D curve–curve intersections
 
 `intersect_curve_curve` also times the routed 2D `intersect` on 64 pairs of
 each family in the plane: lines, circles, ellipses (radii 2 and 1),
@@ -907,7 +900,7 @@ Reproduce with:
 cargo bench --bench intersect_curve_curve -- curve_curve_2d --warm-up-time 1 --measurement-time 2
 ```
 
-# Swept-surface projection
+## Swept-surface projection
 
 `benches/swept_projection.rs` projects 256 points scattered near each swept
 surface, and the same points onto the surface converted with
@@ -959,7 +952,7 @@ Reproduce with:
 cargo bench --bench swept_plane_cut -- --warm-up-time 1 --measurement-time 3
 ```
 
-# UV curve composition
+## UV curve composition
 
 `benches/uv_curve_composition.rs` times `uv_curve_to_3d` of a slanted
 line on a bicubic B-spline surface over `[0, 2] x [0, 1]` with three
@@ -989,7 +982,7 @@ Reproduce with:
 cargo bench --bench uv_curve_composition -- --warm-up-time 1 --measurement-time 3
 ```
 
-# Curve–surface and surface–surface extrema
+## Curve–surface and surface–surface extrema
 
 `benches/surface_extrema.rs` times `curve_surface_extrema` and
 `surface_surface_extrema`: the closed forms on 64 lines against a sphere

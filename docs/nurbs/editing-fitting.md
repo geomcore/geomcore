@@ -149,10 +149,27 @@ result every operation within a deviation hands back.
 In Python the points can also be an `(N, 3)` numpy array (`(N, 2)`
 for `BSplineCurve2D`, `(n, m, 3)` for a surface grid).
 
-`BSplineSurface.approximate` (`BSplineSurface::approximate` in Rust) fits a grid by separating rows and
-columns (one factored system per direction); `approximate_within`
-does the same within a deviation, and returns the surface with its
-deviation.
+### Fit a surface grid
+
+Give `BSplineSurface.approximate_within` a rectangular grid. The outer
+index follows one parameter direction and the inner index follows the
+other. The returned deviation is the largest residual at the assigned
+sample parameters.
+
+```python
+from geomcore import BSplineSurface, Point
+
+grid = [
+    [Point(u, v, 0.25 * u * v) for v in (0.0, 0.5, 1.0)]
+    for u in (0.0, 0.5, 1.0)
+]
+fit = BSplineSurface.approximate_within(grid, 1, 1, 1e-8)
+assert fit.deviation <= 1e-8
+surface = fit.surface
+```
+
+Use `BSplineSurface.approximate` when you want to set the number of
+control points per direction yourself.
 
 ## Exact conversions
 

@@ -1,27 +1,8 @@
 # Getting started
 
-This tutorial takes you from an empty environment to a curve you can
-inspect in the browser. You will install `geomcore`, evaluate a point on
-a circle, move the circle, intersect it with an ellipse, and draw the
-result with `geomcore-viewer`. It takes about ten minutes.
-
-`geomcore` is a geometry kernel for CAD-grade curves and surfaces —
-parametric evaluation, rigid transformations, projection, intersection,
-fitting, and curves on surfaces — in Rust with Python bindings. It is
-not a CAD system: there is no topology, B-rep or boolean operation. It
-is the geometry layer such a system would stand on, usable on its own.
-
-`geomcore-viewer` is the companion viewer. It draws the exact objects
-the kernel computes — not hand-sampled drawings — either live from a
-script or notebook, or as a static scene embedded in a page like this
-one. You do not need it for the kernel itself, but it is the fastest way
-to see whether the geometry is what you meant.
-
-The code below is Python. The Rust API uses the same names; the install
-and viewer steps show both, and every reference page has Rust tabs.
-
-You need Python 3.11+ or a Rust toolchain, `pip` or `cargo`, and a
-browser for the viewer step.
+Evaluate a point on a circle, move the circle, and find where it
+crosses an ellipse. Run the Python steps in order. The last step shows
+how to inspect the result in a browser from Python or Rust.
 
 ## 1. Install
 
@@ -31,9 +12,7 @@ browser for the viewer step.
     pip install geomcore
     ```
 
-    Wheels cover Linux (x86_64, aarch64), macOS and Windows on Python
-    3.11+. The package ships type stubs, so an editor shows the full API
-    and every docstring.
+    Use Python 3.11 or later.
 
 === "Rust"
 
@@ -41,29 +20,8 @@ browser for the viewer step.
     cargo add geomcore
     ```
 
-    Add `geomcore` to a binary or library crate as usual. The API is at
-    [docs.rs](https://docs.rs/geomcore).
-
-The viewer is a separate install. The Python package currently draws
-geomcore 0.44 through 0.47, so install the pair explicitly and let pip
-resolve a version both accept:
-
-=== "Python"
-
-    ```sh
-    pip install "geomcore==0.47.*" geomcore-viewer
-    ```
-
-=== "Rust"
-
-    ```sh
-    cargo add geomcore-viewer --features geomcore
-    ```
-
-    The Rust client 0.5 builds against geomcore 0.48. It does not start
-    the viewer server itself: run `geomcore-viewer serve` once from the
-    Python package. See [Visualize with the viewer](viewer.md) for the
-    compatibility notes and the server setup.
+    Add the dependency to a Cargo project. See the
+    [Rust API reference](https://docs.rs/geomcore).
 
 ## 2. Evaluate a point
 
@@ -145,10 +103,11 @@ scene: assets/scenes/getting-started.json
 title: A circle and an ellipse with their four exact crossings
 ```
 
-To get the same picture from your own script, install the viewer as in
-step 1 and send the objects to a local tab. The first `add` starts a
-background server and opens the browser; re-running the script updates
-the scene in place.
+To draw from your own script, follow the
+[viewer installation and compatibility instructions](viewer.md#install).
+Use a separate environment if the Python viewer requires an older kernel
+than your project. For Rust, start the viewer server before running the
+example.
 
 === "Python"
 
