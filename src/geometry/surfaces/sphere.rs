@@ -9,13 +9,14 @@ use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::SurfaceIsoError;
 use crate::geometry::surfaces::iso::{check_iso_param, iso_circle};
-use crate::geometry::surfaces::parametric_surface::closed_form_normal;
+use crate::geometry::surfaces::parametric_surface::{
+    closed_form_normal, inverted_contains, inverted_projection,
+};
 use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
-use crate::{
-    Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector, operations::projection,
-};
+use crate::math::elementary::surface::Turn;
+use crate::{Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector};
 use crate::{TransformError, Transformable};
 use std::f64::consts::{FRAC_PI_2, TAU};
 use std::fmt;
@@ -263,31 +264,34 @@ impl ParametricSurface for Sphere {
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        // The foot from the local coordinates where they give it, by
-        // evaluating the parameters elsewhere.
-        let (u, v, foot) = elementary::sphere_projection(&self.frame, self.radius, point)
-            .unwrap_or_else(|| {
-                let (u, v) = self.parameters_of(point, tol);
-                (u, v, self.point_at(u, v))
-            });
-        let distance = foot.distance(point);
-        SurfaceProjection {
-            u,
-            v,
-            point: foot,
-            distance: projection::snap_distance(distance, tol.confusion),
-        }
+        inverted_projection(
+            self,
+            point,
+            tol,
+            elementary::sphere_inversion(&self.frame, self.radius, point),
+        )
     }
 
     fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        let (u, v) = self.parameters_of(point, tol);
-        self.point_at(u, v).distance(point) <= tol.confusion
+        inverted_contains(
+            self,
+            point,
+            tol,
+            elementary::sphere_inversion(&self.frame, self.radius, point),
+        )
     }
 
     fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
         match du + dv {
             0 => panic!("derivative: du + dv must be >= 1 (use point_at for the (0, 0) order)"),
-            _ => elementary::sphere_derivative(&self.frame, self.radius, u, v, du, dv),
+            _ => elementary::sphere_derivative(
+                &self.frame,
+                self.radius,
+                Turn::of(u),
+                Turn::of(v),
+                du,
+                dv,
+            ),
         }
     }
 
@@ -317,10 +321,10 @@ impl ParametricSurface for Sphere {
     }
 
     /// Recovers `(u, v)` of a point on (or near) the sphere. See
-    /// `crate::math::elementary::surface::sphere_parameters` for the
+    /// `crate::math::elementary::surface::sphere_inversion` for the
     /// formula, including the pole handling.
     fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
-        elementary::sphere_parameters(&self.frame, self.radius, point)
+        elementary::sphere_inversion(&self.frame, self.radius, point).parameters()
     }
 
     fn uv_curve_to_3d(

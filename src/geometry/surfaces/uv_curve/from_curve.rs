@@ -45,6 +45,7 @@ use crate::geometry::curves::{
 };
 use crate::geometry::surfaces::{ElementarySurface, ParametricSurface};
 use crate::math::elementary::curve::{in_period, wrap_to_turn};
+use crate::math::elementary::surface::{self as elementary, Turn};
 use crate::{Frame2D, Point, Point2D, Tolerance, Vector, Vector2D};
 
 /// Error returned when a 3D curve has no exact UV curve, a curve in a
@@ -569,9 +570,8 @@ fn line_on_cone(
         foot = apex + line.direction();
         delta_v = 1.0;
     }
-    let (u, v) = crate::math::elementary::surface::cone_parameters(&frame, ref_r, half_angle, foot);
-    let sv =
-        crate::math::elementary::surface::cone_derivative(&frame, ref_r, half_angle, u, v, 0, 1);
+    let (u, v) = elementary::cone_inversion(&frame, ref_r, half_angle, foot).parameters();
+    let sv = elementary::cone_derivative(&frame, ref_r, Turn::of(half_angle), Turn::of(u), v, 0, 1);
     if !line
         .direction()
         .is_parallel(Direction::from_unit_vector(sv), tol.angular)

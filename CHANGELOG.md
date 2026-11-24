@@ -11,6 +11,16 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- Each elementary surface is inverted once, for its parameters and its
+  nearest point (#503). The cone's axis rule, the sphere's pole rule and
+  the torus's branch choice were written twice, once for `parameters_of`
+  and once for `project_point`. `contains` now reads the same nearest
+  point as `project_point`, so the two agree at `tol.confusion`, and it
+  no longer evaluates the parameters where that point has a closed form.
+  A line against a cylinder takes 13–29% fewer instructions, and point
+  projection onto a cylinder, a sphere or a torus 6–9% fewer and onto a
+  cone 17% fewer.
+
 - Each elementary surface's implicit equation is written once (#504).
   The conic and line intersections, the marching seeds and the reading
   of conics lying close to a surface derived it again, the cone's four

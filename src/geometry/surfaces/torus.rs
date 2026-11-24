@@ -10,14 +10,14 @@ use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::SurfaceIsoError;
 use crate::geometry::surfaces::iso::{check_iso_param, iso_circle};
-use crate::geometry::surfaces::parametric_surface::closed_form_normal;
+use crate::geometry::surfaces::parametric_surface::{
+    closed_form_normal, inverted_contains, inverted_projection,
+};
 use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
-use crate::{
-    Axis, Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector,
-    operations::projection,
-};
+use crate::math::elementary::surface::Turn;
+use crate::{Axis, Circle, Frame, Point, SurfaceProjection, Tolerance, Transform, Vector};
 use crate::{TransformError, Transformable};
 use std::f64::consts::TAU;
 use std::fmt;
@@ -302,26 +302,21 @@ impl ParametricSurface for Torus {
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        // The foot from the local coordinates where they give it, by
-        // evaluating the parameters elsewhere.
-        let (u, v, foot) =
-            elementary::torus_projection(&self.frame, self.major_radius, self.minor_radius, point)
-                .unwrap_or_else(|| {
-                    let (u, v) = self.parameters_of(point, tol);
-                    (u, v, self.point_at(u, v))
-                });
-        let distance = foot.distance(point);
-        SurfaceProjection {
-            u,
-            v,
-            point: foot,
-            distance: projection::snap_distance(distance, tol.confusion),
-        }
+        inverted_projection(
+            self,
+            point,
+            tol,
+            elementary::torus_inversion(&self.frame, self.major_radius, self.minor_radius, point),
+        )
     }
 
     fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        let (u, v) = self.parameters_of(point, tol);
-        self.point_at(u, v).distance(point) <= tol.confusion
+        inverted_contains(
+            self,
+            point,
+            tol,
+            elementary::torus_inversion(&self.frame, self.major_radius, self.minor_radius, point),
+        )
     }
 
     fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
@@ -331,8 +326,8 @@ impl ParametricSurface for Torus {
                 &self.frame,
                 self.major_radius,
                 self.minor_radius,
-                u,
-                v,
+                Turn::of(u),
+                Turn::of(v),
                 du,
                 dv,
             ),
@@ -365,11 +360,12 @@ impl ParametricSurface for Torus {
     }
 
     /// Recovers `(u, v)` of a point on (or near) the torus. See
-    /// `crate::math::elementary::surface::torus_parameters` for the formula,
+    /// `crate::math::elementary::surface::torus_inversion` for the formula,
     /// including the near/far branch handling when `major_radius <
     /// minor_radius`.
     fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
-        elementary::torus_parameters(&self.frame, self.major_radius, self.minor_radius, point)
+        elementary::torus_inversion(&self.frame, self.major_radius, self.minor_radius, point)
+            .parameters()
     }
 
     fn uv_curve_to_3d(
