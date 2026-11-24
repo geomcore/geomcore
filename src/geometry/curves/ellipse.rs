@@ -343,8 +343,16 @@ impl<P: TierPoint> GenericEllipse<P> {
     /// and the start of the bounds when within `tol.confusion` of the seam
     /// along the curve, so a point at the seam has one parameter.
     pub(crate) fn parameter_in_bounds(&self, u: f64, tol: Tolerance) -> f64 {
-        // The speed at parameter 0 is the minor radius.
-        elementary::seam_wrapped(u, 0.0, TAU, self.minor_radius, tol.confusion)
+        // The speed at parameter 0 is the minor radius and grows by at
+        // most the major radius per radian.
+        elementary::seam_wrapped(
+            u,
+            0.0,
+            TAU,
+            self.minor_radius,
+            self.major_radius,
+            tol.confusion,
+        )
     }
 }
 

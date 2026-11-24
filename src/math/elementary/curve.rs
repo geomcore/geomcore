@@ -371,11 +371,27 @@ pub(crate) fn ellipse_nearest(a: f64, b: f64, x: f64, y: f64) -> f64 {
 /// The parameter to report for a hit or projection at `u` on a closed
 /// curve whose bounds are `[first, first + period)`: `u` wrapped into
 /// them, and `first` when it falls within `tol` of the seam along the
-/// curve (`speed` is the curve's speed there), so a point at the seam gets
-/// one parameter whichever side it was found from.
-pub(crate) fn seam_wrapped(u: f64, first: f64, period: f64, speed: f64, tol: f64) -> f64 {
+/// curve, so a point at the seam gets one parameter whichever side it was
+/// found from.
+///
+/// The arc to the seam is bounded by `Δ (speed + growth Δ / 2)`, with
+/// `Δ` the parameter gap, `speed` the curve's speed at the seam and
+/// `growth` a bound on how fast that speed grows with the parameter. A
+/// circle's speed is constant (`growth` 0). An ellipse's speed at `s`
+/// from its seam is `√(a² sin² s + b² cos² s) ≤ b + a |s|` (`growth`
+/// `a`): on a needle ellipse the speed `b` alone would let the snap move
+/// the point by about `a Δ² / 2`, far beyond `tol`.
+pub(crate) fn seam_wrapped(
+    u: f64,
+    first: f64,
+    period: f64,
+    speed: f64,
+    growth: f64,
+    tol: f64,
+) -> f64 {
     let w = in_period(u, first, first + period);
-    if (first + period - w) * speed <= tol {
+    let gap = first + period - w;
+    if gap * (speed + 0.5 * growth * gap) <= tol {
         first
     } else {
         w

@@ -487,3 +487,36 @@ fn test_nearest_only_projection_matches_extrema() {
             .is_nan()
     );
 }
+
+// ---- seam snap (#482) ----
+
+/// On a needle ellipse the speed at the seam, the minor radius, says
+/// little about how far the point moves: a foot 0.05 rad before the seam
+/// sits about `a (1 − cos 0.05)` ≈ 1.25e-3 from the seam point. Its
+/// parameter is reported where it is, not snapped to the seam, so
+/// evaluating the reported parameter gives the reported foot.
+#[test]
+fn test_needle_ellipse_reports_a_foot_near_the_seam_at_its_own_parameter() {
+    let tol = Tolerance::DEFAULT;
+    let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0, 1e-6).unwrap();
+    let point = Point::new(0.99877, -0.94011, -0.11883);
+    let projection = e.project_point(point, tol);
+    assert!(projection.parameter > 6.0, "{}", projection.parameter);
+    assert!(e.point_at(projection.parameter).distance(projection.point) <= tol.confusion);
+    for extremum in e.extrema(point, tol) {
+        assert!(e.point_at(extremum.parameter).distance(extremum.point) <= tol.confusion);
+    }
+}
+
+/// A foot within `confusion` of the seam along the curve still snaps to
+/// the seam's parameter, on a needle ellipse as on a round one.
+#[test]
+fn test_a_foot_at_the_seam_snaps_to_parameter_zero() {
+    let tol = Tolerance::DEFAULT;
+    for minor in [1e-6, 0.5, 1.0] {
+        let e = Ellipse::new(Point::ORIGIN, Vector::Z, Vector::X, 1.0, minor).unwrap();
+        let point = Point::new(2.0, -1e-9 * minor, 0.0);
+        let projection = e.project_point(point, tol);
+        assert_eq!(projection.parameter, 0.0, "minor radius {minor}");
+    }
+}
