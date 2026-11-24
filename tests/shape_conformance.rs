@@ -197,3 +197,35 @@ fn test_shared_methods_agree_on_every_surface() {
         }
     }
 }
+
+/// Every order up to `highest_derivative_order` (at most 4) evaluates on
+/// every surface sample and its elementary form, and a trimmed surface
+/// reports its basis's order.
+#[test]
+fn test_every_order_up_to_the_highest_evaluates() {
+    for surface in surfaces() {
+        let highest = surface.highest_derivative_order();
+        let elementary = surface.as_elementary();
+        if let Some(elementary) = &elementary {
+            assert_eq!(
+                elementary.highest_derivative_order(),
+                highest,
+                "{surface:?}"
+            );
+        }
+        let (u, v) = surface_parameters(&surface)[0];
+        for order in 1..=highest.min(4) {
+            for du in 0..=order {
+                let d = surface.derivative(u, v, du, order - du);
+                assert!(d.is_finite(), "{surface:?} at order ({du}, {})", order - du);
+            }
+        }
+        let trimmed = geomcore::TrimmedSurface::new(
+            surface.clone(),
+            common::samples::trimmed_range(surface.u_bounds()),
+            common::samples::trimmed_range(surface.v_bounds()),
+        )
+        .unwrap();
+        assert_eq!(trimmed.highest_derivative_order(), highest, "{surface:?}");
+    }
+}

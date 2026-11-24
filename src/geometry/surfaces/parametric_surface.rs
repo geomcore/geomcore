@@ -71,15 +71,15 @@ pub trait ParametricSurface {
     fn point_at(&self, u: f64, v: f64) -> Point;
 
     /// Evaluates the partial derivative of order `(du, dv)` at parameters
-    /// `(u, v)`: `(1, 0)` is `∂S/∂u`, `(1, 1)` is `∂²S/∂u∂v`, and so on.
-    /// The plane, cylinder, cone, sphere and torus evaluate every order;
-    /// the other surfaces evaluate `du + dv <= 2`.
+    /// `(u, v)`: `(1, 0)` is `∂S/∂u`, `(1, 1)` is `∂²S/∂u∂v`, and so on,
+    /// up to `du + dv` of
+    /// [`highest_derivative_order`](Self::highest_derivative_order).
     ///
     /// # Panics
     ///
     /// Panics if `du + dv == 0` (use [`point_at`](Self::point_at) for
-    /// the position itself), or if `du + dv > 2` on a surface other than
-    /// the plane, cylinder, cone, sphere and torus.
+    /// the position itself), or if `du + dv` exceeds
+    /// [`highest_derivative_order`](Self::highest_derivative_order).
     ///
     /// # Examples
     ///
@@ -91,6 +91,22 @@ pub trait ParametricSurface {
     /// assert!((sphere.derivative(0.0, 0.0, 1, 0) - Vector::new(0.0, 2.0, 0.0)).magnitude() < 1e-15);
     /// ```
     fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector;
+
+    /// The highest total order `du + dv` that
+    /// [`derivative`](Self::derivative) evaluates: `u32::MAX` on the plane,
+    /// cylinder, cone, sphere and torus, which evaluate every order, and 2
+    /// on the other surfaces.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use geomcore::prelude::*;
+    /// use geomcore::{Point, Sphere};
+    ///
+    /// let sphere = Sphere::new(Point::ORIGIN, 2.0).unwrap();
+    /// assert_eq!(sphere.highest_derivative_order(), u32::MAX);
+    /// ```
+    fn highest_derivative_order(&self) -> u32;
 
     /// Evaluates the point and the first derivatives `[Su, Sv]` at
     /// parameters `(u, v)`.
