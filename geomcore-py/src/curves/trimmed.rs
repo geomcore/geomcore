@@ -49,9 +49,12 @@ shape_methods! {
     /// through the three points, whose normal the points turn
     /// counterclockwise about. Raises `ConstructionError` when two points
     /// coincide or the three are collinear.
+    ///
+    /// `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
     #[staticmethod]
-    fn arc_through(start: PyPoint, middle: PyPoint, end: PyPoint) -> PyResult<Self> {
-        let arc = TrimmedCurve::arc_through(start.0, middle.0, end.0).map_err(python_error)?;
+    #[pyo3(signature = (start, middle, end, tol = None))]
+    fn arc_through(start: PyPoint, middle: PyPoint, end: PyPoint, tol: Option<crate::values::ToleranceArgument>) -> PyResult<Self> {
+        let arc = TrimmedCurve::arc_through(start.0, middle.0, end.0, crate::tolerance(tol)).map_err(python_error)?;
         Ok(PyTrimmedCurve(arc.into_curve()))
     }
 
@@ -184,9 +187,12 @@ shape_methods! {
     /// through the three points: counterclockwise when they turn left,
     /// clockwise otherwise. Raises `ConstructionError` when two points
     /// coincide or the three are collinear.
+    ///
+    /// `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
     #[staticmethod]
-    fn arc_through(start: PyPoint2D, middle: PyPoint2D, end: PyPoint2D) -> PyResult<Self> {
-        let arc = TrimmedCurve2D::arc_through(start.0, middle.0, end.0).map_err(python_error)?;
+    #[pyo3(signature = (start, middle, end, tol = None))]
+    fn arc_through(start: PyPoint2D, middle: PyPoint2D, end: PyPoint2D, tol: Option<crate::values::ToleranceArgument>) -> PyResult<Self> {
+        let arc = TrimmedCurve2D::arc_through(start.0, middle.0, end.0, crate::tolerance(tol)).map_err(python_error)?;
         Ok(PyTrimmedCurve2D(arc.into_curve2d()))
     }
 

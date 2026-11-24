@@ -8,6 +8,7 @@ use crate::operations::intersect::numeric::curve_surface::{
     intersect_curve_surface, search_curve_surface,
 };
 use crate::operations::intersect::results::completeness::Region;
+use crate::operations::search_domain::curve_domain;
 
 const TOL: Tolerance = Tolerance::DEFAULT;
 
@@ -105,7 +106,7 @@ fn rising(rng: &mut Lcg, rational: bool) -> BSplineCurve {
 /// The hits of the piece-pair search, which must be complete.
 fn search<C: ParametricCurve>(curve: &C, surface: &BSplineSurface) -> Vec<CurveSurfaceHit> {
     let bspline = curve.as_bspline().unwrap();
-    let found = bspline_curve_surface(bspline, ParameterDomain::of(curve), surface, TOL);
+    let found = bspline_curve_surface(bspline, curve_domain(curve), surface, TOL);
     assert!(found.is_complete(), "{:?}", found.completeness());
     found.into_hits()
 }
@@ -477,7 +478,7 @@ fn assert_sampled_hits_kept(hits: &CurveSurfaceHits, curve: &BSplineCurve, plane
 fn test_curve_lying_on_the_surface_is_unseparated_along_it() {
     let plane = flat();
     let lying = segment(Point::new(1.0, 1.0, 0.0), Point::new(4.0, 3.0, 0.0));
-    let found = bspline_curve_surface(&lying, ParameterDomain::of(&lying), &plane, TOL);
+    let found = bspline_curve_surface(&lying, curve_domain(&lying), &plane, TOL);
     let (reason, regions) = incomplete(&found);
     assert_eq!(reason, IncompleteReason::Unseparated);
     // The patches it crosses merge into one region over the whole curve.
@@ -505,7 +506,7 @@ fn test_tangent_contact_is_unseparated_around_it() {
     let contact = Point::new(2.5, 2.5, 0.0);
     assert_eq!(tangent.point_at(0.5), contact);
     let foot = plane.project_point(contact, TOL);
-    let found = bspline_curve_surface(&tangent, ParameterDomain::of(&tangent), &plane, TOL);
+    let found = bspline_curve_surface(&tangent, curve_domain(&tangent), &plane, TOL);
     let (reason, regions) = incomplete(&found);
     assert_eq!(reason, IncompleteReason::Unseparated);
     assert!(
@@ -544,7 +545,7 @@ fn test_contact_with_a_curved_surface_is_incomplete_around_it() {
         // Tangent to the cylinder at `on`, and lying on it.
         let side = crate::Vector::new(on.y, -on.x, 0.0) * 0.125;
         let across = segment(on + side, on - side);
-        let found = bspline_curve_surface(&across, ParameterDomain::of(&across), &cylinder, TOL);
+        let found = bspline_curve_surface(&across, curve_domain(&across), &cylinder, TOL);
         let (reason, regions) = incomplete(&found);
         assert_eq!(reason, IncompleteReason::Unseparated);
         assert!(
@@ -555,7 +556,7 @@ fn test_contact_with_a_curved_surface_is_incomplete_around_it() {
             cylinder.point_at(foot.0, 0.1),
             cylinder.point_at(foot.0, 0.9),
         );
-        let found = bspline_curve_surface(&lying, ParameterDomain::of(&lying), &cylinder, TOL);
+        let found = bspline_curve_surface(&lying, curve_domain(&lying), &cylinder, TOL);
         let (_, regions) = incomplete(&found);
         for k in 0..=8 {
             let t = k as f64 / 8.0;
@@ -573,7 +574,7 @@ fn test_exhausted_budget_leaves_the_pending_pairs() {
     for _ in 0..8 {
         let curve = rising(&mut rng, false);
         let all = search(&curve, &surface);
-        let found = search_pieces(&curve, ParameterDomain::of(&curve), &surface, TOL, 0);
+        let found = search_pieces(&curve, curve_domain(&curve), &surface, TOL, 0);
         let (reason, regions) = incomplete(&found);
         assert_eq!(reason, IncompleteReason::BudgetExhausted);
         assert_on_both(&found, &curve, &surface);

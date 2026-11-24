@@ -48,10 +48,13 @@ shape_methods! {
     /// Build a 2D ellipse from its center, the major-axis end point `s1`
     /// and a point `s2` whose distance from the major axis is the minor
     /// radius.
+    ///
+    /// `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
     #[staticmethod]
-    fn from_center_and_points(center: PyPoint2D, s1: PyPoint2D, s2: PyPoint2D) -> PyResult<Self> {
+    #[pyo3(signature = (center, s1, s2, tol = None))]
+    fn from_center_and_points(center: PyPoint2D, s1: PyPoint2D, s2: PyPoint2D, tol: Option<crate::values::ToleranceArgument>) -> PyResult<Self> {
         Ok(PyEllipse2D(
-            Ellipse2D::from_center_and_points(center.0, s1.0, s2.0).map_err(python_error)?,
+            Ellipse2D::from_center_and_points(center.0, s1.0, s2.0, crate::tolerance(tol)).map_err(python_error)?,
         ))
     }
 

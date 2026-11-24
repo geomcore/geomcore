@@ -21,7 +21,7 @@ pub(crate) use cutting::{
 pub(crate) use elevation::Elevation;
 pub(crate) use removal::{check_removal, remove_knots};
 
-use super::curve::KnotVector;
+use super::curve::{KnotVector, LARGE};
 use crate::base::pole::{HomogeneousPole, Pole, PolePoint};
 use crate::math::bspline::errors::KnotInsertionError;
 
@@ -293,6 +293,38 @@ pub(crate) fn curve_pieces<G: PolePoint>(
         Walker::new(direction, 1).for_each_piece(poles, One, |_, x, y, piece| {
             let (points, weights) = S::Pole::parts(piece);
             visit(x, y, points, weights);
+        });
+    }
+    match weights {
+        None => run(direction, points, &mut visit),
+        Some(weights) => run(direction, Weighted { points, weights }, &mut visit),
+    }
+}
+
+/// Visits the Bézier pieces of a curve's direction over its range, a
+/// periodic direction's from its lower bound, as homogeneous lanes:
+/// `visit(x, y, piece)` for the piece over `[x, y]`, its `degree + 1`
+/// control points `(x w, y w, z w, w)`, the weight 1 without `weights`.
+pub(crate) fn homogeneous_curve_pieces<G: PolePoint>(
+    direction: &KnotVector,
+    points: &[G],
+    weights: Option<&[f64]>,
+    mut visit: impl FnMut(f64, f64, &[[f64; 4]]),
+) {
+    fn run<S: Source>(
+        direction: &KnotVector,
+        poles: S,
+        visit: &mut impl FnMut(f64, f64, &[[f64; 4]]),
+    ) {
+        let mut lanes = [[0.0; 4]; LARGE];
+        Walker::new(direction, 1).for_each_piece(poles, One, |_, x, y, piece| {
+            for (lane, pole) in lanes.iter_mut().zip(piece) {
+                *lane = pole.lanes();
+                if !S::Pole::WEIGHTED {
+                    lane[3] = 1.0;
+                }
+            }
+            visit(x, y, &lanes[..piece.len()]);
         });
     }
     match weights {

@@ -12,18 +12,19 @@
 //! circle, ellipse or hyperbola does not follow the curve's own parameter,
 //! so what the search finds is carried back to it.
 
-use crate::geometry::curves::PointExtrema;
+use crate::math::parameter_range::ParameterRange;
+use crate::operations::search_domain::curve_domain;
 use std::borrow::Cow;
 
 use crate::geometry::curves::{BSplineCurve, ElementaryCurve, ParametricCurve, TrimmedCurve};
 use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::boxtree::Aabb;
+use crate::math::parameter_domain::ParameterDomain;
 use crate::operations::extrema::CurveCurveExtremum;
 use crate::operations::intersect::numeric::curve_curve_hull::bspline_curve_curve;
 use crate::operations::intersect::numeric::curve_surface_hull::{
     CurveSurfaceHits, bspline_curve_surface,
 };
-use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::surface_patches::{
     SurfacePatches, grown, nearest, reach,
 };
@@ -86,13 +87,11 @@ impl HullCurve<'_> {
     /// at its representative nearest `t`, not wrapped into the range.
     fn carried(&self, t: f64) -> f64 {
         let point = || self.bspline.point_at(t);
-        // The conics invert in closed form, which takes no tolerance.
-        let tol = Tolerance::DEFAULT;
         match self.source {
             None | Some(ElementaryCurve::Line(_) | ElementaryCurve::Parabola(_)) => t,
-            Some(ElementaryCurve::Circle(c)) => nearest(c.parameter_of(point(), tol), t),
-            Some(ElementaryCurve::Ellipse(e)) => nearest(e.parameter_of(point(), tol), t),
-            Some(ElementaryCurve::Hyperbola(h)) => h.parameter_of(point(), tol),
+            Some(ElementaryCurve::Circle(c)) => nearest(c.angle_of(point()), t),
+            Some(ElementaryCurve::Ellipse(e)) => nearest(e.angle_of(point()), t),
+            Some(ElementaryCurve::Hyperbola(h)) => h.angle_of(point()),
         }
     }
 
@@ -196,7 +195,7 @@ fn hull_curve<'a, C: ParametricCurve>(curve: &'a C, cover: Option<&Aabb>) -> Opt
     if let Some(bspline) = curve.as_bspline() {
         return Some(Hull::Curve(Box::new(HullCurve {
             bspline: Cow::Borrowed(bspline),
-            range: ParameterDomain::of(curve),
+            range: curve_domain(curve),
             source: None,
         })));
     }
@@ -208,7 +207,7 @@ fn hull_curve<'a, C: ParametricCurve>(curve: &'a C, cover: Option<&Aabb>) -> Opt
             return Some(Hull::Apart);
         }
     }
-    let range = ParameterDomain::from_bounds((lo, hi), curve.period());
+    let range = ParameterRange::new((lo, hi), curve.period()).search_domain();
     let bspline = if range.is_periodic() {
         source.to_bspline().ok()?
     } else {
@@ -236,7 +235,7 @@ where
     C: ParametricCurve,
     S: ParametricSurface,
 {
-    let domain = ParameterDomain::of(curve);
+    let domain = curve_domain(curve);
     match (curve.as_bspline(), surface.as_bspline()) {
         (Some(bspline), _) => {
             let cover = || Some(grown(&curve_box(bspline), tol));

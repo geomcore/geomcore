@@ -74,6 +74,9 @@ fn bench_bspline_curve_operations(c: &mut Criterion) {
         group.bench_function(format!("{name}_bounding_box"), |b| {
             b.iter(|| black_box(black_box(&curve).bounding_box()))
         });
+        group.bench_function(format!("{name}_tight_bounding_box"), |b| {
+            b.iter(|| black_box(black_box(&curve).tight_bounding_box(TOL)))
+        });
         let interior: Vec<f64> = (1..17).map(|i| i as f64 - 0.5).collect();
         group.bench_function(format!("{name}_refine_knots"), |b| {
             b.iter(|| black_box(curve.refine_knots(black_box(&interior)).unwrap()))

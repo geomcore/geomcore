@@ -447,3 +447,127 @@ fn test_derivatives_of_any_order_match_differences() {
         _ => torus_derivative(&frame, 5.0, 1.5, u, v, du, dv),
     });
 }
+
+// ---- projection feet ----
+
+/// Each algebraic foot against the parameters evaluated, as projection
+/// read it before: the same parameters (angles modulo a turn) and the same
+/// foot within rounding of the scale, on direct and indirect frames near
+/// and far from the origin, on and off the surfaces, around the axis,
+/// below the cone's apex, and for spindle tori whose tube swallows the
+/// axis. Where a foot is `None` the caller evaluates as before.
+#[test]
+fn test_projection_feet_match_the_evaluated_parameters() {
+    use std::f64::consts::TAU;
+    let angle_gap = |a: f64, b: f64| {
+        let d = (a - b).rem_euclid(TAU);
+        d.min(TAU - d)
+    };
+    let mut state = 11u64;
+    let mut random = |a: f64, b: f64| {
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        a + (b - a) * ((state >> 11) as f64 / (1u64 << 53) as f64)
+    };
+    let mut frames = Vec::new();
+    for origin in [Point::new(0.3, -0.2, 0.5), Point::new(1e5, -3e4, 2e5)] {
+        let frame = Frame::new(
+            origin,
+            Vector::new(0.2, -0.3, 1.0),
+            Vector::new(1.0, 0.4, 0.0),
+        )
+        .unwrap();
+        frames.extend([frame, frame.flipped_y(), frame.flipped_z()]);
+    }
+    let mut checked = 0;
+    for frame in frames {
+        let scale = 1.0 + frame.origin().distance(Point::ORIGIN);
+        let mut queries: Vec<Point> = (0..400)
+            .map(|_| frame.point_at(random(-6.0, 6.0), random(-6.0, 6.0), random(-9.0, 9.0)))
+            .collect();
+        // Near the axis, on the torus centre circles and on the surfaces.
+        for k in [1e-300, 1e-12, 1e-6] {
+            queries.push(frame.point_at(k, 0.0, 1.0));
+            queries.push(frame.point_at(0.0, -k, -7.0));
+        }
+        queries.push(frame.point_at(3.0, 0.0, 0.0));
+        queries.push(frame.point_at(0.0, 0.5, 0.0));
+        queries.push(frame.point_at(2.0, 0.0, 0.0));
+        let compare = |name: &str,
+                       q: Point,
+                       fast: Option<(f64, f64, Point)>,
+                       u: f64,
+                       v: f64,
+                       slow: Point,
+                       angular_v: bool| {
+            let Some((fu, fv, foot)) = fast else { return 0 };
+            assert!(angle_gap(fu, u) <= 1e-12, "{name} u at {q:?}: {fu} vs {u}");
+            let v_gap = if angular_v {
+                angle_gap(fv, v)
+            } else {
+                (fv - v).abs()
+            };
+            assert!(
+                v_gap <= 1e-12 * (1.0 + v.abs()),
+                "{name} v at {q:?}: {fv} vs {v}"
+            );
+            assert!(
+                foot.distance(slow) <= 1e-13 * scale,
+                "{name} foot at {q:?}: {foot:?} vs {slow:?}"
+            );
+            assert!(
+                foot.distance(q) <= slow.distance(q) + 1e-13 * scale,
+                "{name} nearer before at {q:?}"
+            );
+            1
+        };
+        for &q in &queries {
+            let (u, v) = cylinder_parameters(&frame, q);
+            checked += compare(
+                "cylinder",
+                q,
+                cylinder_projection(&frame, 2.0, q),
+                u,
+                v,
+                cylinder_d0(&frame, 2.0, u, v),
+                false,
+            );
+            for (r, a) in [(2.0, 0.4), (0.0, 0.7), (1.0, 1.2)] {
+                let (u, v) = cone_parameters(&frame, r, a, q);
+                checked += compare(
+                    "cone",
+                    q,
+                    cone_projection(&frame, r, a, q),
+                    u,
+                    v,
+                    cone_d0(&frame, r, a, u, v),
+                    false,
+                );
+            }
+            let (u, v) = sphere_parameters(&frame, 2.0, q);
+            checked += compare(
+                "sphere",
+                q,
+                sphere_projection(&frame, 2.0, q),
+                u,
+                v,
+                sphere_d0(&frame, 2.0, u, v),
+                false,
+            );
+            for (maj, min) in [(3.0, 1.0), (1.0, 1.0), (0.5, 1.0)] {
+                let (u, v) = torus_parameters(&frame, maj, min, q);
+                checked += compare(
+                    "torus",
+                    q,
+                    torus_projection(&frame, maj, min, q),
+                    u,
+                    v,
+                    torus_d0(&frame, maj, min, u, v),
+                    true,
+                );
+            }
+        }
+    }
+    assert!(checked > 19_000, "only {checked} feet were algebraic");
+}

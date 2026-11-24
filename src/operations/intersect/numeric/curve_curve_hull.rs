@@ -6,13 +6,13 @@ use crate::geometry::curves::BSplineCurve;
 use crate::geometry::curves::ParametricCurve;
 use crate::math::numeric::boxtree::{Aabb, BoxTree, boxes_apart};
 use crate::math::numeric::solve_2x2;
+use crate::math::parameter_domain::ParameterDomain;
 use crate::operations::extrema::CurveCurveExtremum;
 use crate::operations::intersect::numeric::bezier_pieces::{
     CurvePieces, apart_along, bounding_box, box_size, cross, curves_meet_at_most_once, dot,
     euclidean, norm, sub,
 };
 use crate::operations::intersect::numeric::curve_curve::distinct_contacts;
-use crate::operations::intersect::numeric::parameter_domain::ParameterDomain;
 use crate::operations::intersect::numeric::subdivision::{
     Node, OnceExhausted, PairTests, Subdivision, Visit, interval,
 };
