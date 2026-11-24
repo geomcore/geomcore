@@ -207,7 +207,7 @@ marching_intersection	marching_intersection/sphere_bspline_torus	206460359
 marching_intersection	marching_intersection/trimmed_bspline_pair	63676247
 shape_fitting	shape_fitting/circle	71840
 shape_fitting	shape_fitting/circle_2d	17849
-shape_fitting	shape_fitting/cylinder	574156
+shape_fitting	shape_fitting/cylinder	582292
 shape_fitting	shape_fitting/plane	8488
 shape_fitting	shape_fitting/sphere	27193
 surface_extrema	curve_surface_extrema/bspline_curve_bspline_surface	71455102
