@@ -2491,9 +2491,13 @@ class Circle(
     def from_frame(frame: Frame, radius: float) -> Circle:
         """Build a circle from a placement frame and a radius."""
     @staticmethod
-    def from_three_points(p1: _PointLike, p2: _PointLike, p3: _PointLike) -> Circle:
+    def from_three_points(
+        p1: _PointLike, p2: _PointLike, p3: _PointLike, tol: Optional[_ToleranceLike] = None
+    ) -> Circle:
         """Build the circle through three non-collinear points; the curve starts
         at the first point.
+
+        `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
         """
     @staticmethod
     def fit(points: _Points, tol: Optional[_ToleranceLike] = None) -> CircleFit:
@@ -2566,10 +2570,14 @@ class Ellipse(
     def from_frame(frame: Frame, major_radius: float, minor_radius: float) -> Ellipse:
         """Build an ellipse from a placement frame and the two radii."""
     @staticmethod
-    def from_center_and_points(center: _PointLike, s1: _PointLike, s2: _PointLike) -> Ellipse:
+    def from_center_and_points(
+        center: _PointLike, s1: _PointLike, s2: _PointLike, tol: Optional[_ToleranceLike] = None
+    ) -> Ellipse:
         """Build an ellipse from its center, the major-axis end point `s1`
         and a point `s2` whose distance from the major axis is the minor
         radius.
+
+        `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
         """
     def center(self) -> Point:
         """The ellipse center."""
@@ -2618,9 +2626,13 @@ class Parabola(_CurveMethods):
     def from_frame(frame: Frame, focal_distance: float) -> Parabola:
         """Build a parabola from a placement frame and focal distance."""
     @staticmethod
-    def from_focus_and_directrix(focus: _PointLike, directrix: Line) -> Parabola:
+    def from_focus_and_directrix(
+        focus: _PointLike, directrix: Line, tol: Optional[_ToleranceLike] = None
+    ) -> Parabola:
         """Build the parabola of every point as far from `focus` as from
         `directrix`; the parameter runs along the directrix's direction.
+
+        `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
         """
     def focal_distance(self) -> float:
         """The focal distance."""
@@ -2658,9 +2670,13 @@ class Hyperbola(_CurveMethods):
     def from_frame(frame: Frame, major_radius: float, minor_radius: float) -> Hyperbola:
         """Build a hyperbola from a placement frame and the two radii."""
     @staticmethod
-    def from_center_and_points(center: _PointLike, s1: _PointLike, s2: _PointLike) -> Hyperbola:
+    def from_center_and_points(
+        center: _PointLike, s1: _PointLike, s2: _PointLike, tol: Optional[_ToleranceLike] = None
+    ) -> Hyperbola:
         """Build a hyperbola from its center, the vertex point and a second
         point on the curve.
+
+        `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
         """
     def center(self) -> Point:
         """The hyperbola center."""
@@ -3266,10 +3282,14 @@ class Circle2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretization2D])
         clockwise when the frame is indirect.
         """
     @staticmethod
-    def from_three_points(p1: _Point2DLike, p2: _Point2DLike, p3: _Point2DLike) -> Circle2D:
+    def from_three_points(
+        p1: _Point2DLike, p2: _Point2DLike, p3: _Point2DLike, tol: Optional[_ToleranceLike] = None
+    ) -> Circle2D:
         """Build the circle through three non-collinear points; the curve starts
         at the first point and turns through the second to the third:
         counterclockwise when they turn left, clockwise otherwise.
+
+        `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
         """
     @staticmethod
     def fit(points: _Points2D, tol: Optional[_ToleranceLike] = None) -> CircleFit2D:
@@ -3338,11 +3358,16 @@ class Ellipse2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretization2D]
         """Build a 2D ellipse from a placement frame and the two radii."""
     @staticmethod
     def from_center_and_points(
-        center: _Point2DLike, s1: _Point2DLike, s2: _Point2DLike
+        center: _Point2DLike,
+        s1: _Point2DLike,
+        s2: _Point2DLike,
+        tol: Optional[_ToleranceLike] = None,
     ) -> Ellipse2D:
         """Build a 2D ellipse from its center, the major-axis end point `s1`
         and a point `s2` whose distance from the major axis is the minor
         radius.
+
+        `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
         """
     def frame(self) -> Frame2D:
         """The placement frame of the ellipse."""
@@ -3389,9 +3414,13 @@ class Parabola2D(_Curve2DMethods):
     def from_frame(frame: Frame2D, focal_distance: float) -> Parabola2D:
         """Build a 2D parabola from a placement frame and focal distance."""
     @staticmethod
-    def from_focus_and_directrix(focus: _Point2DLike, directrix: Line2D) -> Parabola2D:
+    def from_focus_and_directrix(
+        focus: _Point2DLike, directrix: Line2D, tol: Optional[_ToleranceLike] = None
+    ) -> Parabola2D:
         """Build the parabola of every point as far from `focus` as from
         `directrix`; the parameter runs along the directrix's direction.
+
+        `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
         """
     def frame(self) -> Frame2D:
         """The placement frame of the parabola."""
@@ -3433,11 +3462,16 @@ class Hyperbola2D(_Curve2DMethods):
         """
     @staticmethod
     def from_center_and_points(
-        center: _Point2DLike, s1: _Point2DLike, s2: _Point2DLike
+        center: _Point2DLike,
+        s1: _Point2DLike,
+        s2: _Point2DLike,
+        tol: Optional[_ToleranceLike] = None,
     ) -> Hyperbola2D:
         """Build a 2D hyperbola from its center, a major-axis end point `s1`
         and a second point `s2` fixing the minor radius and the side the
         frame's y direction points to.
+
+        `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
         """
     def frame(self) -> Frame2D:
         """The placement frame of the hyperbola."""
@@ -3493,11 +3527,15 @@ class TrimmedCurve(_CurveMethods, _BoundedCurveMethods[Point, Discretization]):
         `start` over `[0, |end - start|]`.
         """
     @staticmethod
-    def arc_through(start: _PointLike, middle: _PointLike, end: _PointLike) -> TrimmedCurve:
+    def arc_through(
+        start: _PointLike, middle: _PointLike, end: _PointLike, tol: Optional[_ToleranceLike] = None
+    ) -> TrimmedCurve:
         """The arc from `start` through `middle` to `end`, on the circle
         through the three points, whose normal the points turn
         counterclockwise about. Raises `ConstructionError` when two points
         coincide or the three are collinear.
+
+        `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
         """
     @staticmethod
     def arc(
@@ -3565,11 +3603,18 @@ class TrimmedCurve2D(_Curve2DMethods, _BoundedCurveMethods[Point2D, Discretizati
         `start` over `[0, |end - start|]`.
         """
     @staticmethod
-    def arc_through(start: _Point2DLike, middle: _Point2DLike, end: _Point2DLike) -> TrimmedCurve2D:
+    def arc_through(
+        start: _Point2DLike,
+        middle: _Point2DLike,
+        end: _Point2DLike,
+        tol: Optional[_ToleranceLike] = None,
+    ) -> TrimmedCurve2D:
         """The arc from `start` through `middle` to `end`, on the circle
         through the three points: counterclockwise when they turn left,
         clockwise otherwise. Raises `ConstructionError` when two points
         coincide or the three are collinear.
+
+        `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
         """
     @staticmethod
     def arc(
@@ -4083,8 +4128,13 @@ class Plane(_SurfaceMethods[Line, Line]):
     def from_frame(frame: Frame) -> Plane:
         """Build a plane from a placement frame (normal = frame z direction)."""
     @staticmethod
-    def from_three_points(p1: _PointLike, p2: _PointLike, p3: _PointLike) -> Plane:
-        """Build a plane through three non-collinear points."""
+    def from_three_points(
+        p1: _PointLike, p2: _PointLike, p3: _PointLike, tol: Optional[_ToleranceLike] = None
+    ) -> Plane:
+        """Build a plane through three non-collinear points.
+
+        `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
+        """
     @staticmethod
     def fit(points: _Points, tol: Optional[_ToleranceLike] = None) -> PlaneFit:
         """The least-squares plane of `points`, with its residuals: through
@@ -4188,9 +4238,12 @@ class Cone(_SurfaceMethods[Line, Circle]):
         """Build a cone from a placement frame, half-angle and reference radius."""
     @staticmethod
     def from_two_points_and_radii(
-        p1: _PointLike, p2: _PointLike, r1: float, r2: float
+        p1: _PointLike, p2: _PointLike, r1: float, r2: float, tol: Optional[_ToleranceLike] = None
     ) -> Cone:
-        """Build a cone through two circular sections given by axis points and radii."""
+        """Build a cone through two circular sections given by axis points and radii.
+
+        `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
+        """
     @staticmethod
     def from_apex(apex: _PointLike, axis_direction: Vector, half_angle: float) -> Cone:
         """Build the cone of apex `apex` opening along `axis_direction` at

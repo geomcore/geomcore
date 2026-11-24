@@ -59,10 +59,13 @@ shape_methods! {
     }
 
     /// Build a cone through two circular sections given by axis points and radii.
+    ///
+    /// `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
     #[staticmethod]
-    fn from_two_points_and_radii(p1: PyPoint, p2: PyPoint, r1: f64, r2: f64) -> PyResult<Self> {
+    #[pyo3(signature = (p1, p2, r1, r2, tol = None))]
+    fn from_two_points_and_radii(p1: PyPoint, p2: PyPoint, r1: f64, r2: f64, tol: Option<crate::values::ToleranceArgument>) -> PyResult<Self> {
         Ok(PyCone(
-            Cone::from_two_points_and_radii(p1.0, p2.0, r1, r2).map_err(python_error)?,
+            Cone::from_two_points_and_radii(p1.0, p2.0, r1, r2, crate::tolerance(tol)).map_err(python_error)?,
         ))
     }
 

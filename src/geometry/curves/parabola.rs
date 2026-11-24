@@ -221,6 +221,7 @@ fn apex_axis_and_focal_distance<P: TierPoint>(
     focus: P,
     origin: P,
     direction: P::Vector,
+    tol: Tolerance,
 ) -> Result<(P, P::Vector, f64), ParabolaConstructionError> {
     use crate::base::tier::operations::VectorOperations;
     if !(focus.is_finite() && origin.is_finite()) {
@@ -230,7 +231,7 @@ fn apex_axis_and_focal_distance<P: TierPoint>(
     let foot = origin + direction * offset.dot(direction);
     let to_focus = focus - foot;
     let distance = to_focus.magnitude();
-    if distance <= Tolerance::DEFAULT.confusion {
+    if distance <= tol.confusion {
         return Err(ParabolaConstructionError::NonPositiveFocal);
     }
     Ok((
@@ -297,15 +298,16 @@ impl Parabola {
     /// # Errors
     ///
     /// [`ParabolaConstructionError::NonPositiveFocal`] when the focus is on
-    /// the directrix, within confusion, and
+    /// the directrix, within `tol.confusion`, and
     /// [`ParabolaConstructionError::NonFinite`] for a non-finite focus.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Line, Parabola, Point, Vector};
+    /// use geomcore::{Line, Parabola, Point, Tolerance, Vector};
     /// let directrix = Line::new(Point::new(0.0, 0.0, -1.0), Vector::X).unwrap();
-    /// let parabola = Parabola::from_focus_and_directrix(Point::new(0.0, 0.0, 1.0), &directrix).unwrap();
+    /// let focus = Point::new(0.0, 0.0, 1.0);
+    /// let parabola = Parabola::from_focus_and_directrix(focus, &directrix, Tolerance::DEFAULT).unwrap();
     /// assert_eq!(parabola.apex(), Point::ORIGIN);
     /// assert_eq!(parabola.focal_distance(), 1.0);
     /// assert_eq!(parabola.focus(), Point::new(0.0, 0.0, 1.0));
@@ -313,10 +315,11 @@ impl Parabola {
     pub fn from_focus_and_directrix(
         focus: Point,
         directrix: &Line,
+        tol: Tolerance,
     ) -> Result<Parabola, ParabolaConstructionError> {
         let direction = directrix.direction();
         let (apex, axis, focal_distance) =
-            apex_axis_and_focal_distance(focus, directrix.origin(), direction.vector())?;
+            apex_axis_and_focal_distance(focus, directrix.origin(), direction.vector(), tol)?;
         let frame = Frame::new(apex, axis.cross(direction), axis).map_err(frame_error(
             ParabolaConstructionError::NonFinite,
             ParabolaConstructionError::NullNormal,
@@ -332,25 +335,27 @@ impl Parabola2D {
     /// # Errors
     ///
     /// [`ParabolaConstructionError::NonPositiveFocal`] when the focus is on
-    /// the directrix, within confusion, and
+    /// the directrix, within `tol.confusion`, and
     /// [`ParabolaConstructionError::NonFinite`] for a non-finite focus.
     ///
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Line2D, Parabola2D, Point2D, Vector2D};
+    /// use geomcore::{Line2D, Parabola2D, Point2D, Tolerance, Vector2D};
     /// let directrix = Line2D::new(Point2D::new(0.0, -1.0), Vector2D::X).unwrap();
-    /// let parabola = Parabola2D::from_focus_and_directrix(Point2D::new(0.0, 1.0), &directrix).unwrap();
+    /// let focus = Point2D::new(0.0, 1.0);
+    /// let parabola = Parabola2D::from_focus_and_directrix(focus, &directrix, Tolerance::DEFAULT).unwrap();
     /// assert_eq!(parabola.apex(), Point2D::ORIGIN);
     /// assert_eq!(parabola.focal_distance(), 1.0);
     /// ```
     pub fn from_focus_and_directrix(
         focus: Point2D,
         directrix: &Line2D,
+        tol: Tolerance,
     ) -> Result<Parabola2D, ParabolaConstructionError> {
         let direction = directrix.direction();
         let (apex, axis, focal_distance) =
-            apex_axis_and_focal_distance(focus, directrix.origin(), direction.vector())?;
+            apex_axis_and_focal_distance(focus, directrix.origin(), direction.vector(), tol)?;
         let frame = Frame2D::new(apex, axis, direction).map_err(frame_error(
             ParabolaConstructionError::NonFinite,
             ParabolaConstructionError::NullNormal,

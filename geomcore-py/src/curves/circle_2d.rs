@@ -39,10 +39,13 @@ shape_methods! {
     /// Build the circle through three non-collinear points; the curve starts
     /// at the first point and turns through the second to the third:
     /// counterclockwise when they turn left, clockwise otherwise.
+    ///
+    /// `tol` (`Tolerance.default()` when omitted) decides when the input is degenerate.
     #[staticmethod]
-    fn from_three_points(p1: PyPoint2D, p2: PyPoint2D, p3: PyPoint2D) -> PyResult<Self> {
+    #[pyo3(signature = (p1, p2, p3, tol = None))]
+    fn from_three_points(p1: PyPoint2D, p2: PyPoint2D, p3: PyPoint2D, tol: Option<crate::values::ToleranceArgument>) -> PyResult<Self> {
         Ok(PyCircle2D(
-            Circle2D::from_three_points(p1.0, p2.0, p3.0).map_err(python_error)?,
+            Circle2D::from_three_points(p1.0, p2.0, p3.0, crate::tolerance(tol)).map_err(python_error)?,
         ))
     }
 
