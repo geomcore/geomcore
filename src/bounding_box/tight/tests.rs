@@ -348,11 +348,13 @@ fn a_stationary_coordinate_that_is_not_extreme_is_passed_over() {
         false,
     )
     .unwrap();
-    for curve in [polynomial, rational] {
+    // A polynomial curve's ends are its end poles exactly; a rational
+    // one's are within the rounding of dividing by the weight.
+    for (curve, rounding) in [(polynomial, 0.0), (rational, 1e-13)] {
         assert_solved(&curve);
         let tight = curve.tight_bounding_box(TOL).unwrap();
-        assert!((tight.min_corner().x + 1.0).abs() <= 1e-13);
-        assert!((tight.max_corner().x - 1.0).abs() <= 1e-13);
+        assert!((tight.min_corner().x + 1.0).abs() <= rounding);
+        assert!((tight.max_corner().x - 1.0).abs() <= rounding);
     }
 }
 

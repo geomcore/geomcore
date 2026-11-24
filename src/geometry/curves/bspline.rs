@@ -1295,6 +1295,19 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         self.knots.bounds()
     }
 
+    /// Whether the curve's end points, as evaluated, are its first and last
+    /// poles exactly: it is polynomial (a rational curve divides its
+    /// weighted pole by the weight, which rounds) and clamped, its end knots
+    /// of multiplicity `degree + 1`.
+    pub(crate) fn ends_are_poles(&self) -> bool {
+        let multiplicities = self.knots.multiplicities();
+        let full = self.degree() as u32 + 1;
+        self.weights.is_none()
+            && !self.knots.is_periodic()
+            && multiplicities.first() == Some(&full)
+            && multiplicities.last() == Some(&full)
+    }
+
     /// [`from_parts`](Self::from_parts) for parts given by the caller,
     /// checked finite first: a NaN or infinite pole or weight would build
     /// a curve of NaN.

@@ -179,12 +179,17 @@ impl Nets {
     /// The box of the first `P::DIM` coordinates of the curve whose nets
     /// these are ([`of_curve`](Self::of_curve)): its sides are the
     /// coordinates' extremes, at the pieces' ends and where the
-    /// coordinates' derivatives change sign, moved out by a few roundings
-    /// of the coordinates so that the box holds the curve.
-    pub(crate) fn curve_coordinate_box<P: TierPoint>(&self) -> BoundingBoxOf<P> {
+    /// coordinates' derivatives change sign. `exact_ends` if the first and
+    /// last control points are the curve's own end points, as evaluated
+    /// (a clamped polynomial curve over its whole range): a side either sets is
+    /// kept, every other is moved out by a few roundings of the
+    /// coordinates, so that the box holds the curve as evaluated.
+    pub(crate) fn curve_coordinate_box<P: TierPoint>(&self, exact_ends: bool) -> BoundingBoxOf<P> {
         let size = self.cols * 4;
         let mut low = [0.0; 4];
         let mut high = [0.0; 4];
+        let first = &self.points[..4];
+        let last = &self.points[self.points.len() - 4..];
         for k in 0..P::DIM {
             // The pieces' ends lie on the curve: the box they span settles
             // most pieces, whose control points already lie inside it.
@@ -200,8 +205,19 @@ impl Nets {
                 widen_to_extremes(piece, k, &mut lowest, &mut highest);
             }
             let margin = EXTREME_ROUNDING * lowest.abs().max(highest.abs());
-            low[k] = lowest - margin;
-            high[k] = highest + margin;
+            let exact = |side: f64| {
+                exact_ends && (side == first[k] / first[3] || side == last[k] / last[3])
+            };
+            low[k] = if exact(lowest) {
+                lowest
+            } else {
+                lowest - margin
+            };
+            high[k] = if exact(highest) {
+                highest
+            } else {
+                highest + margin
+            };
         }
         BoundingBoxOf::<P>::from_corners(P::point_of(low), P::point_of(high))
     }
