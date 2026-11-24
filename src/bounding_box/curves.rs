@@ -235,15 +235,15 @@ pub(crate) fn spline_box<P: TierPoint>(
     .expect("a range meets at least one knot span")
 }
 
-/// The box of `spline` over `[first, last]`, each side within
-/// `tol.confusion` of the curve: the extremes of each coordinate over its
-/// Bézier pieces, by branch and bound.
+/// The box of `spline` over `[first, last]`, each side within a few
+/// roundings of the curve (on it, at a clamped polynomial curve's own end point): the
+/// extremes of each coordinate over its Bézier pieces, solved for.
 pub(crate) fn tight_spline_box<P: TierPoint>(
     spline: &GenericBSplineCurve<P>,
     range: (f64, f64),
-    tol: Tolerance,
 ) -> BoundingBoxOf<P> {
-    Nets::of_curve(spline, range).coordinate_box::<P>(tol.confusion)
+    let exact_ends = spline.ends_are_poles() && range == spline.knot_bounds();
+    Nets::of_curve(spline, range).curve_coordinate_box::<P>(exact_ends)
 }
 
 impl_for_both_tiers! {

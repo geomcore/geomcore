@@ -36,6 +36,12 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- The tight bounding box of a B-spline or Bézier curve is solved for
+  rather than bounded (#465): each coordinate's extremes are found where
+  its derivative changes sign on a Bézier piece, and the pieces come from
+  one sweep of knot insertion instead of a matrix per span. About four
+  times faster, and each side now lies within a few roundings of the
+  curve (it was within `tol.confusion`). The box still holds the curve.
 - Point projection on an ellipse is about ten times faster (#462):
   `project_point` solves for the nearest point alone, from the monotone
   equation of its Lagrange multiplier (Eberly), instead of finding every
