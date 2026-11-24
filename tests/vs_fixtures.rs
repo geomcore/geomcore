@@ -213,8 +213,13 @@ fn circle_three_point_cases_match_golden_fixture() {
         serde_json::from_value(load("curves_analytic.json")).unwrap();
 
     for (i, case) in fixture.three_point_cases.iter().enumerate() {
-        let circle = Circle::from_three_points(point3(case.p1), point3(case.p2), point3(case.p3))
-            .unwrap_or_else(|e| panic!("case {i}: failed to build Circle: {e}"));
+        let circle = Circle::from_three_points(
+            point3(case.p1),
+            point3(case.p2),
+            point3(case.p3),
+            Tolerance::DEFAULT,
+        )
+        .unwrap_or_else(|e| panic!("case {i}: failed to build Circle: {e}"));
 
         assert_close(circle.radius(), case.radius);
 
@@ -296,9 +301,13 @@ fn ellipses_center_two_points_match_golden_fixture() {
     let fixture: ConstructionFixture = serde_json::from_value(load("construction.json")).unwrap();
 
     for (i, case) in fixture.ellipses_center_two_points.iter().enumerate() {
-        let ellipse =
-            Ellipse::from_center_and_points(point3(case.center), point3(case.s1), point3(case.s2))
-                .unwrap_or_else(|e| panic!("case {i}: failed to build Ellipse: {e}"));
+        let ellipse = Ellipse::from_center_and_points(
+            point3(case.center),
+            point3(case.s1),
+            point3(case.s2),
+            Tolerance::DEFAULT,
+        )
+        .unwrap_or_else(|e| panic!("case {i}: failed to build Ellipse: {e}"));
 
         assert_close(ellipse.major_radius(), case.major_radius);
         assert_close(ellipse.minor_radius(), case.minor_radius);
@@ -320,6 +329,7 @@ fn hyperbolas_center_two_points_match_golden_fixture() {
             point3(case.center),
             point3(case.s1),
             point3(case.s2),
+            Tolerance::DEFAULT,
         )
         .unwrap_or_else(|e| panic!("case {i}: failed to build Hyperbola: {e}"));
 
@@ -507,8 +517,13 @@ fn planes_from_three_points_match_golden_fixture() {
         serde_json::from_value(load("construction.json")).unwrap();
 
     for (i, case) in fixture.planes_from_three_points.iter().enumerate() {
-        let plane = Plane::from_three_points(point3(case.p1), point3(case.p2), point3(case.p3))
-            .unwrap_or_else(|e| panic!("case {i}: failed to build Plane: {e}"));
+        let plane = Plane::from_three_points(
+            point3(case.p1),
+            point3(case.p2),
+            point3(case.p3),
+            Tolerance::DEFAULT,
+        )
+        .unwrap_or_else(|e| panic!("case {i}: failed to build Plane: {e}"));
         assert_frame_matches(plane.frame(), &case.frame);
     }
 }
@@ -531,9 +546,14 @@ fn cones_from_two_points_and_radii_match_golden_fixture() {
         serde_json::from_value(load("construction.json")).unwrap();
 
     for (i, case) in fixture.cones_two_points_radii.iter().enumerate() {
-        let cone =
-            Cone::from_two_points_and_radii(point3(case.p1), point3(case.p2), case.r1, case.r2)
-                .unwrap_or_else(|e| panic!("case {i}: failed to build Cone: {e}"));
+        let cone = Cone::from_two_points_and_radii(
+            point3(case.p1),
+            point3(case.p2),
+            case.r1,
+            case.r2,
+            Tolerance::DEFAULT,
+        )
+        .unwrap_or_else(|e| panic!("case {i}: failed to build Cone: {e}"));
         assert_close(cone.reference_radius(), case.ref_radius);
         assert_close(cone.half_angle(), case.semi_angle);
         assert_frame_matches(cone.frame(), &case.frame);

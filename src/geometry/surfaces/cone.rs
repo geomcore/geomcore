@@ -114,7 +114,7 @@ impl Cone {
         if !(half_angle.is_finite() && reference_radius.is_finite()) {
             return Err(ConeConstructionError::NonFinite);
         }
-        if !is_valid_half_angle(half_angle) {
+        if !is_valid_half_angle(half_angle, Tolerance::DEFAULT) {
             return Err(ConeConstructionError::BadAngle);
         }
         if reference_radius < 0.0 {
@@ -227,12 +227,13 @@ impl Cone {
     /// # Examples
     ///
     /// ```
-    /// use geomcore::{Cone, Point};
+    /// use geomcore::{Cone, Point, Tolerance};
     /// let cone = Cone::from_two_points_and_radii(
     ///     Point::ORIGIN,
     ///     Point::new(0.0, 0.0, 4.0),
     ///     2.0,
     ///     1.0,
+    ///     Tolerance::DEFAULT,
     /// )
     /// .unwrap();
     /// assert_eq!(cone.reference_radius(), 2.0);
@@ -242,13 +243,14 @@ impl Cone {
         p2: Point,
         r1: f64,
         r2: f64,
+        tol: Tolerance,
     ) -> Result<Cone, ConeConstructionError> {
         if !(p1.is_finite() && p2.is_finite() && r1.is_finite() && r2.is_finite()) {
             return Err(ConeConstructionError::NonFinite);
         }
         let delta = p2 - p1;
         let dist = delta.magnitude();
-        if dist < Tolerance::DEFAULT.confusion {
+        if dist < tol.confusion {
             return Err(ConeConstructionError::NullAxis);
         }
         if r1 < 0.0 || r2 < 0.0 {
@@ -256,7 +258,7 @@ impl Cone {
         }
 
         let half_angle = ((r2 - r1) / dist).atan();
-        if !is_valid_half_angle(half_angle) {
+        if !is_valid_half_angle(half_angle, tol) {
             return Err(ConeConstructionError::NullAngle);
         }
 
@@ -419,12 +421,10 @@ impl Cone {
 }
 
 /// Checks that `half_angle` is within the accepted range for a cone:
-/// `0 < |half_angle| < PI/2`, both bounds excluded with
-/// [`Tolerance::DEFAULT.angular`] tolerance.
-fn is_valid_half_angle(half_angle: f64) -> bool {
+/// `0 < |half_angle| < PI/2`, both bounds excluded by `tol.angular`.
+fn is_valid_half_angle(half_angle: f64, tol: Tolerance) -> bool {
     let angle = half_angle.abs();
-    angle >= Tolerance::DEFAULT.angular
-        && (std::f64::consts::FRAC_PI_2 - angle) >= Tolerance::DEFAULT.angular
+    angle >= tol.angular && (std::f64::consts::FRAC_PI_2 - angle) >= tol.angular
 }
 
 /// Builds a frame at `origin` with `z_dir = normalize(axis_direction)` and

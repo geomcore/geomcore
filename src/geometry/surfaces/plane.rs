@@ -122,7 +122,7 @@ impl Plane {
     ///
     /// Fails with [`PlaneConstructionError::ConfusedPoints`] if `p1` and
     /// `p2` are coincident (or too close to distinguish); otherwise, if the
-    /// three points are collinear (`|(p2-p1) x (p3-p1)| <= Tolerance::DEFAULT.confusion *
+    /// three points are collinear (`|(p2-p1) x (p3-p1)| <= tol.confusion *
     /// max(|p2-p1|, |p3-p1|)`), returns
     /// [`PlaneConstructionError::CollinearPoints`].
     ///
@@ -139,11 +139,12 @@ impl Plane {
     ///
     /// ```
     /// use geomcore::prelude::*;
-    /// use geomcore::{Plane, Point, Vector};
+    /// use geomcore::{Plane, Point, Tolerance, Vector};
     /// let plane = Plane::from_three_points(
     ///     Point::ORIGIN,
     ///     Point::new(1.0, 0.0, 0.0),
     ///     Point::new(0.0, 1.0, 0.0),
+    ///     Tolerance::DEFAULT,
     /// )
     /// .unwrap();
     /// assert_eq!(plane.axis().direction(), Vector::Z);
@@ -152,16 +153,16 @@ impl Plane {
         p1: Point,
         p2: Point,
         p3: Point,
+        tol: Tolerance,
     ) -> Result<Plane, PlaneConstructionError> {
-        if p1.distance(p2) < Tolerance::DEFAULT.confusion {
+        if p1.distance(p2) < tol.confusion {
             return Err(PlaneConstructionError::ConfusedPoints);
         }
 
         let v12 = p2 - p1;
         let v13 = p3 - p1;
         let normal = v12.cross(v13);
-        if normal.magnitude() <= Tolerance::DEFAULT.confusion * v12.magnitude().max(v13.magnitude())
-        {
+        if normal.magnitude() <= tol.confusion * v12.magnitude().max(v13.magnitude()) {
             return Err(PlaneConstructionError::CollinearPoints);
         }
 
