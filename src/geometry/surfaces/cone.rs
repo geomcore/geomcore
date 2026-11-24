@@ -2,6 +2,7 @@
 //! construction from an apex angle or two circular sections, thin wrappers
 //! over [`crate::math::elementary::surface`].
 
+use crate::Direction;
 use crate::base::frame::frame_error;
 use crate::base::transform::image_error;
 use crate::geometry::curves::{Curve, Curve2D};
@@ -10,6 +11,7 @@ use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::SurfaceIsoError;
 use crate::geometry::surfaces::iso::{check_iso_param, iso_circle, iso_line};
+use crate::geometry::surfaces::parametric_surface::closed_form_normal;
 use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
@@ -451,6 +453,14 @@ fn arbitrary_perpendicular_frame(origin: Point, axis_direction: Vector) -> Frame
 }
 
 impl ParametricSurface for Cone {
+    /// The closed-form normal where the partials span a tangent plane, the
+    /// recovery of [`ParametricSurface::normal`] elsewhere.
+    fn normal(&self, u: f64, v: f64, tol: Tolerance) -> Option<Direction> {
+        let (lengths, normal) =
+            elementary::cone_normal(&self.frame, self.reference_radius, self.half_angle, u, v);
+        closed_form_normal(self, u, v, tol, lengths, || normal)
+    }
+
     #[inline]
     fn point_at(&self, u: f64, v: f64) -> Point {
         elementary::cone_d0(&self.frame, self.reference_radius, self.half_angle, u, v)

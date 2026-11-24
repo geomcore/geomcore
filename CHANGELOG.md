@@ -36,6 +36,12 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- The unit normals of planes, cylinders, cones, spheres and tori are
+  faster (#461): `normal` reads them in closed form wherever the
+  partials span a tangent plane, about 42% fewer instructions and 25–50%
+  less time. At the apex, the poles, the pinch points, on degenerate
+  shapes and at non-finite parameters the recovery answers as before.
+  Results agree with the cross product of the partials within 1e-15.
 - B-spline second derivatives are faster (#460). `eval_d2` on a
   non-periodic curve of degree 1 to 3 computes the basis functions and
   their first and second derivatives in one unrolled pass, as `eval_d1`
