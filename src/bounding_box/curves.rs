@@ -16,7 +16,7 @@ use crate::geometry::curves::{
     GenericHyperbola, GenericLine, GenericParabola, ParametricCurve, ParametricCurve2D,
     QuarticBranch, RangeOperations, TrimmedCurve,
 };
-use crate::geometry::curves::{curve_dispatch, elementary_curve_dispatch};
+use crate::geometry::curves::{bounded_curve_types, curve_dispatch, elementary_curve_dispatch};
 use crate::math::bspline::curve as math;
 use crate::math::numeric::{bernstein, brent_minimum};
 use crate::{Point, Tolerance};
@@ -289,12 +289,7 @@ macro_rules! box_over_bounds {
     )*};
 }
 
-box_over_bounds!(
-    GenericCircle,
-    GenericEllipse,
-    GenericBSplineCurve,
-    GenericBezierCurve
-);
+bounded_curve_types!(box_over_bounds!());
 
 /// A quartic branch runs to infinity.
 impl HasBoundingBox for QuarticBranch {
