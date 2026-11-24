@@ -11,6 +11,7 @@ use crate::geometry::surfaces::{
     BSplineSurface, Curve3DToUvError, ElementarySurface, ExtrusionSurface, RevolutionSurface,
     TrimmedSurface, TrimmedSurfaceConstructionError, UvCurveTo3DError,
 };
+use crate::math::elementary::surface::Inversion;
 use crate::{Direction, Point, SurfaceProjection, Tolerance, Vector};
 
 /// Principal, mean and Gaussian curvatures at a surface point, with the
@@ -974,6 +975,26 @@ pub(crate) fn recovered_normal<S: ParametricSurface + ?Sized>(
         }
     }
     None
+}
+
+/// [`ParametricSurface::project_point`] of an elementary surface from the
+/// [`Inversion`] of `point` on it: the foot the inversion gives, or else
+/// the point at its parameters.
+#[inline]
+pub(crate) fn inverted_projection<S: ParametricSurface + ?Sized>(
+    surface: &S,
+    point: Point,
+    tol: Tolerance,
+    inversion: Inversion,
+) -> SurfaceProjection {
+    let Inversion { u, v, foot } = inversion;
+    let foot = foot.unwrap_or_else(|| surface.point_at(u, v));
+    SurfaceProjection {
+        u,
+        v,
+        point: foot,
+        distance: crate::operations::projection::snap_distance(foot.distance(point), tol.confusion),
+    }
 }
 
 /// [`ParametricSurface::normal`] of a surface whose unit normal has a

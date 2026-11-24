@@ -10,14 +10,11 @@ use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::SurfaceIsoError;
 use crate::geometry::surfaces::iso::{check_iso_param, iso_line};
-use crate::geometry::surfaces::parametric_surface::closed_form_normal;
+use crate::geometry::surfaces::parametric_surface::{closed_form_normal, inverted_projection};
 use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
-use crate::{
-    Axis, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector,
-    operations::projection,
-};
+use crate::{Axis, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector};
 use crate::{TransformError, Transformable};
 use std::fmt;
 
@@ -390,20 +387,12 @@ impl ParametricSurface for Plane {
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        let (u, v) = self.parameters_of(point, tol);
-        let foot = self.point_at(u, v);
-        let distance = foot.distance(point);
-        SurfaceProjection {
-            u,
-            v,
-            point: foot,
-            distance: projection::snap_distance(distance, tol.confusion),
-        }
-    }
-
-    fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        let (u, v) = self.parameters_of(point, tol);
-        self.point_at(u, v).distance(point) <= tol.confusion
+        inverted_projection(
+            self,
+            point,
+            tol,
+            elementary::plane_inversion(&self.frame, point),
+        )
     }
 
     fn derivative(&self, _u: f64, _v: f64, du: u32, dv: u32) -> Vector {
@@ -441,7 +430,7 @@ impl ParametricSurface for Plane {
     /// Recovers `(u, v)` of a point on (or near) the plane: its local x/y
     /// coordinates in the plane's frame.
     fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
-        elementary::plane_parameters(&self.frame, point)
+        elementary::plane_inversion(&self.frame, point).parameters()
     }
 
     fn uv_curve_to_3d(

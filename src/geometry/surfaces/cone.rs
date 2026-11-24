@@ -11,14 +11,12 @@ use crate::geometry::surfaces::ParametricSurface;
 use crate::geometry::surfaces::ReversibleSurface;
 use crate::geometry::surfaces::SurfaceIsoError;
 use crate::geometry::surfaces::iso::{check_iso_param, iso_circle, iso_line};
-use crate::geometry::surfaces::parametric_surface::closed_form_normal;
+use crate::geometry::surfaces::parametric_surface::{closed_form_normal, inverted_projection};
 use crate::geometry::surfaces::uv_curve::{from_curve, to_curve};
 use crate::geometry::surfaces::{Curve3DToUvError, UvCurveTo3DError};
 use crate::math::elementary::surface as elementary;
-use crate::{
-    Axis, Circle, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector,
-    operations::projection,
-};
+use crate::math::elementary::surface::Turn;
+use crate::{Axis, Circle, Frame, Line, Point, SurfaceProjection, Tolerance, Transform, Vector};
 use crate::{TransformError, Transformable};
 use std::f64::consts::TAU;
 use std::fmt;
@@ -467,26 +465,12 @@ impl ParametricSurface for Cone {
     }
 
     fn project_point(&self, point: Point, tol: Tolerance) -> SurfaceProjection {
-        // The foot from the local coordinates where they give it, by
-        // evaluating the parameters elsewhere.
-        let (u, v, foot) =
-            elementary::cone_projection(&self.frame, self.reference_radius, self.half_angle, point)
-                .unwrap_or_else(|| {
-                    let (u, v) = self.parameters_of(point, tol);
-                    (u, v, self.point_at(u, v))
-                });
-        let distance = foot.distance(point);
-        SurfaceProjection {
-            u,
-            v,
-            point: foot,
-            distance: projection::snap_distance(distance, tol.confusion),
-        }
-    }
-
-    fn contains(&self, point: Point, tol: Tolerance) -> bool {
-        let (u, v) = self.parameters_of(point, tol);
-        self.point_at(u, v).distance(point) <= tol.confusion
+        inverted_projection(
+            self,
+            point,
+            tol,
+            elementary::cone_inversion(&self.frame, self.reference_radius, self.half_angle, point),
+        )
     }
 
     fn derivative(&self, u: f64, v: f64, du: u32, dv: u32) -> Vector {
@@ -495,8 +479,8 @@ impl ParametricSurface for Cone {
             _ => elementary::cone_derivative(
                 &self.frame,
                 self.reference_radius,
-                self.half_angle,
-                u,
+                Turn::of(self.half_angle),
+                Turn::of(u),
                 v,
                 du,
                 dv,
@@ -530,10 +514,11 @@ impl ParametricSurface for Cone {
     }
 
     /// Recovers `(u, v)` of a point on (or near) the cone. See
-    /// `crate::math::elementary::surface::cone_parameters` for the formula,
+    /// `crate::math::elementary::surface::cone_inversion` for the formula,
     /// including the opposite-nappe handling below the apex.
     fn parameters_of(&self, point: Point, _tol: Tolerance) -> (f64, f64) {
-        elementary::cone_parameters(&self.frame, self.reference_radius, self.half_angle, point)
+        elementary::cone_inversion(&self.frame, self.reference_radius, self.half_angle, point)
+            .parameters()
     }
 
     fn uv_curve_to_3d(

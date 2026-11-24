@@ -9,7 +9,8 @@
 //! return [`Vector::ZERO`] rather than being treated as an error.
 //!
 //! The derivatives of any order come from `cos(u + i π/2)` and
-//! `sin(u + i π/2)`, the `i`-th derivatives of `cos u` and `sin u`.
+//! `sin(u + i π/2)`, the `i`-th derivatives of `cos u` and `sin u`, read
+//! once per angle in a [`Turn`].
 
 use crate::math::elementary::curve::wrap_to_turn;
 use crate::{Frame, Point, Vector};
@@ -139,11 +140,49 @@ pub(crate) fn plane_derivative(frame: &Frame, du: u32, dv: u32) -> Vector {
     }
 }
 
-/// Recovers `(u, v)` of a point on (or near) the plane: its local x/y
-/// coordinates in `frame`.
-pub(crate) fn plane_parameters(frame: &Frame, p: Point) -> (f64, f64) {
+/// The inversion of `p` on the plane: its local x/y coordinates in
+/// `frame`, and its foot there.
+pub(crate) fn plane_inversion(frame: &Frame, p: Point) -> Inversion {
     let (x, y, _) = frame.local_coordinates(p);
-    (x, y)
+    Inversion {
+        u: x,
+        v: y,
+        foot: Some(frame.point_at(x, y, 0.0)),
+    }
+}
+
+// ---- inversion ----
+//
+// Each surface's inversion reads the local coordinates once and applies its
+// axis, pole and branch rules once, for both the parameters and the foot.
+// The foot comes from those coordinates rather than from evaluating the
+// parameters: the radial direction is `(x, y) / ρ`, so it needs no
+// trigonometry. It is `None` where that division is ill-conditioned (on
+// the axis, on a torus's tube-centre circle, at a sphere's poles), and the
+// caller then evaluates the parameters.
+
+/// The parameters `(u, v)` of a point on (or near) an elementary surface,
+/// and the foot of the point there where the local coordinates give it
+/// well conditioned.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Inversion {
+    pub(crate) u: f64,
+    pub(crate) v: f64,
+    /// The point of the surface at `(u, v)`, the nearest one to the
+    /// inverted point; `None` where the caller has to evaluate it.
+    pub(crate) foot: Option<Point>,
+}
+
+impl Inversion {
+    /// The parameters `(u, v)`.
+    pub(crate) fn parameters(self) -> (f64, f64) {
+        (self.u, self.v)
+    }
+}
+
+/// Whether the radial distance `rho` can divide the local coordinates.
+fn divides(rho: f64) -> bool {
+    rho > 0.0 && rho.is_finite()
 }
 
 // ---- cylinder ----
@@ -156,24 +195,13 @@ pub(crate) fn cylinder_d0(frame: &Frame, r: f64, u: f64, v: f64) -> Point {
     frame.point_at(a1, a2, v)
 }
 
-/// Derivative of the cylinder at order `(du, dv)`, `du + dv >= 1`.
+/// Derivative of the cylinder at order `(du, dv)`, `du + dv >= 1`, from the
+/// turn of `u`.
 ///
 /// `∂^du S/∂u^du = r (d^du/du^du)(cos(u) x_dir + sin(u) y_dir)`,
 /// `Sv = z_dir`; every derivative mixing `u` and `v`, and every `v`
 /// derivative past the first, is identically zero.
-pub(crate) fn cylinder_derivative(
-    frame: &Frame,
-    r: f64,
-    u: f64,
-    _v: f64,
-    du: u32,
-    dv: u32,
-) -> Vector {
-    cylinder_partial(frame, r, Turn::of(u), du, dv)
-}
-
-/// [`cylinder_derivative`] from the turn of `u`.
-pub(crate) fn cylinder_partial(frame: &Frame, r: f64, u: Turn, du: u32, dv: u32) -> Vector {
+pub(crate) fn cylinder_derivative(frame: &Frame, r: f64, u: Turn, du: u32, dv: u32) -> Vector {
     debug_assert!(du + dv >= 1);
     match (du, dv) {
         (_, 0) => r * radial_derivative(frame, u, du),
@@ -182,11 +210,20 @@ pub(crate) fn cylinder_partial(frame: &Frame, r: f64, u: Turn, du: u32, dv: u32)
     }
 }
 
-/// Recovers `(u, v)` of a point on (or near) the cylinder: `u = atan2(y, x)`
+/// The inversion of `p` on the cylinder of radius `r`: `u = atan2(y, x)`
 /// wrapped into `[0, 2*PI)`, `v = z`, in `frame`'s local coordinates.
-pub(crate) fn cylinder_parameters(frame: &Frame, p: Point) -> (f64, f64) {
+pub(crate) fn cylinder_inversion(frame: &Frame, r: f64, p: Point) -> Inversion {
     let (x, y, z) = frame.local_coordinates(p);
-    (wrap_to_turn(y.atan2(x)), z)
+    let rho = x.hypot(y);
+    let foot = divides(rho).then(|| {
+        let scale = r / rho;
+        frame.point_at(scale * x, scale * y, z)
+    });
+    Inversion {
+        u: wrap_to_turn(y.atan2(x)),
+        v: z,
+        foot,
+    }
 }
 
 // ---- cone ----
@@ -206,7 +243,8 @@ pub(crate) fn cone_d0(
     frame.point_at(r * u.cos(), r * u.sin(), a3)
 }
 
-/// Derivative of the cone at order `(du, dv)`, `du + dv >= 1`.
+/// Derivative of the cone at order `(du, dv)`, `du + dv >= 1`, from the
+/// turns of `half_angle` and `u`.
 ///
 /// With `R = reference_radius + v sin(half_angle)` and `ρ` the radial direction
 /// `cos(u) x_dir + sin(u) y_dir`: `∂^du S/∂u^du = R ρ⁽ᵈᵘ⁾`,
@@ -214,27 +252,6 @@ pub(crate) fn cone_d0(
 /// `cos(half_angle) z_dir` when `du = 0`; every derivative of order 2 or
 /// more in `v` is identically zero (`R` is linear in `v`).
 pub(crate) fn cone_derivative(
-    frame: &Frame,
-    reference_radius: f64,
-    half_angle: f64,
-    u: f64,
-    v: f64,
-    du: u32,
-    dv: u32,
-) -> Vector {
-    cone_partial(
-        frame,
-        reference_radius,
-        Turn::of(half_angle),
-        Turn::of(u),
-        v,
-        du,
-        dv,
-    )
-}
-
-/// [`cone_derivative`] from the turns of `half_angle` and `u`.
-pub(crate) fn cone_partial(
     frame: &Frame,
     reference_radius: f64,
     half_angle: Turn,
@@ -253,38 +270,51 @@ pub(crate) fn cone_partial(
     }
 }
 
-/// Recovers `(u, v)` of a point on (or near) the cone.
+/// The inversion of `p` on the cone.
 ///
 /// `u` is `0` on the axis (`hypot(x, y) ≤ 1e-9` times the point's distance
 /// from the apex along the axis, the apex among them). The axis's reach is
 /// relative to that distance, the size of the cone's circle there, so that
 /// scaling the cone and the point scales it with them. Below the apex
-/// (`-reference_radius > z*tan(half_angle)`) the point lies on the opposite nappe, so
-/// `u` is measured from the branch `atan2(-y, -x)` instead of the usual
-/// `atan2(y, x)`; both are wrapped into `[0, 2*PI)`.
-/// `v = sin(half_angle)*(x*cos(u) + y*sin(u) - reference_radius) + cos(half_angle)*z`.
-pub(crate) fn cone_parameters(
+/// (`-reference_radius > z*tan(half_angle)`) the point lies on the opposite
+/// nappe, so `u` is measured from the branch `atan2(-y, -x)` instead of the
+/// usual `atan2(y, x)`, along which the point's radial coordinate is `-ρ`;
+/// both are wrapped into `[0, 2*PI)`. `v = sin(half_angle)*(radial -
+/// reference_radius) + cos(half_angle)*z`, with `radial = x*cos(u) +
+/// y*sin(u)`.
+pub(crate) fn cone_inversion(
     frame: &Frame,
     reference_radius: f64,
     half_angle: f64,
     p: Point,
-) -> (f64, f64) {
+) -> Inversion {
     let (x, y, z) = frame.local_coordinates(p);
+    let (sine, cosine) = half_angle.sin_cos();
     // The cone's radius at the point's height, `tan(half_angle)` times its
     // distance from the apex along the axis: the axis's reach is `1e-9` of
     // that distance, compared squared to stay free of a square root.
     let tangent = half_angle.tan();
     let radius_here = z * tangent + reference_radius;
-    let u = if (x * x + y * y) * (tangent * tangent) <= 1e-18 * (radius_here * radius_here) {
-        0.0
-    } else if radius_here < 0.0 {
-        wrap_to_turn((-y).atan2(-x))
+    if (x * x + y * y) * (tangent * tangent) <= 1e-18 * (radius_here * radius_here) {
+        let v = sine * (x - reference_radius) + cosine * z;
+        return Inversion {
+            u: 0.0,
+            v,
+            foot: None,
+        };
+    }
+    let rho = x.hypot(y);
+    let (u, radial, side) = if radius_here < 0.0 {
+        (wrap_to_turn((-y).atan2(-x)), -rho, -1.0)
     } else {
-        wrap_to_turn(y.atan2(x))
+        (wrap_to_turn(y.atan2(x)), rho, 1.0)
     };
-    let v =
-        half_angle.sin() * (x * u.cos() + y * u.sin() - reference_radius) + half_angle.cos() * z;
-    (u, v)
+    let v = sine * (radial - reference_radius) + cosine * z;
+    let foot = divides(rho).then(|| {
+        let scale = side * (reference_radius + v * sine) / rho;
+        frame.point_at(scale * x, scale * y, v * cosine)
+    });
+    Inversion { u, v, foot }
 }
 
 // ---- sphere ----
@@ -296,17 +326,20 @@ pub(crate) fn sphere_d0(frame: &Frame, r: f64, u: f64, v: f64) -> Point {
     frame.point_at(rcv * u.cos(), rcv * u.sin(), r * v.sin())
 }
 
-/// Derivative of the sphere at order `(du, dv)`, `du + dv >= 1`.
+/// Derivative of the sphere at order `(du, dv)`, `du + dv >= 1`, from the
+/// turns of `u` and `v`.
 ///
 /// With `ρ` the radial direction `cos(u) x_dir + sin(u) y_dir`:
 /// `∂^(du+dv) S/∂u^du ∂v^dv = r cos⁽ᵈᵛ⁾(v) ρ⁽ᵈᵘ⁾`, plus `r sin⁽ᵈᵛ⁾(v) z_dir`
 /// when `du = 0`.
-pub(crate) fn sphere_derivative(frame: &Frame, r: f64, u: f64, v: f64, du: u32, dv: u32) -> Vector {
-    sphere_partial(frame, r, Turn::of(u), Turn::of(v), du, dv)
-}
-
-/// [`sphere_derivative`] from the turns of `u` and `v`.
-pub(crate) fn sphere_partial(frame: &Frame, r: f64, u: Turn, v: Turn, du: u32, dv: u32) -> Vector {
+pub(crate) fn sphere_derivative(
+    frame: &Frame,
+    r: f64,
+    u: Turn,
+    v: Turn,
+    du: u32,
+    dv: u32,
+) -> Vector {
     debug_assert!(du + dv >= 1);
     let (cosine, sine) = v.derivative(dv);
     let around = r * cosine * radial_derivative(frame, u, du);
@@ -317,7 +350,7 @@ pub(crate) fn sphere_partial(frame: &Frame, r: f64, u: Turn, v: Turn, du: u32, d
     }
 }
 
-/// Recovers `(u, v)` of a point on (or near) the sphere.
+/// The inversion of `p` on the sphere of radius `r`.
 ///
 /// At the poles (`hypot(x, y) ≤ 1e-9 |z|`, the centre among them), `u = 0`
 /// and `v = +-PI/2` by the sign of `z`; otherwise `u = atan2(y, x)` wrapped
@@ -325,20 +358,29 @@ pub(crate) fn sphere_partial(frame: &Frame, r: f64, u: Turn, v: Turn, du: u32, d
 /// relative to the sphere's size: a point read there moves by at most
 /// `1e-9` of it, so that scaling the sphere and the point scales that move
 /// with them.
-pub(crate) fn sphere_parameters(frame: &Frame, _r: f64, p: Point) -> (f64, f64) {
+pub(crate) fn sphere_inversion(frame: &Frame, r: f64, p: Point) -> Inversion {
     let (x, y, z) = frame.local_coordinates(p);
     let l = x.hypot(y);
     if l <= 1e-9 * z.abs() {
-        (
-            0.0,
-            if z >= 0.0 {
-                std::f64::consts::FRAC_PI_2
-            } else {
-                -std::f64::consts::FRAC_PI_2
-            },
-        )
-    } else {
-        (wrap_to_turn(y.atan2(x)), (z / l).atan())
+        let v = if z >= 0.0 {
+            std::f64::consts::FRAC_PI_2
+        } else {
+            -std::f64::consts::FRAC_PI_2
+        };
+        return Inversion {
+            u: 0.0,
+            v,
+            foot: None,
+        };
+    }
+    let foot = l.is_finite().then(|| {
+        let scale = r / l.hypot(z);
+        frame.point_at(scale * x, scale * y, scale * z)
+    });
+    Inversion {
+        u: wrap_to_turn(y.atan2(x)),
+        v: (z / l).atan(),
+        foot,
     }
 }
 
@@ -352,26 +394,14 @@ pub(crate) fn torus_d0(frame: &Frame, maj: f64, min: f64, u: f64, v: f64) -> Poi
     frame.point_at(r * u.cos(), r * u.sin(), min * v.sin())
 }
 
-/// Derivative of the torus at order `(du, dv)`, `du + dv >= 1`.
+/// Derivative of the torus at order `(du, dv)`, `du + dv >= 1`, from the
+/// turns of `u` and `v`.
 ///
 /// With `ρ` the radial direction `cos(u) x_dir + sin(u) y_dir`:
 /// `∂^(du+dv) S/∂u^du ∂v^dv = (maj δ + min cos⁽ᵈᵛ⁾(v)) ρ⁽ᵈᵘ⁾`, with `δ` 1
 /// when `dv = 0` and 0 otherwise, plus `min sin⁽ᵈᵛ⁾(v) z_dir` when
 /// `du = 0`.
 pub(crate) fn torus_derivative(
-    frame: &Frame,
-    maj: f64,
-    min: f64,
-    u: f64,
-    v: f64,
-    du: u32,
-    dv: u32,
-) -> Vector {
-    torus_partial(frame, maj, min, Turn::of(u), Turn::of(v), du, dv)
-}
-
-/// [`torus_derivative`] from the turns of `u` and `v`.
-pub(crate) fn torus_partial(
     frame: &Frame,
     maj: f64,
     min: f64,
@@ -395,152 +425,41 @@ pub(crate) fn torus_partial(
     }
 }
 
-/// Recovers `(u, v)` of a point on (or near) the torus.
+/// The inversion of `p` on the torus.
 ///
-/// `u = atan2(y, x)` wrapped into `[0, 2*PI)`. When `maj < min` the tube can
-/// swallow the axis, so `atan2(y, x)` alone no longer distinguishes the near
-/// and far side of the tube; the branch (`u` vs `u + PI`) whose centerline
-/// point `maj*(cos, sin, 0)` sits at distance closest to the true minor
-/// radius `min` from `p` (measured in full 3D, not just the `(x, y)`
-/// projection — `z` matters once the tube surrounds the axis) is picked
-/// instead. `dP = (x - maj*cos(u), y - maj*sin(u), z)` is then the offset
-/// from the tube's circular axis at that `u`, expressed in `frame`'s local
-/// x/y/z coordinates. `dP` lies entirely in the meridian half-plane spanned
-/// by the radial direction `cos(u)*x_dir + sin(u)*y_dir` and `z_dir` (the two
-/// are orthonormal), so `v` is simply `atan2(dP . z_dir, dP . radial)`,
-/// wrapped into `[0, 2*PI)`.
-pub(crate) fn torus_parameters(frame: &Frame, maj: f64, min: f64, p: Point) -> (f64, f64) {
-    let (x, y, z) = frame.local_coordinates(p);
-    // 3D distance from `p` to the tube's centerline circle (radius `maj`,
-    // in the frame's xy-plane) at angle `candidate_u`. On the true branch
-    // this distance is exactly `min`; on the wrong branch it generally
-    // isn't, so comparing the two candidates' *offset from `min`* (not
-    // their raw magnitude) picks the correct one.
-    let offset_from_minor_radius = |candidate_u: f64| {
-        let dx = x - maj * candidate_u.cos();
-        let dy = y - maj * candidate_u.sin();
-        (dx.hypot(dy).hypot(z) - min).abs()
-    };
-    let mut u = y.atan2(x);
-    if maj < min {
-        let alt = u + std::f64::consts::PI;
-        if offset_from_minor_radius(alt) < offset_from_minor_radius(u) {
-            u = alt;
-        }
-    }
-    let u = wrap_to_turn(u);
-    let dp_radial = x * u.cos() + y * u.sin() - maj;
-    let v = wrap_to_turn(z.atan2(dp_radial));
-    (u, v)
-}
-
-// ---- projection feet ----
-//
-// The parameters of the nearest point of each surface with the foot read
-// from the local coordinates, not from evaluating the parameters: the
-// radial direction is `(x, y) / ρ`, so the foot needs no trigonometry.
-// `None` where that division is ill-conditioned (on the axis, on a
-// torus's tube-centre circle, at a sphere's poles): the callers then
-// evaluate the parameters as before.
-
-/// `(u, v)` and the foot of `p` on the cylinder of radius `r`, as
-/// [`cylinder_parameters`] and [`cylinder_d0`] give them.
-pub(crate) fn cylinder_projection(frame: &Frame, r: f64, p: Point) -> Option<(f64, f64, Point)> {
+/// `u = atan2(y, x)` wrapped into `[0, 2*PI)`, along which the point's
+/// radial coordinate is `ρ = hypot(x, y)`. When `maj < min` the tube can
+/// swallow the axis, so `atan2(y, x)` alone no longer distinguishes the
+/// near and far side of the tube: the branch (`u` at radial coordinate `ρ`,
+/// or `u + PI` at `-ρ`) whose centerline point sits at a distance closest
+/// to the minor radius `min` from `p`, measured in full 3D, is picked
+/// instead. `(radial - maj, z)` is then the offset from the tube's circular
+/// axis in the meridian half-plane at that `u`, so
+/// `v = atan2(z, radial - maj)`, wrapped into `[0, 2*PI)`.
+pub(crate) fn torus_inversion(frame: &Frame, maj: f64, min: f64, p: Point) -> Inversion {
     let (x, y, z) = frame.local_coordinates(p);
     let rho = x.hypot(y);
-    if !(rho > 0.0 && rho.is_finite()) {
-        return None;
-    }
-    let scale = r / rho;
-    Some((
-        wrap_to_turn(y.atan2(x)),
-        z,
-        frame.point_at(scale * x, scale * y, z),
-    ))
-}
-
-/// `(u, v)` and the foot of `p` on the cone, as [`cone_parameters`] and
-/// [`cone_d0`] give them.
-pub(crate) fn cone_projection(
-    frame: &Frame,
-    reference_radius: f64,
-    half_angle: f64,
-    p: Point,
-) -> Option<(f64, f64, Point)> {
-    let (x, y, z) = frame.local_coordinates(p);
-    let (sine, cosine) = half_angle.sin_cos();
-    let tangent = half_angle.tan();
-    let radius_here = z * tangent + reference_radius;
-    let rho = x.hypot(y);
-    // On the axis `cone_parameters` reads `u = 0`: evaluate as before.
-    if (x * x + y * y) * (tangent * tangent) <= 1e-18 * (radius_here * radius_here)
-        || !(rho > 0.0 && rho.is_finite())
-    {
-        return None;
-    }
-    // Below the apex `u` is measured from the opposite azimuth, along which
-    // the point's radial coordinate is `-ρ`.
-    let (u, radial, side) = if radius_here < 0.0 {
-        (wrap_to_turn((-y).atan2(-x)), -rho, -1.0)
-    } else {
-        (wrap_to_turn(y.atan2(x)), rho, 1.0)
-    };
-    let v = sine * (radial - reference_radius) + cosine * z;
-    let radius = reference_radius + v * sine;
-    let scale = side * radius / rho;
-    Some((u, v, frame.point_at(scale * x, scale * y, v * cosine)))
-}
-
-/// `(u, v)` and the foot of `p` on the sphere of radius `r`, as
-/// [`sphere_parameters`] and [`sphere_d0`] give them.
-pub(crate) fn sphere_projection(frame: &Frame, r: f64, p: Point) -> Option<(f64, f64, Point)> {
-    let (x, y, z) = frame.local_coordinates(p);
-    let l = x.hypot(y);
-    // The poles, the centre among them, read `u = 0`: evaluate as before.
-    if l <= 1e-9 * z.abs() || !l.is_finite() {
-        return None;
-    }
-    let scale = r / l.hypot(z);
-    Some((
-        wrap_to_turn(y.atan2(x)),
-        (z / l).atan(),
-        frame.point_at(scale * x, scale * y, scale * z),
-    ))
-}
-
-/// `(u, v)` and the foot of `p` on the torus, as [`torus_parameters`] and
-/// [`torus_d0`] give them.
-pub(crate) fn torus_projection(
-    frame: &Frame,
-    maj: f64,
-    min: f64,
-    p: Point,
-) -> Option<(f64, f64, Point)> {
-    let (x, y, z) = frame.local_coordinates(p);
-    let rho = x.hypot(y);
-    if !(rho > 0.0 && rho.is_finite()) {
-        return None;
-    }
-    // The branch of `torus_parameters`: when `maj < min` the far side of the
-    // tube may be nearer, at `u + π`, where the radial coordinate is `-ρ`.
     let (mut u, mut radial) = (y.atan2(x), rho);
     if maj < min {
-        let offset = |radial: f64| ((radial - maj).hypot(z) - min).abs();
-        if offset(-rho) < offset(rho) {
+        let offset_from_minor_radius = |radial: f64| ((radial - maj).hypot(z) - min).abs();
+        if offset_from_minor_radius(-rho) < offset_from_minor_radius(rho) {
             u += std::f64::consts::PI;
             radial = -rho;
         }
     }
-    let u = wrap_to_turn(u);
     let (dr, dz) = (radial - maj, z);
     let reach = dr.hypot(dz);
-    // On the tube-centre circle every `v` is as near: evaluate as before.
-    if !(reach > 0.0 && reach.is_finite()) {
-        return None;
+    // On the axis, and on the tube-centre circle where every `v` is as near,
+    // the caller evaluates.
+    let foot = (divides(rho) && divides(reach)).then(|| {
+        let along = (maj + min * dr / reach) / radial;
+        frame.point_at(along * x, along * y, min * dz / reach)
+    });
+    Inversion {
+        u: wrap_to_turn(u),
+        v: wrap_to_turn(dz.atan2(dr)),
+        foot,
     }
-    let v = wrap_to_turn(dz.atan2(dr));
-    let along = (maj + min * dr / reach) / radial;
-    Some((u, v, frame.point_at(along * x, along * y, min * dz / reach)))
 }
 
 #[cfg(test)]

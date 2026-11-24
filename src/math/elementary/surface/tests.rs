@@ -62,7 +62,7 @@ fn test_plane_parameters_round_trip_skewed() {
     let frame = skewed_frame();
     for (u, v) in [(0.3, 2.0), (5.5, -1.2)] {
         let p = plane_d0(&frame, u, v);
-        let (ru, rv) = plane_parameters(&frame, p);
+        let (ru, rv) = plane_inversion(&frame, p).parameters();
         assert!((ru - u).abs() < 1e-9);
         assert!((rv - v).abs() < 1e-9);
     }
@@ -85,7 +85,7 @@ fn test_cylinder_d0_world_hand_computed() {
 #[test]
 fn test_cylinder_su_at_zero() {
     assert_vector3_close(
-        cylinder_derivative(&Frame::WORLD, 2.0, 0.0, 5.0, 1, 0),
+        cylinder_derivative(&Frame::WORLD, 2.0, Turn::of(0.0), 1, 0),
         Vector::new(0.0, 2.0, 0.0),
     );
 }
@@ -93,7 +93,7 @@ fn test_cylinder_su_at_zero() {
 #[test]
 fn test_cylinder_sv_is_z_dir() {
     assert_vector3_close(
-        cylinder_derivative(&Frame::WORLD, 2.0, 0.7, 5.0, 0, 1),
+        cylinder_derivative(&Frame::WORLD, 2.0, Turn::of(0.7), 0, 1),
         Vector::Z,
     );
 }
@@ -101,11 +101,11 @@ fn test_cylinder_sv_is_z_dir() {
 #[test]
 fn test_cylinder_svv_and_suv_are_zero() {
     assert_vector3_close(
-        cylinder_derivative(&Frame::WORLD, 2.0, 0.7, 5.0, 0, 2),
+        cylinder_derivative(&Frame::WORLD, 2.0, Turn::of(0.7), 0, 2),
         Vector::ZERO,
     );
     assert_vector3_close(
-        cylinder_derivative(&Frame::WORLD, 2.0, 0.7, 5.0, 1, 1),
+        cylinder_derivative(&Frame::WORLD, 2.0, Turn::of(0.7), 1, 1),
         Vector::ZERO,
     );
 }
@@ -115,7 +115,7 @@ fn test_cylinder_parameters_round_trip_skewed() {
     let frame = skewed_frame();
     for (u, v) in [(0.3, 2.0), (5.5, -1.2), (PI / 2.0, 0.0)] {
         let p = cylinder_d0(&frame, 2.5, u, v);
-        let (ru, rv) = cylinder_parameters(&frame, p);
+        let (ru, rv) = cylinder_inversion(&frame, 2.0, p).parameters();
         assert!((ru - u).abs() < 1e-9, "u: {ru} vs {u}");
         assert!((rv - v).abs() < 1e-9, "v: {rv} vs {v}");
     }
@@ -126,7 +126,7 @@ fn test_cylinder_parameters_u_in_zero_to_tau() {
     let frame = skewed_frame();
     for u in [-2.0, -0.1, 6.0] {
         let p = cylinder_d0(&frame, 1.0, u, 0.5);
-        let (ru, _) = cylinder_parameters(&frame, p);
+        let (ru, _) = cylinder_inversion(&frame, 2.0, p).parameters();
         assert!((0.0..TAU).contains(&ru), "got {ru}");
     }
 }
@@ -146,7 +146,7 @@ fn test_cone_parameters_round_trip_skewed() {
     let frame = skewed_frame();
     for (u, v) in [(0.3, 1.0), (5.5, -0.5), (2.0, 2.0)] {
         let p = cone_d0(&frame, 2.0, 0.4, u, v);
-        let (ru, rv) = cone_parameters(&frame, 2.0, 0.4, p);
+        let (ru, rv) = cone_inversion(&frame, 2.0, 0.4, p).parameters();
         assert!((ru - u).abs() < 1e-7, "u: {ru} vs {u}");
         assert!((rv - v).abs() < 1e-7, "v: {rv} vs {v}");
     }
@@ -157,7 +157,7 @@ fn test_cone_parameters_on_axis_gives_u_zero() {
     let frame = Frame::WORLD;
     // A point on the axis itself (x, y both zero) picks u = 0.
     let p = frame.point_at(0.0, 0.0, 3.0);
-    let (u, _) = cone_parameters(&frame, 2.0, 0.4, p);
+    let (u, _) = cone_inversion(&frame, 2.0, 0.4, p).parameters();
     assert_eq!(u, 0.0);
 }
 
@@ -176,7 +176,7 @@ fn test_sphere_parameters_round_trip_skewed() {
     let frame = skewed_frame();
     for (u, v) in [(0.3, 0.5), (5.5, -0.8), (2.0, 1.0)] {
         let p = sphere_d0(&frame, 3.0, u, v);
-        let (ru, rv) = sphere_parameters(&frame, 3.0, p);
+        let (ru, rv) = sphere_inversion(&frame, 3.0, p).parameters();
         assert!((ru - u).abs() < 1e-9, "u: {ru} vs {u}");
         assert!((rv - v).abs() < 1e-9, "v: {rv} vs {v}");
     }
@@ -186,7 +186,7 @@ fn test_sphere_parameters_round_trip_skewed() {
 fn test_sphere_parameters_pole_north() {
     let frame = skewed_frame();
     let p = sphere_d0(&frame, 3.0, 0.0, PI / 2.0);
-    let (u, v) = sphere_parameters(&frame, 3.0, p);
+    let (u, v) = sphere_inversion(&frame, 3.0, p).parameters();
     assert_eq!(u, 0.0);
     assert!((v - PI / 2.0).abs() < 1e-9);
 }
@@ -195,7 +195,7 @@ fn test_sphere_parameters_pole_north() {
 fn test_sphere_parameters_pole_south() {
     let frame = skewed_frame();
     let p = sphere_d0(&frame, 3.0, 0.0, -PI / 2.0);
-    let (u, v) = sphere_parameters(&frame, 3.0, p);
+    let (u, v) = sphere_inversion(&frame, 3.0, p).parameters();
     assert_eq!(u, 0.0);
     assert!((v + PI / 2.0).abs() < 1e-9);
 }
@@ -219,7 +219,7 @@ fn test_torus_parameters_round_trip_skewed() {
     let frame = skewed_frame();
     for (u, v) in [(0.3, 1.0), (5.5, 0.5), (2.0, 4.0)] {
         let p = torus_d0(&frame, 5.0, 1.5, u, v);
-        let (ru, rv) = torus_parameters(&frame, 5.0, 1.5, p);
+        let (ru, rv) = torus_inversion(&frame, 5.0, 1.5, p).parameters();
         assert!((ru - u).abs() < 1e-9, "u: {ru} vs {u}");
         assert!((rv - v).abs() < 1e-9, "v: {rv} vs {v}");
     }
@@ -232,7 +232,7 @@ fn test_torus_parameters_major_less_than_minor_branch() {
     let frame = Frame::WORLD;
     let (u, v) = (0.7, 2.0);
     let p = torus_d0(&frame, 1.0, 2.5, u, v);
-    let (ru, rv) = torus_parameters(&frame, 1.0, 2.5, p);
+    let (ru, rv) = torus_inversion(&frame, 1.0, 2.5, p).parameters();
     assert!((ru - u).abs() < 1e-9, "u: {ru} vs {u}");
     assert!((rv - v).abs() < 1e-9, "v: {rv} vs {v}");
 }
@@ -261,7 +261,7 @@ fn replay_fixture() {
             case,
             plane_d0,
             |frame, du, dv, _, _| plane_derivative(frame, du, dv),
-            plane_parameters,
+            |frame, p| plane_inversion(frame, p).parameters(),
         );
     }
     for case in json["cylinders"].as_array().unwrap() {
@@ -269,8 +269,8 @@ fn replay_fixture() {
         replay_case(
             case,
             move |frame, u, v| cylinder_d0(frame, r, u, v),
-            move |frame, du, dv, u, v| cylinder_derivative(frame, r, u, v, du, dv),
-            cylinder_parameters,
+            move |frame, du, dv, u, _v| cylinder_derivative(frame, r, Turn::of(u), du, dv),
+            move |frame, p| cylinder_inversion(frame, r, p).parameters(),
         );
     }
     for case in json["cones"].as_array().unwrap() {
@@ -280,9 +280,17 @@ fn replay_fixture() {
             case,
             move |frame, u, v| cone_d0(frame, reference_radius, half_angle, u, v),
             move |frame, du, dv, u, v| {
-                cone_derivative(frame, reference_radius, half_angle, u, v, du, dv)
+                cone_derivative(
+                    frame,
+                    reference_radius,
+                    Turn::of(half_angle),
+                    Turn::of(u),
+                    v,
+                    du,
+                    dv,
+                )
             },
-            move |frame, p| cone_parameters(frame, reference_radius, half_angle, p),
+            move |frame, p| cone_inversion(frame, reference_radius, half_angle, p).parameters(),
         );
     }
     for case in json["spheres"].as_array().unwrap() {
@@ -290,8 +298,10 @@ fn replay_fixture() {
         replay_case(
             case,
             move |frame, u, v| sphere_d0(frame, r, u, v),
-            move |frame, du, dv, u, v| sphere_derivative(frame, r, u, v, du, dv),
-            move |frame, p| sphere_parameters(frame, r, p),
+            move |frame, du, dv, u, v| {
+                sphere_derivative(frame, r, Turn::of(u), Turn::of(v), du, dv)
+            },
+            move |frame, p| sphere_inversion(frame, r, p).parameters(),
         );
     }
     for case in json["tori"].as_array().unwrap() {
@@ -300,8 +310,10 @@ fn replay_fixture() {
         replay_case(
             case,
             move |frame, u, v| torus_d0(frame, maj, min, u, v),
-            move |frame, du, dv, u, v| torus_derivative(frame, maj, min, u, v, du, dv),
-            move |frame, p| torus_parameters(frame, maj, min, p),
+            move |frame, du, dv, u, v| {
+                torus_derivative(frame, maj, min, Turn::of(u), Turn::of(v), du, dv)
+            },
+            move |frame, p| torus_inversion(frame, maj, min, p).parameters(),
         );
     }
 }
@@ -432,37 +444,31 @@ fn test_derivatives_of_any_order_match_differences() {
     });
     assert_matches_differences(|du, dv, u, v| match du + dv {
         0 => cylinder_d0(&frame, 2.0, u, v) - Point::ORIGIN,
-        _ => cylinder_derivative(&frame, 2.0, u, v, du, dv),
+        _ => cylinder_derivative(&frame, 2.0, Turn::of(u), du, dv),
     });
     assert_matches_differences(|du, dv, u, v| match du + dv {
         0 => cone_d0(&frame, 1.5, 0.4, u, v) - Point::ORIGIN,
-        _ => cone_derivative(&frame, 1.5, 0.4, u, v, du, dv),
+        _ => cone_derivative(&frame, 1.5, Turn::of(0.4), Turn::of(u), v, du, dv),
     });
     assert_matches_differences(|du, dv, u, v| match du + dv {
         0 => sphere_d0(&frame, 3.0, u, v) - Point::ORIGIN,
-        _ => sphere_derivative(&frame, 3.0, u, v, du, dv),
+        _ => sphere_derivative(&frame, 3.0, Turn::of(u), Turn::of(v), du, dv),
     });
     assert_matches_differences(|du, dv, u, v| match du + dv {
         0 => torus_d0(&frame, 5.0, 1.5, u, v) - Point::ORIGIN,
-        _ => torus_derivative(&frame, 5.0, 1.5, u, v, du, dv),
+        _ => torus_derivative(&frame, 5.0, 1.5, Turn::of(u), Turn::of(v), du, dv),
     });
 }
 
-// ---- projection feet ----
+// ---- inversion feet ----
 
-/// Each algebraic foot against the parameters evaluated, as projection
-/// read it before: the same parameters (angles modulo a turn) and the same
-/// foot within rounding of the scale, on direct and indirect frames near
-/// and far from the origin, on and off the surfaces, around the axis,
-/// below the cone's apex, and for spindle tori whose tube swallows the
-/// axis. Where a foot is `None` the caller evaluates as before.
+/// Where an inversion gives a foot, it is the point at its parameters
+/// within rounding of the scale, and no farther from the inverted point:
+/// on direct and indirect frames near and far from the origin, on and off
+/// the surfaces, around the axis, below the cone's apex, and for spindle
+/// tori whose tube swallows the axis.
 #[test]
-fn test_projection_feet_match_the_evaluated_parameters() {
-    use std::f64::consts::TAU;
-    let angle_gap = |a: f64, b: f64| {
-        let d = (a - b).rem_euclid(TAU);
-        d.min(TAU - d)
-    };
+fn test_inversion_feet_are_the_points_at_their_parameters() {
     let mut state = 11u64;
     let mut random = |a: f64, b: f64| {
         state = state
@@ -494,80 +500,44 @@ fn test_projection_feet_match_the_evaluated_parameters() {
         queries.push(frame.point_at(3.0, 0.0, 0.0));
         queries.push(frame.point_at(0.0, 0.5, 0.0));
         queries.push(frame.point_at(2.0, 0.0, 0.0));
-        let compare = |name: &str,
-                       q: Point,
-                       fast: Option<(f64, f64, Point)>,
-                       u: f64,
-                       v: f64,
-                       slow: Point,
-                       angular_v: bool| {
-            let Some((fu, fv, foot)) = fast else { return 0 };
-            assert!(angle_gap(fu, u) <= 1e-12, "{name} u at {q:?}: {fu} vs {u}");
-            let v_gap = if angular_v {
-                angle_gap(fv, v)
-            } else {
-                (fv - v).abs()
+        let check =
+            |name: &str, q: Point, inversion: Inversion, evaluate: &dyn Fn(f64, f64) -> Point| {
+                let Some(foot) = inversion.foot else { return 0 };
+                let at = evaluate(inversion.u, inversion.v);
+                assert!(
+                    foot.distance(at) <= 1e-13 * scale,
+                    "{name} foot at {q:?}: {foot:?} vs {at:?}"
+                );
+                assert!(
+                    foot.distance(q) <= at.distance(q) + 1e-13 * scale,
+                    "{name} foot farther at {q:?}"
+                );
+                1
             };
-            assert!(
-                v_gap <= 1e-12 * (1.0 + v.abs()),
-                "{name} v at {q:?}: {fv} vs {v}"
-            );
-            assert!(
-                foot.distance(slow) <= 1e-13 * scale,
-                "{name} foot at {q:?}: {foot:?} vs {slow:?}"
-            );
-            assert!(
-                foot.distance(q) <= slow.distance(q) + 1e-13 * scale,
-                "{name} nearer before at {q:?}"
-            );
-            1
-        };
         for &q in &queries {
-            let (u, v) = cylinder_parameters(&frame, q);
-            checked += compare(
+            checked += check("plane", q, plane_inversion(&frame, q), &|u, v| {
+                plane_d0(&frame, u, v)
+            });
+            checked += check(
                 "cylinder",
                 q,
-                cylinder_projection(&frame, 2.0, q),
-                u,
-                v,
-                cylinder_d0(&frame, 2.0, u, v),
-                false,
+                cylinder_inversion(&frame, 2.0, q),
+                &|u, v| cylinder_d0(&frame, 2.0, u, v),
             );
             for (r, a) in [(2.0, 0.4), (0.0, 0.7), (1.0, 1.2)] {
-                let (u, v) = cone_parameters(&frame, r, a, q);
-                checked += compare(
-                    "cone",
-                    q,
-                    cone_projection(&frame, r, a, q),
-                    u,
-                    v,
-                    cone_d0(&frame, r, a, u, v),
-                    false,
-                );
+                checked += check("cone", q, cone_inversion(&frame, r, a, q), &|u, v| {
+                    cone_d0(&frame, r, a, u, v)
+                });
             }
-            let (u, v) = sphere_parameters(&frame, 2.0, q);
-            checked += compare(
-                "sphere",
-                q,
-                sphere_projection(&frame, 2.0, q),
-                u,
-                v,
-                sphere_d0(&frame, 2.0, u, v),
-                false,
-            );
+            checked += check("sphere", q, sphere_inversion(&frame, 2.0, q), &|u, v| {
+                sphere_d0(&frame, 2.0, u, v)
+            });
             for (maj, min) in [(3.0, 1.0), (1.0, 1.0), (0.5, 1.0)] {
-                let (u, v) = torus_parameters(&frame, maj, min, q);
-                checked += compare(
-                    "torus",
-                    q,
-                    torus_projection(&frame, maj, min, q),
-                    u,
-                    v,
-                    torus_d0(&frame, maj, min, u, v),
-                    true,
-                );
+                checked += check("torus", q, torus_inversion(&frame, maj, min, q), &|u, v| {
+                    torus_d0(&frame, maj, min, u, v)
+                });
             }
         }
     }
-    assert!(checked > 19_000, "only {checked} feet were algebraic");
+    assert!(checked > 21_000, "only {checked} feet were algebraic");
 }
