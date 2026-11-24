@@ -316,8 +316,10 @@ pub(crate) fn cone_inversion(
     let side = if radius_here < 0.0 { -1.0 } else { 1.0 };
     let v_at = move |radial: f64| sine * (radial - reference_radius) + cosine * z;
     // Off the axis both the parameters and the foot read the distance
-    // from it.
-    let rho = x.hypot(y);
+    // from it. Its squares are already formed for the axis test, so a
+    // square root reads it at a fraction of `hypot`'s cost; they stay
+    // finite for any coordinate below 1e154.
+    let rho = (x * x + y * y).sqrt();
     Inversion {
         parameters: move || {
             if on_axis {

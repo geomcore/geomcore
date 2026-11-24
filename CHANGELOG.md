@@ -18,7 +18,8 @@ the Python distribution are versioned in lockstep.
   point as `project_point`, so the two agree at `tol.confusion`, and it
   no longer evaluates the parameters where that point has a closed form.
   A line against a cylinder takes 13–29% fewer instructions, and point
-  projection onto a cylinder, a cone, a sphere or a torus 6–9% fewer.
+  projection onto a cylinder, a sphere or a torus 6–9% fewer and onto a
+  cone 17% fewer.
 
 - Point projection onto a rational B-spline surface is faster, still
   proven global (part of #501). A subpatch whose convexity is not
