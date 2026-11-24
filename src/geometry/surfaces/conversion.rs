@@ -59,8 +59,13 @@ fn check_ranges<S: ParametricSurface>(
 /// spans a whole turn.
 fn angle_net(first: f64, last: f64) -> PlaneNet {
     let mut net = conic::circle_arc(first, last);
-    // A whole turn computed with rounding errors is still a whole turn.
-    if last - first >= TAU * (1.0 - 1e-12) {
+    if (ParameterRange {
+        first,
+        last,
+        period: Some(TAU),
+    })
+    .spans_whole_period()
+    {
         net.close();
         net.make_periodic();
     }

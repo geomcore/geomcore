@@ -62,6 +62,24 @@ impl ParameterRange {
             }),
         }
     }
+
+    /// Whether the range spans a whole period, up to rounding: at least
+    /// `period × (1 − 1e-12)` long. The rule for a range a caller built,
+    /// where a whole turn arrives as `2π` or a few ulps short of it. A
+    /// range without a period never spans one.
+    pub(crate) fn spans_whole_period(self) -> bool {
+        self.period
+            .is_some_and(|period| self.last - self.first >= period * (1.0 - 1e-12))
+    }
+
+    /// Whether the range spans a whole period within `tol.parametric`: at
+    /// least `period − tol.parametric` long. The rule for a range computed
+    /// from images on another curve or surface, whose ends carry errors of
+    /// the size of the tolerance. A range without a period never spans one.
+    pub(crate) fn spans_whole_period_within(self, tol: Tolerance) -> bool {
+        self.period
+            .is_some_and(|period| self.last - self.first >= period - tol.parametric)
+    }
 }
 
 /// `u` shifted by whole periods into `[start, start + period)`.
