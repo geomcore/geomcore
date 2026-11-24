@@ -1914,7 +1914,9 @@ pub(crate) fn min_continuity_within(
         .zip(multiplicities)
         .filter(|(knot, _)| {
             let shifted = match period {
-                Some(period) => first + (**knot - first).rem_euclid(period),
+                Some(period) => {
+                    crate::math::parameter_range::wrap_into_period(**knot, first, period)
+                }
                 None => **knot,
             };
             first < shifted && shifted < last
