@@ -41,6 +41,16 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- `TrimmedSurface::tight_bounding_box` over a cylinder, a cone, a sphere
+  or a torus touches the patch on every side (#508). It returned the box
+  of the exact B-spline patch's control points, whose sides stood up to
+  a quarter of the patch's size away on a wide band in a tilted frame.
+  The box is now in closed form, from the circle arcs on which each
+  coordinate's extremes lie: the two boundary parallels, and on a sphere
+  or a torus also the boundary meridians and those at the at most six
+  angles where a coordinate of the turning direction peaks. A plane
+  patch is boxed from its four corners. `bounding_box` is unchanged.
+
 - A circle or an ellipse lying within a few tolerances of a sphere or a
   cylinder all along is read by its stretches within the tolerance, as
   one lying close to a cone has been since #497 (#504). Its crossings no

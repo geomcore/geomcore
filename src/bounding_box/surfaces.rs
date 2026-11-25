@@ -2,10 +2,11 @@
 //! B-splines, the profile's box turned about the axis for revolution
 //! surfaces; planes, cylinders, cones and extrusion surfaces are unbounded.
 //! The tight boxes of B-splines and revolution surfaces come from branch
-//! and bound over Bézier pieces (`tight.rs`).
+//! and bound over Bézier pieces (`tight.rs`). A patch of an elementary
+//! surface has its tight box in closed form ([`elementary_patch_box`]).
 
 use super::tight::Nets;
-use super::{BoundingBox, HasBoundingBox};
+use super::{BoundingBox, HasBoundingBox, trigonometric_box};
 use crate::base::tier::operations::BoxOperations;
 use crate::geometry::curves::{ParametricCurve, RangeOperations};
 use crate::geometry::surfaces::ParametricSurface;
@@ -14,7 +15,9 @@ use crate::geometry::surfaces::{
     RevolutionSurface, Sphere, Surface, Torus,
 };
 use crate::geometry::surfaces::{elementary_surface_dispatch, surface_dispatch};
-use crate::{Point, Tolerance};
+use crate::math::parameter_range::wrap_into_period;
+use crate::{Frame, Point, Tolerance};
+use std::f64::consts::{PI, TAU};
 
 fn coordinates(p: Point) -> [f64; 3] {
     [p.x, p.y, p.z]
@@ -31,6 +34,134 @@ fn centered(center: Point, half: [f64; 3]) -> BoundingBox {
         point(std::array::from_fn(|k| c[k] - half[k])),
         point(std::array::from_fn(|k| c[k] + half[k])),
     )
+}
+
+/// The tight box of the patch of `surface` over `u_range` and `v_range`,
+/// in closed form: a plane patch's four corners, and for the four
+/// surfaces turned about an axis, the boxes of the circle arcs and
+/// segments on which each coordinate's extremes lie
+/// ([`turned_patch_box`]). Every curve boxed lies on the patch, so the
+/// box touches it on every side, up to the rounding of evaluating it.
+pub(crate) fn elementary_patch_box(
+    surface: &ElementarySurface,
+    u_range: (f64, f64),
+    v_range: (f64, f64),
+) -> BoundingBox {
+    match surface {
+        ElementarySurface::Plane(plane) => {
+            let ((u_first, u_last), (v_first, v_last)) = (u_range, v_range);
+            BoundingBox::new(
+                plane.point_at(u_first, v_first),
+                plane.point_at(u_last, v_last),
+            )
+            .including(plane.point_at(u_first, v_last))
+            .including(plane.point_at(u_last, v_first))
+        }
+        ElementarySurface::Cylinder(cylinder) => {
+            let radius = cylinder.radius();
+            let parallel = |v: f64| (v, radius);
+            turned_patch_box(cylinder, cylinder.frame(), parallel, None, u_range, v_range)
+        }
+        ElementarySurface::Cone(cone) => {
+            let (sine, cosine) = cone.half_angle().sin_cos();
+            let radius = cone.reference_radius();
+            let parallel = |v: f64| (v * cosine, radius + v * sine);
+            turned_patch_box(cone, cone.frame(), parallel, None, u_range, v_range)
+        }
+        // A sphere is the torus of major radius zero.
+        ElementarySurface::Sphere(sphere) => {
+            let radius = sphere.radius();
+            let parallel = |v: f64| (radius * v.sin(), radius * v.cos());
+            let meridian = Some((0.0, radius));
+            turned_patch_box(sphere, sphere.frame(), parallel, meridian, u_range, v_range)
+        }
+        ElementarySurface::Torus(torus) => {
+            let (major, minor) = (torus.major_radius(), torus.minor_radius());
+            let parallel = |v: f64| (minor * v.sin(), major + minor * v.cos());
+            let meridian = Some((major, minor));
+            turned_patch_box(torus, torus.frame(), parallel, meridian, u_range, v_range)
+        }
+    }
+}
+
+/// The box of the patch over `u_range` and `v_range` of `surface`, the
+/// surface `frame.point_at(ρ(v) cos u, ρ(v) sin u, h(v))` turned about
+/// the frame's axis, `(h(v), ρ(v)) = parallel(v)` the height and radius
+/// of its parallel (its circle of constant `v`). `meridian` is `None`
+/// when a meridian (a curve of constant `u`) is a segment, on a cylinder
+/// or a cone, and the major and minor radii `(R, r)` when it is the
+/// circle arc `o + (R + r cos v) d(u) + r sin v z`, on a torus, or a
+/// sphere with `R = 0`; `o` is the frame's origin, `x`, `y`, `z` its
+/// directions and `d(u) = cos u x + sin u y`.
+///
+/// Coordinate `k` is `o_k + h(v) z_k + ρ(v) (x_k cos u + y_k sin u)`,
+/// whose derivative in `u` vanishes only where `ρ(v)` does, a single
+/// point of the axis that every meridian passes through, or where
+/// `u = φ_k` or `φ_k + π`, `φ_k = atan2(y_k, x_k)`. Each extreme over the
+/// patch therefore lies on its boundary or on the meridians at those
+/// angles. Along a segment meridian the coordinate is linear in `v`, so
+/// its extremes are at the ends, on the boundary parallels: the box is
+/// that of the two boundary parallels. Otherwise it also takes in the
+/// two boundary meridians and the meridians at the angles `φ_k`,
+/// `φ_k + π` the `u` range reaches, at most six. Each arc is boxed in
+/// closed form ([`trigonometric_box`]), whatever its width.
+///
+/// The extremes are not separable in `u` and `v` on a sphere or torus,
+/// but they still lie on these finitely many arcs: no subdivision is
+/// needed.
+fn turned_patch_box(
+    surface: &impl ParametricSurface,
+    frame: Frame,
+    parallel: impl Fn(f64) -> (f64, f64),
+    meridian: Option<(f64, f64)>,
+    (u_first, u_last): (f64, f64),
+    (v_first, v_last): (f64, f64),
+) -> BoundingBox {
+    let (x, y, z) = (
+        frame.x_direction().vector(),
+        frame.y_direction().vector(),
+        frame.z_direction().vector(),
+    );
+    let parallel_box = |v: f64| {
+        let (height, radius) = parallel(v);
+        trigonometric_box(
+            |u| surface.point_at(u, v),
+            frame.point_at(0.0, 0.0, height),
+            x * radius,
+            y * radius,
+            (u_first, u_last),
+        )
+    };
+    let mut bounds = parallel_box(v_first).union(parallel_box(v_last));
+    let Some((major, minor)) = meridian else {
+        return bounds;
+    };
+    let meridian_box = |u: f64| {
+        let direction = x * u.cos() + y * u.sin();
+        trigonometric_box(
+            |v| surface.point_at(u, v),
+            frame.point_at(0.0, 0.0, 0.0) + direction * major,
+            direction * minor,
+            z * minor,
+            (v_first, v_last),
+        )
+    };
+    bounds = bounds
+        .union(meridian_box(u_first))
+        .union(meridian_box(u_last));
+    let (x, y) = (
+        coordinates(Point::ORIGIN + x),
+        coordinates(Point::ORIGIN + y),
+    );
+    for k in 0..3 {
+        let peak = y[k].atan2(x[k]);
+        for u in [peak, peak + PI] {
+            if wrap_into_period(u, u_first, TAU) <= u_last {
+                bounds = bounds.union(meridian_box(u));
+            }
+        }
+    }
+    bounds
 }
 
 impl HasBoundingBox for Plane {
