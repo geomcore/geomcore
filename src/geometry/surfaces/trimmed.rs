@@ -9,6 +9,7 @@ use crate::geometry::curves::{Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
 use crate::math::parameter_range::{ParameterRange, RangeError};
 
 use crate::Continuity;
+use crate::bounding_box::elementary_patch_box;
 use crate::geometry::curves::RangeOperations;
 use crate::geometry::surfaces::{
     BSplineSurface, BezierSurface, Cone, Curve3DToUvError, Cylinder, ElementarySurface,
@@ -532,6 +533,21 @@ impl<S: ParametricSurface + HasBoundingBox> HasBoundingBox for TrimmedSurface<S>
             None
         };
         patch.map_or_else(|| self.basis.bounding_box(), |patch| patch.bounding_box())
+    }
+
+    /// An elementary basis's patch is boxed in closed form, from the circle
+    /// arcs on which each coordinate's extremes lie, and touches the patch
+    /// on every side. Any other basis's is [`bounding_box`](Self::bounding_box).
+    fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox> {
+        let _ = tol;
+        match self.basis.as_elementary() {
+            Some(elementary) => Some(elementary_patch_box(
+                &elementary,
+                self.u_range,
+                self.v_range,
+            )),
+            None => self.bounding_box(),
+        }
     }
 }
 

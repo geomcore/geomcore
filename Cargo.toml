@@ -27,6 +27,10 @@ name = "elementary_projection"
 harness = false
 
 [[bench]]
+name = "patch_bounding_box"
+harness = false
+
+[[bench]]
 name = "intersect_dispatch"
 harness = false
 

@@ -1,13 +1,16 @@
-use std::f64::consts::FRAC_PI_2;
+use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use crate::geometry::curves::{
     BSplineCurve, BSplineCurve2D, Circle, Curve, ParametricCurve, ParametricCurve2D,
     PointParametrization, TrimmedCurve,
 };
-use crate::geometry::surfaces::{BSplineSurface, ParametricSurface, RevolutionSurface, Torus};
+use crate::geometry::surfaces::{
+    BSplineSurface, Cone, Cylinder, ParametricSurface, RevolutionSurface, Sphere, Surface, Torus,
+    TrimmedSurface,
+};
 use crate::{
-    Axis, BoundingBox, BoundingBox2D, HasBoundingBox, HasBoundingBox2D, Point, Point2D, Tolerance,
-    Vector,
+    Axis, BoundingBox, BoundingBox2D, Frame, HasBoundingBox, HasBoundingBox2D, Point, Point2D,
+    Tolerance, Vector,
 };
 
 const TOL: Tolerance = Tolerance::DEFAULT;
@@ -372,4 +375,168 @@ fn a_curve_far_from_the_origin_is_boxed_to_its_extremes() {
     )
     .unwrap();
     assert_solved(&far);
+}
+
+/// The extremes of each coordinate over `patch`: the best samples of a
+/// 200 × 200 grid, each local best then refined by zooming a grid on it,
+/// so that a side is the patch's extreme to the rounding of evaluating it.
+fn patch_extremes(patch: &TrimmedSurface) -> BoundingBox {
+    let ((u_first, u_last), (v_first, v_last)) = (patch.u_range(), patch.v_range());
+    let count = 200;
+    let (u_step, v_step) = (
+        (u_last - u_first) / count as f64,
+        (v_last - v_first) / count as f64,
+    );
+    let at = |i: usize, j: usize| (u_first + u_step * i as f64, v_first + v_step * j as f64);
+    let grid: Vec<Vec<Point>> = (0..=count)
+        .map(|i| {
+            (0..=count)
+                .map(|j| patch.point_at(at(i, j).0, at(i, j).1))
+                .collect()
+        })
+        .collect();
+    let mut extremes = BoundingBox::from_points(grid.iter().flatten().copied()).unwrap();
+    let zoom = |value: &dyn Fn(Point) -> f64, (mut u, mut v): (f64, f64)| {
+        let (mut u_half, mut v_half) = (u_step, v_step);
+        let mut best = patch.point_at(u, v);
+        for _ in 0..60 {
+            let (center_u, center_v) = (u, v);
+            for a in -5..=5 {
+                for b in -5..=5 {
+                    let candidate_u = (center_u + u_half * a as f64 / 5.0).clamp(u_first, u_last);
+                    let candidate_v = (center_v + v_half * b as f64 / 5.0).clamp(v_first, v_last);
+                    let p = patch.point_at(candidate_u, candidate_v);
+                    if value(p) > value(best) {
+                        (best, u, v) = (p, candidate_u, candidate_v);
+                    }
+                }
+            }
+            u_half *= 0.4;
+            v_half *= 0.4;
+        }
+        best
+    };
+    for axis in 0..3 {
+        for sign in [1.0, -1.0] {
+            let value = |p: Point| sign * [p.x, p.y, p.z][axis];
+            for i in 0..=count {
+                for j in 0..=count {
+                    let here = value(grid[i][j]);
+                    let is_local_best = (i.saturating_sub(1)..=(i + 1).min(count)).all(|n| {
+                        (j.saturating_sub(1)..=(j + 1).min(count))
+                            .all(|m| value(grid[n][m]) <= here)
+                    });
+                    if is_local_best {
+                        extremes = extremes.including(zoom(&value, at(i, j)));
+                    }
+                }
+            }
+        }
+    }
+    extremes
+}
+
+/// Uniform numbers in `[0, 1)` from an xorshift generator.
+fn uniform(seed: u64) -> impl FnMut() -> f64 {
+    let mut state = seed;
+    move || {
+        state ^= state << 13;
+        state ^= state >> 7;
+        state ^= state << 17;
+        (state >> 11) as f64 / (1u64 << 53) as f64
+    }
+}
+
+/// A frame at a random origin, its axis and reference direction in random
+/// directions.
+fn random_frame(next: &mut impl FnMut() -> f64) -> Frame {
+    let mut vector = || Vector::new(2.0 * next() - 1.0, 2.0 * next() - 1.0, 2.0 * next() - 1.0);
+    let (origin, axis, hint) = (vector() * 3.0, vector(), vector());
+    Frame::new(Point::ORIGIN + origin, axis, hint).unwrap()
+}
+
+/// A random range of an angle: narrow, wider than a half turn, or a whole
+/// turn, starting anywhere so that it may cross the seam.
+fn random_turn(next: &mut impl FnMut() -> f64, kind: usize) -> (f64, f64) {
+    let first = 20.0 * next() - 10.0;
+    let width = match kind % 3 {
+        0 => 0.05 + 0.95 * next(),
+        1 => 3.5 + 2.7 * next(),
+        _ => TAU,
+    };
+    (first, first + width)
+}
+
+#[test]
+fn a_patch_of_a_tilted_cylinder_band_is_boxed_to_the_surface() {
+    // The issue's cylinder: a band of almost a whole turn, and a narrow
+    // patch, in a tilted frame.
+    let frame = Frame::new(
+        Point::new(0.3, -0.2, 0.5),
+        Vector::new(0.2, -0.3, 1.0),
+        Vector::new(1.0, 0.4, 0.0),
+    )
+    .unwrap();
+    let cylinder: Surface = Cylinder::from_frame(frame, 2.0).unwrap().into();
+    for (u_range, v_range) in [((5.0, 11.0), (0.0, 1.0)), ((0.3, 1.2), (-1.0, 2.0))] {
+        let patch = TrimmedSurface::new(cylinder.clone(), u_range, v_range).unwrap();
+        let tight = patch.tight_bounding_box(TOL).unwrap();
+        assert_tight(tight, patch_extremes(&patch), 0.0);
+    }
+}
+
+#[test]
+fn patches_of_elementary_surfaces_in_random_frames_are_boxed_to_the_surface() {
+    let mut next = uniform(0x5EED_0508);
+    for case in 0..24 {
+        let frame = random_frame(&mut next);
+        let tilt = if next() < 0.5 { -1.0 } else { 1.0 } * (0.1 + 1.3 * next());
+        let length = |next: &mut dyn FnMut() -> f64| {
+            let first = 6.0 * next() - 3.0;
+            (first, first + 0.1 + 3.0 * next())
+        };
+        let low_latitude = -FRAC_PI_2 + PI * next();
+        let latitudes = if case % 4 == 3 {
+            (-FRAC_PI_2, FRAC_PI_2)
+        } else {
+            (
+                low_latitude,
+                low_latitude + (FRAC_PI_2 - low_latitude) * (0.05 + 0.95 * next()),
+            )
+        };
+        let surfaces: [(Surface, (f64, f64)); 4] = [
+            (
+                Cylinder::from_frame(frame, 0.2 + 2.0 * next())
+                    .unwrap()
+                    .into(),
+                length(&mut next),
+            ),
+            // The cone's range may hold its apex.
+            (
+                Cone::from_frame(frame, tilt, 0.2 + 2.0 * next())
+                    .unwrap()
+                    .into(),
+                length(&mut next),
+            ),
+            (
+                Sphere::from_frame(frame, 0.2 + 2.0 * next())
+                    .unwrap()
+                    .into(),
+                latitudes,
+            ),
+            // Some tori cross their axis: a minor radius past the major.
+            (
+                Torus::from_frame(frame, 2.0 * next(), 0.2 + 1.8 * next())
+                    .unwrap()
+                    .into(),
+                random_turn(&mut next, case / 3),
+            ),
+        ];
+        for (surface, v_range) in surfaces {
+            let patch = TrimmedSurface::new(surface, random_turn(&mut next, case), v_range)
+                .unwrap_or_else(|error| panic!("case {case}: {error:?}"));
+            let tight = patch.tight_bounding_box(TOL).unwrap();
+            assert_tight(tight, patch_extremes(&patch), 0.0);
+        }
+    }
 }
