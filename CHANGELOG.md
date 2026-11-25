@@ -62,6 +62,12 @@ the Python distribution are versioned in lockstep.
   1e-7 rad no longer report a stray piece 2.4e-5 off the surfaces, and
   at 1e-9 rad the four pieces 3.5e9 along the axes are found instead of
   none.
+- A marched trace that no curve can be fitted through makes the result
+  incomplete with a loose-fit region over it, instead of being dropped
+  without a word. Far beyond the model, where a coordinate no longer
+  resolves the confusion, the arc length summed along a trace can stop
+  growing over a step; the nearly meeting cylinders above reach that at
+  1e-9 rad.
 
 ## [0.52.0] - 2026-11-24
 
