@@ -560,13 +560,14 @@ def test_numeric_curve_lying_on_a_surface_is_an_overlap():
 
 
 def test_a_marched_curve_fitted_farther_off_than_asked_is_reported():
-    # Cylinders whose axes meet at 1e-7 rad: a piece of the march strays by
-    # about 2.4e-5 from the surfaces (#311). The reason crosses the binding
-    # and survives a pickle.
-    angle = 1e-7
-    first = Cylinder(Point(0, 0, 0), Vector(0, 0, 1), 2.0)
-    second = Cylinder(Point(0, 0, 0), Vector(math.sin(angle), 0, math.cos(angle)), 1.5)
-    result = first.intersect(second)
+    # A sphere touching a cylinder's B-spline patch inside along a circle:
+    # the touching circle interpolates points found only to within the
+    # confusion and strays by about 3e-5 (#311). The reason crosses the
+    # binding and survives a pickle.
+    cylinder = Cylinder(Point(0, 0, 0), Vector(0, 0, 1), 1.0)
+    patch = cylinder.to_bspline_patch((0.0, 2.0 * math.pi), (0.0, 2.0))
+    sphere = Sphere(Point(0, 0, 1), 1.0)
+    result = sphere.intersect(patch)
     assert any(curve.deviation > 1e-7 for curve in result.curves)
     assert result.completeness.status is CompletenessStatus.INCOMPLETE
     assert result.completeness.reason is IncompleteReason.LOOSE_FIT

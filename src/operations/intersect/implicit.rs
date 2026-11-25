@@ -264,18 +264,28 @@ impl Equation for CylinderEquation {
 
 impl CylinderEquation {
     /// The section of the coaxial cylinder of radius `r`.
+    ///
+    /// Each coefficient is a product of the parts of `x`, `y` and
+    /// `origin - axis origin` across the axis, taken before any product:
+    /// `1 - (x.axis)²` would cancel for an `x` along the axis and leave the
+    /// rounding of the cosine, about `EPSILON`, where the squared sine of
+    /// the angle belongs; across the axis that squared sine is
+    /// resolved to about `EPSILON²`, so a line along the axis reads as
+    /// parallel to it within the squared angular tolerance (#507). The same
+    /// holds for the constant term of an `origin` far along the axis.
     #[inline]
     fn section_of_radius(&self, r: f64, origin: Point, x: Vector, y: Vector) -> ImplicitConic {
         let d = self.axis;
-        let w = origin - self.origin;
-        let (xd, yd, wd) = (x.dot(d), y.dot(d), w.dot(d));
+        let x = x.component_perpendicular_to(d);
+        let y = y.component_perpendicular_to(d);
+        let w = (origin - self.origin).component_perpendicular_to(d);
         ImplicitConic {
-            a2: 1.0 - xd * xd,
-            b2: 1.0 - yd * yd,
-            c2: -2.0 * xd * yd,
-            d1: 2.0 * (x.dot(w) - wd * xd),
-            e1: 2.0 * (y.dot(w) - wd * yd),
-            f0: w.dot(w) - wd * wd - r * r,
+            a2: x.dot(x),
+            b2: y.dot(y),
+            c2: 2.0 * x.dot(y),
+            d1: 2.0 * x.dot(w),
+            e1: 2.0 * y.dot(w),
+            f0: w.dot(w) - r * r,
         }
     }
 }

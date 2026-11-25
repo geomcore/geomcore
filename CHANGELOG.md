@@ -46,6 +46,28 @@ the Python distribution are versioned in lockstep.
   one lying close to a cone has been since #497 (#504). Its crossings no
   longer merge into one point, a dip within the tolerance is found, and
   only a conic within the tolerance all along lies on the surface.
+- A line lying on a cylinder along its axis is one overlap over the
+  whole line in any frame, not a tangent point (#507). The cylinder's
+  equation read the squared sine of the line's angle to the axis as
+  `1 - cos²`, which keeps the rounding of the cosine, about `1e-16`,
+  far above the squared angular tolerance (`1e-24` by default): in a
+  tilted frame a ruling was not parallel to the axis, and the double
+  root of its quadratic was reported as a complete tangency. The
+  equation's coefficients are now built from the parts of the line
+  across the axis, which resolve that squared sine to the rounding of
+  the coordinates. Lines along a cone's generator and lines in a plane
+  were already overlaps in tilted frames; random frames now check all
+  three. The constant term had the same cancellation, `|w|² - (w.axis)²`
+  for a point far along the axis: two cylinders whose axes meet at
+  1e-7 rad no longer report a stray piece 2.4e-5 off the surfaces, and
+  at 1e-9 rad the four pieces 3.5e9 along the axes are found instead of
+  none.
+- A marched trace that no curve can be fitted through makes the result
+  incomplete with a loose-fit region over it, instead of being dropped
+  without a word. Far beyond the model, where a coordinate no longer
+  resolves the confusion, the arc length summed along a trace can stop
+  growing over a step; the nearly meeting cylinders above reach that at
+  1e-9 rad.
 
 ## [0.52.0] - 2026-11-24
 

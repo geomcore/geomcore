@@ -81,6 +81,104 @@ fn test_line_in_plane_is_an_unbounded_overlap() {
     assert!(!r.is_empty());
 }
 
+/// A deterministic sequence of numbers spread evenly over `[-1, 1)`.
+struct Noise(u64);
+
+impl Noise {
+    fn next(&mut self) -> f64 {
+        // xorshift64
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        (self.0 >> 11) as f64 / (1u64 << 52) as f64 - 1.0
+    }
+
+    /// A frame placed and turned at random, its origin within `reach`
+    /// of the world origin.
+    fn frame(&mut self, reach: f64) -> Frame {
+        loop {
+            let origin = Point::new(
+                reach * self.next(),
+                reach * self.next(),
+                reach * self.next(),
+            );
+            let z = Vector::new(self.next(), self.next(), self.next());
+            let x = Vector::new(self.next(), self.next(), self.next());
+            if let Ok(frame) = Frame::new(origin, z, x) {
+                return frame;
+            }
+        }
+    }
+}
+
+/// The line lies on the surface: one overlap over the whole line, no hit,
+/// and the answer is complete.
+fn assert_whole_line_overlap(r: &CurveSurfaceIntersection, case: &str) {
+    assert!(r.hits().is_empty(), "{case}: hits {:?}", r.hits());
+    assert_eq!(
+        r.overlaps(),
+        &[CurveSurfaceOverlap {
+            curve_range: (f64::NEG_INFINITY, f64::INFINITY)
+        }],
+        "{case}"
+    );
+    assert!(r.is_complete(), "{case}");
+}
+
+#[test]
+fn test_ruling_of_a_tilted_cylinder_is_an_overlap() {
+    // #507: the line's direction is the axis up to rounding, and the
+    // squared sine of their angle came out at the rounding of `1 - cos²`,
+    // above the squared angular tolerance, so the quadratic stayed
+    // quadratic and its double root reported as a tangent point.
+    let f = Frame::new(
+        Point::new(0.3, -0.2, 0.5),
+        Vector::new(0.2, -0.3, 1.0),
+        Vector::new(1.0, 0.4, 0.0),
+    )
+    .unwrap();
+    let cylinder = Cylinder::from_frame(f, 2.0).unwrap();
+    let (x, z) = (Vector::from(f.x_direction()), Vector::from(f.z_direction()));
+    let line = Line::new(f.origin() + x * 2.0, z).unwrap();
+    assert_whole_line_overlap(&line.intersect(&cylinder, TOL), "issue frame");
+}
+
+#[test]
+fn test_rulings_and_generators_in_random_frames_are_overlaps() {
+    let mut noise = Noise(0x5eed_0507);
+    for case in 0..200 {
+        let frame = noise.frame(10.0);
+        let u = PI * noise.next();
+        let radius = 0.1 + 5.0 * (noise.next() + 1.0);
+        let cylinder = Cylinder::from_frame(frame, radius).unwrap();
+        let ruling = cylinder.u_iso(u).unwrap();
+        assert_whole_line_overlap(
+            &ruling.intersect(&cylinder, TOL),
+            &format!("cylinder case {case}"),
+        );
+
+        let half_angle = 0.05 + 0.7 * (noise.next() + 1.0);
+        let cone = Cone::from_frame(frame, half_angle, radius).unwrap();
+        let generator = cone.u_iso(u).unwrap();
+        assert_whole_line_overlap(
+            &generator.intersect(&cone, TOL),
+            &format!("cone case {case}"),
+        );
+
+        let plane = Plane::from_frame(frame);
+        let (a, b) = (noise.next(), noise.next());
+        let in_plane = Line::new(
+            frame.point_at(5.0 * noise.next(), 5.0 * noise.next(), 0.0),
+            frame.vector_at(a, b, 0.0),
+        )
+        .unwrap();
+        assert_whole_line_overlap(
+            &in_plane.intersect(&plane, TOL),
+            &format!("plane case {case}"),
+        );
+    }
+}
+
 #[test]
 fn test_circle_on_sphere_is_a_full_period_overlap() {
     let circle = Circle::new(Point::ORIGIN, Vector::Z, 2.0).unwrap();
@@ -1867,14 +1965,17 @@ fn test_cylinders_whose_axes_nearly_meet_return_finite_curves_in_bounded_work() 
                     .all(|piece| piece.deviation <= TOL.confusion)
             );
         } else {
-            // A piece fitted farther off than the confusion is reported
-            // (#311): at 1e-7 rad, a touching piece over (0, 1) strays by
-            // about 2.4e-5.
+            // A piece fitted farther off than the confusion would be
+            // reported (#311). At 1e-7 rad a touching piece over (0, 1)
+            // strayed by about 2.4e-5 while the cylinder's constant term
+            // was `|w|² - (w.axis)²`, which loses the radius to rounding
+            // 5e6 along the axis; built from the part of `w` across the
+            // axis, it stays exact there and no piece strays (#507).
             let strays = result
                 .curves()
                 .iter()
                 .any(|piece| piece.deviation > TOL.confusion);
-            assert_eq!(strays, angle == 1e-7, "at {angle}");
+            assert!(!strays, "at {angle}");
             assert_eq!(
                 matches!(
                     result.completeness(),

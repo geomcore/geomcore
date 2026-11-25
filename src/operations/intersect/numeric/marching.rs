@@ -245,7 +245,7 @@ where
 {
     let coincident = coincidence::coincident_region(pair, &traced.coincident_seeds, tol);
     let unexplained = traced.unexplained_regions(pair);
-    let mut loose_fits = Vec::new();
+    let mut loose_fits = traced.unfitted;
     let curves = traced
         .curves
         .into_iter()
@@ -285,8 +285,8 @@ where
 /// surfaces lie on each other, or at a seed no trace could leave, see
 /// [`Traced::unexplained_regions`]), a branch of unbounded surfaces was
 /// cut at the trace box ([`Unbounded`](IncompleteReason::Unbounded)), or
-/// a curve was fitted farther off than the confusion
-/// ([`LooseFit`](IncompleteReason::LooseFit), #311). With more than one,
+/// a curve was fitted farther off than the confusion or could not be
+/// fitted at all ([`LooseFit`](IncompleteReason::LooseFit), #311). With more than one,
 /// the reason is the strongest (see [`stronger`]) and every region is
 /// kept.
 fn completeness_of(
@@ -427,6 +427,7 @@ where
 /// far a point may lie from a traced polyline and still be on its curve.
 struct Traced {
     curves: Vec<Fitted>,
+    unfitted: Vec<SurfaceSurfaceRegion>,
     contact_points: Vec<Point>,
     coincident_seeds: Vec<[f64; 4]>,
     lost_seeds: Vec<[f64; 4]>,
@@ -441,6 +442,7 @@ impl Traced {
     fn new(chord_deviation: f64, around_singular_points: bool) -> Self {
         Traced {
             curves: Vec::new(),
+            unfitted: Vec::new(),
             contact_points: Vec::new(),
             coincident_seeds: Vec::new(),
             lost_seeds: Vec::new(),
@@ -580,18 +582,30 @@ impl Traced {
     {
         let along = tangents.into_iter().zip(parameters).collect();
         let (points, along) = without_confused(points, along, tol.confusion);
-        let fit = Fitted::new(&pair, &points, &along, touching, tol);
-        debug_assert!(fit.is_ok(), "a trace of {} points fits", points.len());
-        if let Ok(fitted) = fit {
-            let coords: Vec<[f64; 3]> = points.iter().map(|p| [p.x, p.y, p.z]).collect();
-            let runs = (1..coords.len())
-                .step_by(RUN)
-                .map(|k| bezier_pieces::bounding_box(&coords[k - 1..(k + RUN).min(coords.len())]))
-                .collect();
-            self.traces
-                .push((bezier_pieces::bounding_box(&coords), runs, points));
-            self.curves.push(fitted);
+        match Fitted::new(&pair, &points, &along, touching, tol) {
+            Ok(fitted) => self.curves.push(fitted),
+            // Far beyond the model, where a coordinate no longer resolves
+            // the confusion, the arc length summed along the trace can
+            // stop growing over a step and no curve passes through the
+            // points: the trace is a loose fit with no curve (#507).
+            Err(_) => {
+                let on = |side: usize| -> Vec<Point2D> {
+                    along
+                        .iter()
+                        .map(|(_, x)| Point2D::new(x[2 * side], x[2 * side + 1]))
+                        .collect()
+                };
+                self.unfitted
+                    .push(region_holding(&points, [&on(0), &on(1)]));
+            }
         }
+        let coords: Vec<[f64; 3]> = points.iter().map(|p| [p.x, p.y, p.z]).collect();
+        let runs = (1..coords.len())
+            .step_by(RUN)
+            .map(|k| bezier_pieces::bounding_box(&coords[k - 1..(k + RUN).min(coords.len())]))
+            .collect();
+        self.traces
+            .push((bezier_pieces::bounding_box(&coords), runs, points));
     }
 
     /// Keeps each boundary curve of a surface lying on the other (see
@@ -790,27 +804,34 @@ impl Fitted {
     /// and its box in space, each holding its control points, which hold
     /// the curve.
     fn region(&self) -> SurfaceSurfaceRegion {
-        let range = |poles: &[Point2D], coordinate: fn(&Point2D) -> f64| {
-            poles
-                .iter()
-                .map(coordinate)
-                .fold((f64::INFINITY, f64::NEG_INFINITY), |(low, high), x| {
-                    (low.min(x), high.max(x))
-                })
-        };
-        let [first, second] = [self.uv_curves[0].poles(), self.uv_curves[1].poles()];
-        let poles = self.curve.poles();
-        let (min_corner, max_corner) = poles.iter().fold((poles[0], poles[0]), |corners, &p| {
-            box_union(corners, (p, p))
-        });
-        SurfaceSurfaceRegion {
-            first_u_range: range(first, |p| p.x),
-            first_v_range: range(first, |p| p.y),
-            second_u_range: range(second, |p| p.x),
-            second_v_range: range(second, |p| p.y),
-            min_corner,
-            max_corner,
-        }
+        region_holding(
+            self.curve.poles(),
+            [self.uv_curves[0].poles(), self.uv_curves[1].poles()],
+        )
+    }
+}
+
+/// The region holding `points` in space and the points `on` each
+/// surface's parameters: their ranges and their box.
+fn region_holding(points: &[Point], on: [&[Point2D]; 2]) -> SurfaceSurfaceRegion {
+    let range = |points: &[Point2D], coordinate: fn(&Point2D) -> f64| {
+        points
+            .iter()
+            .map(coordinate)
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(low, high), x| {
+                (low.min(x), high.max(x))
+            })
+    };
+    let (min_corner, max_corner) = points.iter().fold((points[0], points[0]), |corners, &p| {
+        box_union(corners, (p, p))
+    });
+    SurfaceSurfaceRegion {
+        first_u_range: range(on[0], |p| p.x),
+        first_v_range: range(on[0], |p| p.y),
+        second_u_range: range(on[1], |p| p.x),
+        second_v_range: range(on[1], |p| p.y),
+        min_corner,
+        max_corner,
     }
 }
 
