@@ -11,7 +11,9 @@
 //! off its axis. A plane across a half cylinder is timed trimmed, against
 //! the same pair untrimmed: the gap is the box of the patch and the
 //! clipping of the ellipse to its ranges. So is a line across the half
-//! cylinder, whose hits are filtered by the ranges.
+//! cylinder, whose hits are filtered by the ranges, and a plane patch
+//! across a whole sphere patch along a parallel, at a slant, and through
+//! both poles.
 //!
 //! Informational only, like `eval_throughput`; not a correctness gate.
 
@@ -653,6 +655,54 @@ fn bench_trimmed(c: &mut Criterion) {
     group.finish();
 }
 
+/// A square plane patch across a whole sphere of radius 2 in a tilted
+/// frame, three ways: normal to the sphere's axis, a circle along a
+/// parallel; oblique; and through the centre along a meridian plane, a
+/// circle through both poles. Each is one closed circle, cut at the seam
+/// of the sphere and joined across it.
+fn bench_trimmed_plane_sphere(c: &mut Criterion) {
+    use std::f64::consts::{FRAC_PI_2, TAU};
+    let tol = Tolerance::default();
+    let mut group = c.benchmark_group("intersect_routed/trimmed/plane_sphere");
+    let frame = Frame::new(
+        Point::new(0.3, -0.2, 0.5),
+        Vector::new(0.2, -0.3, 1.0),
+        Vector::new(1.0, 0.4, 0.0),
+    )
+    .unwrap();
+    let sphere = Sphere::from_frame(frame, 2.0)
+        .unwrap()
+        .trimmed((0.0, TAU), (-FRAC_PI_2, FRAC_PI_2))
+        .unwrap();
+    let axis = Vector::from(frame.z_direction());
+    let planes = [
+        ("parallel", frame.origin() + 0.5 * axis, axis),
+        (
+            "oblique",
+            frame.origin() + axis,
+            axis + 0.3 * Vector::from(frame.x_direction()),
+        ),
+        (
+            "meridian",
+            frame.origin(),
+            Vector::from(frame.y_direction()),
+        ),
+    ];
+    for (name, point, normal) in planes {
+        let patch = Plane::new(point, normal)
+            .unwrap()
+            .trimmed((-5.0, 5.0), (-5.0, 5.0))
+            .unwrap();
+        let result = patch.intersect(&sphere, tol);
+        assert_eq!(result.method(), IntersectionMethod::Exact);
+        assert_eq!(result.curves().len(), 1);
+        group.bench_function(name, |b| {
+            b.iter(|| black_box(black_box(&patch).intersect(&sphere, tol)))
+        });
+    }
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_intersect_dispatch,
@@ -663,6 +713,7 @@ criterion_group!(
     bench_sphere_quadrics,
     bench_torus_quartics,
     bench_torus_octics,
-    bench_trimmed
+    bench_trimmed,
+    bench_trimmed_plane_sphere
 );
 criterion_main!(benches);
