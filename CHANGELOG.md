@@ -11,6 +11,19 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- A plane patch across a sphere patch takes a few microseconds in every
+  direction (#509). The circle was clipped to the sphere's ranges through
+  its curve in the sphere's parameters, which has no exact form unless
+  the circle is a parallel: it was fitted, then cut numerically at the
+  seam, 100–150 µs for an oblique plane and 15–20 ms for a plane through
+  both poles, where the fit splits again and again. On a plane, a
+  cylinder, a cone, a sphere or a torus, a curve with no exact curve in
+  parameters is now cut where it crosses the planes holding the sides of
+  the patch, in closed form for a conic. The oblique section and the one
+  through the poles take about 3 µs, like the parallel one, and a plane
+  across a cylinder or a cone patch at a slant drops from 85–100 µs to
+  about 3 µs: 98% fewer instructions for a plane across a half cylinder.
+
 - Each elementary surface is inverted once, for its parameters and its
   nearest point (#503). The cone's axis rule, the sphere's pole rule and
   the torus's branch choice were written twice, once for `parameters_of`

@@ -10,17 +10,18 @@
 //! copy of it shifted by periods, the curve is cut, and each piece is kept
 //! when its middle lies in the rectangle. A curve with no curve in
 //! parameters, or whose curve in parameters strays from it by more than
-//! the confusion distance, is mapped within a deviation; one that cannot
-//! be mapped, as
-//! a curve lingering at a cone's apex, is cut where samples of it leave
-//! the rectangle instead.
+//! the confusion distance, is cut where it crosses the planes holding the
+//! sides of the rectangle on an elementary surface; on any other surface it
+//! is mapped within a deviation, and one that cannot be mapped, as a curve
+//! lingering at a cone's apex, is cut where samples of it leave the
+//! rectangle instead.
 
 use crate::geometry::curves::{
     BSplineCurve2D, Curve, Curve2D, Line2D, ParametricCurve, ParametricCurve2D, RangeOperations,
     TrimmedCurve, TrimmedCurve2D,
 };
 use crate::geometry::surfaces::uv_curve::from_curve::{OnSurfaceCheck, meridian_arc_to_uv};
-use crate::geometry::surfaces::{ParametricSurface, Restriction};
+use crate::geometry::surfaces::{ElementarySurface, ParametricSurface, Plane, Restriction};
 use crate::math::parameter_range::ParameterRange;
 use crate::operations::intersect::results::{
     CurveSurfaceIntersection, CurveSurfaceOverlap, IntersectionCurve, SurfaceSurfaceIntersection,
@@ -29,8 +30,8 @@ use crate::operations::intersect::routing::{
     CurveOperand, Intersect, SurfaceOperand, route_within,
 };
 use crate::{
-    BoundingBox, CurveSurfaceHit, HasBoundingBox, Point2D, Tolerance, TrimmedSurface, Vector2D,
-    curve_3d_to_uv_within,
+    BoundingBox, CurveSurfaceHit, HasBoundingBox, Point2D, Tolerance, TrimmedSurface, Vector,
+    Vector2D, curve_3d_to_uv_within,
 };
 use shared_boundary::{Shared, shared};
 
@@ -212,11 +213,17 @@ fn clipped(
         // A fit that strays from the curve by more than the confusion
         // distance, as a march's fit in the parameters of a surface whose
         // parameters turn fast along a straight cut, would cut the curve
-        // away from the boundary: the curve is mapped instead (#314).
-        let uv_curve = stored
-            .clone()
-            .filter(|_| piece.deviation <= tol.confusion)
-            .or_else(|| mapped(side.basis, &piece.curve, range, tol));
+        // away from the boundary: the curve is mapped instead (#314), or on
+        // an elementary surface cut through the planes of the sides (#509).
+        let stored = stored.clone().filter(|_| piece.deviation <= tol.confusion);
+        if stored.is_none()
+            && let Some(basis) = side.basis.as_elementary()
+            && plane_cuts(&piece.curve, range, &basis, side, tol, &mut cuts)
+        {
+            tests[index] = Test::Point(*side);
+            continue;
+        }
+        let uv_curve = stored.or_else(|| mapped(side.basis, &piece.curve, range, tol));
         tests[index] = match uv_curve {
             Some(uv_curve) => {
                 uv_cuts(&uv_curve, range, side, tol, &mut cuts);
@@ -415,6 +422,74 @@ fn mapped(
     let piece = TrimmedCurve::new(curve.clone(), range.0, range.1).ok()?;
     let approximation = curve_3d_to_uv_within(basis, &piece, 0.1 * tol.confusion, tol).ok()?;
     Some(approximation.into_curve().into())
+}
+
+/// Adds to `cuts` the parameters where `curve` over `range` crosses a
+/// plane holding a side of the rectangle of `side` on `basis`, an
+/// elementary surface, and returns whether it could. The sides at `u` are
+/// half-planes through the axis of a surface of revolution, and lines on a
+/// plane; the sides at `v` are circles normal to the axis, lines on a
+/// plane, and on a torus two circles sharing a plane. The curve is cut at
+/// each crossing of these planes and at the ends of a stretch in one, which
+/// holds every crossing of a side, closed form for a conic, with no curve in
+/// parameters to map: through a pole, along the seam, or as a curve in
+/// parameters with no exact form (#509). A plane also holds the other
+/// half-plane of a meridian, or a second circle of a torus, and a pole is a
+/// side where the curve only touches it: the cuts there are extra, and the
+/// test at the middle of each piece decides it.
+fn plane_cuts(
+    curve: &Curve,
+    range: (f64, f64),
+    basis: &ElementarySurface,
+    side: &Restriction<'_>,
+    tol: Tolerance,
+    cuts: &mut Vec<f64>,
+) -> bool {
+    let frame = match basis {
+        ElementarySurface::Plane(plane) => plane.frame(),
+        ElementarySurface::Cylinder(cylinder) => cylinder.frame(),
+        ElementarySurface::Cone(cone) => cone.frame(),
+        ElementarySurface::Sphere(sphere) => sphere.frame(),
+        ElementarySurface::Torus(torus) => torus.frame(),
+    };
+    let (x, y, z) = (
+        Vector::from(frame.x_direction()),
+        Vector::from(frame.y_direction()),
+        Vector::from(frame.z_direction()),
+    );
+    let flat = matches!(basis, ElementarySurface::Plane(_));
+    let Ok(piece) = TrimmedCurve::new(curve.clone(), range.0, range.1) else {
+        return false;
+    };
+    let ends = [
+        (true, side.u_range.0),
+        (true, side.u_range.1),
+        (false, side.v_range.0),
+        (false, side.v_range.1),
+    ];
+    for (along_u, value) in ends {
+        let (through, normal) = match (along_u, flat) {
+            (true, true) => (basis.point_at(value, 0.0), x),
+            (false, true) => (basis.point_at(0.0, value), y),
+            (true, false) => (
+                basis.point_at(value, 0.0),
+                y * value.cos() - x * value.sin(),
+            ),
+            (false, false) => (basis.point_at(0.0, value), z),
+        };
+        let Ok(plane) = Plane::new(through, normal) else {
+            return false;
+        };
+        let found = piece.intersect(&plane, tol);
+        cuts.extend(found.hits().iter().map(|hit| hit.curve_parameter));
+        cuts.extend(
+            found
+                .overlaps()
+                .iter()
+                .flat_map(|overlap| [overlap.curve_range.0, overlap.curve_range.1]),
+        );
+    }
+    true
 }
 
 /// Adds to `cuts` the parameters where `uv_curve` over `range` meets a

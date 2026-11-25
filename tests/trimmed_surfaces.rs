@@ -1157,3 +1157,152 @@ fn test_faces_of_one_spline_surface_share_their_edge() {
     let edge = shared_edge(&result, &near, &far);
     assert_eq!(edge.parameter_range, (0.5, 2.0));
 }
+
+/// A deterministic sequence of numbers spread evenly over `[-1, 1)`.
+struct Noise(u64);
+
+impl Noise {
+    fn next(&mut self) -> f64 {
+        // xorshift64
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        (self.0 >> 11) as f64 / (1u64 << 52) as f64 - 1.0
+    }
+
+    fn vector(&mut self) -> Vector {
+        Vector::new(self.next(), self.next(), self.next())
+    }
+}
+
+/// How a plane cuts a sphere: across its axis at a slant, through its
+/// centre holding the axis, or through one pole.
+#[derive(Clone, Copy, Debug)]
+enum Cut {
+    Oblique,
+    Meridian,
+    ThroughOnePole,
+}
+
+/// A sphere in a tilted frame from `noise` and a plane cutting it as
+/// `cut` says, with the distance from the centre to the plane.
+fn sphere_and_cutting_plane(noise: &mut Noise, cut: Cut) -> (Sphere, Plane, f64) {
+    let frame = loop {
+        if let Ok(frame) = Frame::new(
+            Point::ORIGIN + 3.0 * noise.vector(),
+            noise.vector(),
+            noise.vector(),
+        ) {
+            break frame;
+        }
+    };
+    let radius = 2.0 + noise.next();
+    let sphere = Sphere::from_frame(frame, radius).unwrap();
+    let (x, y, z) = (
+        Vector::from(frame.x_direction()),
+        Vector::from(frame.y_direction()),
+        Vector::from(frame.z_direction()),
+    );
+    let angle = PI * noise.next();
+    let across_axis = x * angle.cos() + y * angle.sin();
+    let (point, normal) = match cut {
+        Cut::Oblique => (
+            frame.origin() + 0.6 * radius * noise.next() * z,
+            z + 0.5 * (1.5 + noise.next()) * across_axis,
+        ),
+        Cut::Meridian => (frame.origin(), across_axis),
+        Cut::ThroughOnePole => (
+            frame.origin() + radius * z,
+            across_axis + 0.5 * noise.next() * z,
+        ),
+    };
+    let plane = Plane::new(point, normal).unwrap();
+    let normal = normal / normal.magnitude();
+    let distance = (frame.origin() - point).dot(normal).abs();
+    (sphere, plane, distance)
+}
+
+#[test]
+fn test_a_plane_patch_cuts_a_whole_sphere_patch_along_one_closed_circle() {
+    // Whatever the plane's direction, through a pole or both, the section
+    // is one whole circle, cut at the sphere's seam and joined across it
+    // (#509).
+    let mut noise = Noise(0x5EED_0509);
+    for cut in [Cut::Oblique, Cut::Meridian, Cut::ThroughOnePole] {
+        for _ in 0..12 {
+            let (sphere, plane, distance) = sphere_and_cutting_plane(&mut noise, cut);
+            let radius = sphere.radius();
+            let whole = sphere.trimmed((0.0, TAU), (-FRAC_PI_2, FRAC_PI_2)).unwrap();
+            let patch = plane
+                .trimmed((-3.0 * radius, 3.0 * radius), (-3.0 * radius, 3.0 * radius))
+                .unwrap();
+            let result = patch.intersect(&whole, TOL);
+            let context = format!("{cut:?} {sphere:?} {plane:?}");
+            assert_eq!(result.method(), IntersectionMethod::Exact, "{context}");
+            assert!(result.is_complete(), "{context}");
+            assert!(result.contact_points().is_empty(), "{context}");
+            assert_eq!(result.curves().len(), 1, "{context}");
+            let piece = &result.curves()[0];
+            assert!(matches!(piece.curve, Curve::Circle(_)), "{context}");
+            let (start, end) = piece.parameter_range;
+            assert!(
+                (end - start - TAU).abs() <= 1e-9,
+                "{context}: {start} {end}"
+            );
+            let points = samples(piece, 4001);
+            for &point in &points {
+                let off_sphere = (point.distance(sphere.center()) - radius).abs();
+                let off_plane = plane.project_point(point, TOL).distance;
+                assert!(
+                    off_sphere <= 1e-9 && off_plane <= 1e-9,
+                    "{context}: {point:?}"
+                );
+            }
+            let length: f64 = points
+                .windows(2)
+                .map(|pair| pair[0].distance(pair[1]))
+                .sum();
+            let expected = TAU * (radius * radius - distance * distance).sqrt();
+            assert!(
+                (length - expected).abs() <= 1e-6 * expected,
+                "{context}: length {length}, expected {expected}"
+            );
+            assert_covers(&result, &plane.intersect(&sphere, TOL), &patch, &whole);
+            // Either order gives the same piece.
+            let swapped = whole.intersect(&patch, TOL);
+            assert_eq!(swapped.curves().len(), 1, "{context}");
+            assert_eq!(swapped.curves()[0].parameter_range, piece.parameter_range);
+        }
+    }
+}
+
+#[test]
+fn test_a_plane_cuts_a_sphere_face_into_arcs_ending_on_its_boundary() {
+    // A face of the sphere short of its seam and of both poles: the circle
+    // is cut where it leaves the face, through the planes of its sides.
+    let mut noise = Noise(0x0509_FACE);
+    for cut in [Cut::Oblique, Cut::Meridian, Cut::ThroughOnePole] {
+        let mut pieces = 0;
+        for _ in 0..12 {
+            let (sphere, plane, _) = sphere_and_cutting_plane(&mut noise, cut);
+            let face = sphere.trimmed((0.5, 4.5), (-1.2, 1.3)).unwrap();
+            let result = plane.intersect(&face, TOL);
+            assert!(result.is_complete(), "{cut:?} {sphere:?} {plane:?}");
+            assert_inside(&result, &plane, &face);
+            for piece in result.curves() {
+                let (start, end) = piece.parameter_range;
+                for point in [piece.curve.point_at(start), piece.curve.point_at(end)] {
+                    assert!(
+                        on_boundary(&face, point),
+                        "{cut:?} {point:?} inside the face"
+                    );
+                }
+            }
+            let untrimmed = plane.intersect(&sphere, TOL);
+            let everywhere = plane.trimmed((-1e3, 1e3), (-1e3, 1e3)).unwrap();
+            assert_covers(&result, &untrimmed, &everywhere, &face);
+            pieces += result.curves().len();
+        }
+        assert!(pieces >= 12, "{cut:?}: {pieces} arcs");
+    }
+}
