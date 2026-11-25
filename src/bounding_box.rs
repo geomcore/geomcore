@@ -7,6 +7,8 @@ mod curves_2d;
 mod surfaces;
 mod tight;
 
+pub(crate) use surfaces::elementary_patch_box;
+
 pub(crate) use curves::{
     BoundingBoxOf, box_through, hyperbola_box, parabola_box, sampled_box, spline_box,
     tight_spline_box, trigonometric_box,
@@ -70,7 +72,11 @@ pub trait HasBoundingBox {
     /// unbounded.
     ///
     /// The box of an elementary shape is [`bounding_box`](Self::bounding_box),
-    /// which already touches it. A B-spline curve's is solved for, each
+    /// which already touches it. A [`TrimmedSurface`](crate::TrimmedSurface)
+    /// over an elementary surface is boxed in closed form, from the circle
+    /// arcs on which each coordinate's extremes lie, whatever the width of
+    /// its ranges; its `bounding_box` holds the control points of the
+    /// exact B-spline patch instead. A B-spline curve's is solved for, each
     /// coordinate's extremes where its derivative vanishes on a Bézier
     /// piece, and is as tight as rounding allows. A B-spline surface's is
     /// found by halving its Bézier patches until their control points come
