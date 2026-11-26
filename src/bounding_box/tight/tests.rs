@@ -1,12 +1,12 @@
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use crate::geometry::curves::{
-    BSplineCurve, BSplineCurve2D, Circle, Curve, ParametricCurve, ParametricCurve2D,
+    BSplineCurve, BSplineCurve2D, Circle, Curve, Line, ParametricCurve, ParametricCurve2D,
     PointParametrization, TrimmedCurve,
 };
 use crate::geometry::surfaces::{
-    BSplineSurface, Cone, Cylinder, ParametricSurface, RevolutionSurface, Sphere, Surface, Torus,
-    TrimmedSurface,
+    BSplineSurface, BezierSurface, Cone, Cylinder, ExtrusionSurface, ParametricSurface,
+    RevolutionSurface, Sphere, Surface, Torus, TrimmedSurface,
 };
 use crate::{
     Axis, BoundingBox, BoundingBox2D, Frame, HasBoundingBox, HasBoundingBox2D, Point, Point2D,
@@ -378,7 +378,7 @@ fn a_curve_far_from_the_origin_is_boxed_to_its_extremes() {
 }
 
 /// The extremes of each coordinate over `patch`: the best samples of a
-/// 200 × 200 grid, each local best then refined by zooming a grid on it,
+/// 200 × 200 grid, each local best then refined by a grid following it,
 /// so that a side is the patch's extreme to the rounding of evaluating it.
 fn patch_extremes(patch: &TrimmedSurface) -> BoundingBox {
     let ((u_first, u_last), (v_first, v_last)) = (patch.u_range(), patch.v_range());
@@ -399,7 +399,10 @@ fn patch_extremes(patch: &TrimmedSurface) -> BoundingBox {
     let zoom = |value: &dyn Fn(Point) -> f64, (mut u, mut v): (f64, f64)| {
         let (mut u_half, mut v_half) = (u_step, v_step);
         let mut best = patch.point_at(u, v);
-        for _ in 0..60 {
+        // The grid follows the best point, and shrinks once it stays at
+        // the center: along a ridge slanted to the parameters, shrinking
+        // at every step would lose the extreme.
+        for _ in 0..240 {
             let (center_u, center_v) = (u, v);
             for a in -5..=5 {
                 for b in -5..=5 {
@@ -411,8 +414,10 @@ fn patch_extremes(patch: &TrimmedSurface) -> BoundingBox {
                     }
                 }
             }
-            u_half *= 0.4;
-            v_half *= 0.4;
+            if (u, v) == (center_u, center_v) {
+                u_half *= 0.4;
+                v_half *= 0.4;
+            }
         }
         best
     };
@@ -539,4 +544,229 @@ fn patches_of_elementary_surfaces_in_random_frames_are_boxed_to_the_surface() {
             assert_tight(tight, patch_extremes(&patch), 0.0);
         }
     }
+}
+
+/// A random point in the cube `[-size, size]³`.
+fn random_point(next: &mut impl FnMut() -> f64, size: f64) -> Point {
+    Point::new(
+        size * (2.0 * next() - 1.0),
+        size * (2.0 * next() - 1.0),
+        size * (2.0 * next() - 1.0),
+    )
+}
+
+/// The weights of a rational case, or `None`.
+fn random_weights(
+    next: &mut impl FnMut() -> f64,
+    rational: bool,
+    rows: usize,
+    cols: usize,
+) -> Option<Vec<Vec<f64>>> {
+    rational.then(|| {
+        (0..rows)
+            .map(|_| (0..cols).map(|_| 0.3 + 2.0 * next()).collect())
+            .collect()
+    })
+}
+
+/// A cubic by quadratic B-spline surface over `[0, 1]²` with uneven knots
+/// and random poles, rational when asked.
+fn random_bspline_surface(next: &mut impl FnMut() -> f64, rational: bool) -> BSplineSurface {
+    let u_knots = vec![0.0, 0.2 + 0.3 * next(), 0.6 + 0.3 * next(), 1.0];
+    let v_knots = vec![0.0, 0.3 + 0.4 * next(), 1.0];
+    let poles: Vec<Vec<Point>> = (0..6)
+        .map(|_| (0..4).map(|_| random_point(next, 3.0)).collect())
+        .collect();
+    match random_weights(next, rational, 6, 4) {
+        Some(weights) => BSplineSurface::new_rational(
+            3,
+            2,
+            poles,
+            weights,
+            u_knots,
+            vec![4, 1, 1, 4],
+            v_knots,
+            vec![3, 1, 3],
+            false,
+            false,
+        ),
+        None => BSplineSurface::new(
+            3,
+            2,
+            poles,
+            u_knots,
+            vec![4, 1, 1, 4],
+            v_knots,
+            vec![3, 1, 3],
+            false,
+            false,
+        ),
+    }
+    .unwrap()
+}
+
+/// A cubic B-spline curve over `[0, 1]` through `poles`, rational when
+/// asked.
+fn spline_curve_through(
+    next: &mut impl FnMut() -> f64,
+    poles: Vec<Point>,
+    rational: bool,
+) -> BSplineCurve {
+    let knots = vec![0.0, 0.25 + 0.5 * next(), 1.0];
+    let count = poles.len();
+    match random_weights(next, rational, 1, count) {
+        Some(weights) => {
+            BSplineCurve::new_rational(3, poles, weights[0].clone(), knots, vec![4, 1, 4], false)
+        }
+        None => BSplineCurve::new(3, poles, knots, vec![4, 1, 4], false),
+    }
+    .unwrap()
+}
+
+/// A random sub-range of `[0, 1]`, narrow or wide.
+fn random_part(next: &mut impl FnMut() -> f64) -> (f64, f64) {
+    let first = 0.9 * next();
+    (first, first + (1.0 - first) * (0.05 + 0.95 * next()))
+}
+
+#[test]
+fn a_corner_of_a_bspline_surface_is_boxed_to_the_corner() {
+    // The issue's case: a small corner of a bicubic patch. Its box was
+    // that of every control point of the whole surface.
+    let poles: Vec<Vec<Point>> = (0..4)
+        .map(|i| {
+            (0..4)
+                .map(|j| {
+                    let (x, y) = (i as f64, j as f64);
+                    Point::new(x, y, (x - 1.5) * (y - 1.5) + 0.5 * x * x)
+                })
+                .collect()
+        })
+        .collect();
+    let surface: Surface = BSplineSurface::new(
+        3,
+        3,
+        poles,
+        vec![0.0, 1.0],
+        vec![4, 4],
+        vec![0.0, 1.0],
+        vec![4, 4],
+        false,
+        false,
+    )
+    .unwrap()
+    .into();
+    let patch = TrimmedSurface::new(surface, (0.1, 0.3), (0.6, 0.7)).unwrap();
+    let tight = patch.tight_bounding_box(TOL).unwrap();
+    assert_tight(tight, patch_extremes(&patch), 0.0);
+}
+
+#[test]
+fn patches_of_bspline_surfaces_are_boxed_to_the_surface() {
+    let mut next = uniform(0x5EED_0512);
+    for case in 0..12 {
+        let surface: Surface = random_bspline_surface(&mut next, case % 2 == 1).into();
+        let patch = TrimmedSurface::new(surface, random_part(&mut next), random_part(&mut next))
+            .unwrap_or_else(|error| panic!("case {case}: {error:?}"));
+        let tight = patch.tight_bounding_box(TOL).unwrap();
+        assert_tight(tight, patch_extremes(&patch), 0.0);
+    }
+    // A Bézier basis, and a basis periodic in `u` cut across its seam.
+    let poles: Vec<Vec<Point>> = (0..3)
+        .map(|_| (0..4).map(|_| random_point(&mut next, 2.0)).collect())
+        .collect();
+    let bezier: Surface = BezierSurface::new(2, 3, poles).unwrap().into();
+    let torus = Torus::from_frame(random_frame(&mut next), 2.5, 1.0).unwrap();
+    let ring: Surface = torus
+        .to_bspline_patch((0.0, TAU), (-1.0, 2.0))
+        .unwrap()
+        .into();
+    for (basis, u_range, v_range) in [
+        (bezier, (0.2, 0.7), (0.1, 0.9)),
+        (ring.clone(), (5.0, 7.5), (-0.5, 1.5)),
+        (ring, (0.3, 0.3 + TAU), (-1.0, 2.0)),
+    ] {
+        let patch = TrimmedSurface::new(basis, u_range, v_range).unwrap();
+        let tight = patch.tight_bounding_box(TOL).unwrap();
+        assert_tight(tight, patch_extremes(&patch), 0.0);
+    }
+}
+
+#[test]
+fn patches_of_extrusion_surfaces_are_boxed_to_the_surface() {
+    let mut next = uniform(0x5EED_E512);
+    for case in 0..12 {
+        let direction = random_point(&mut next, 1.0) - Point::ORIGIN;
+        let (profile, u_range): (Curve, (f64, f64)) = if case % 3 == 2 {
+            let normal = random_point(&mut next, 1.0) - Point::ORIGIN;
+            let circle = Circle::new(random_point(&mut next, 2.0), normal, 0.3 + next()).unwrap();
+            (circle.into(), random_turn(&mut next, case / 3))
+        } else {
+            let poles = (0..5).map(|_| random_point(&mut next, 2.0)).collect();
+            let spline = spline_curve_through(&mut next, poles, case % 3 == 1);
+            (spline.into(), random_part(&mut next))
+        };
+        let first = 4.0 * next() - 2.0;
+        let v_range = (first, first + 0.1 + 2.0 * next());
+        let surface: Surface = ExtrusionSurface::new(profile, direction).unwrap().into();
+        let patch = TrimmedSurface::new(surface, u_range, v_range)
+            .unwrap_or_else(|error| panic!("case {case}: {error:?}"));
+        let tight = patch.tight_bounding_box(TOL).unwrap();
+        assert_tight(tight, patch_extremes(&patch), 0.0);
+    }
+}
+
+#[test]
+fn patches_of_revolution_surfaces_are_boxed_to_the_surface() {
+    let mut next = uniform(0x5EED_8512);
+    for case in 0..20 {
+        let frame = random_frame(&mut next);
+        let axis = Axis::new(frame.origin(), frame.z_direction()).unwrap();
+        let (x, z) = (frame.x_direction().vector(), frame.z_direction().vector());
+        // A point of the meridian plane through `x`, at height `h` and
+        // signed distance `s` from the axis: a negative `s` is across it.
+        let meridian_point = |h: f64, s: f64| frame.origin() + z * h + x * s;
+        let (profile, v_range): (Curve, (f64, f64)) = match case % 5 {
+            // A profile in a plane through the axis, some crossing it.
+            0 | 1 => {
+                let poles = (0..5)
+                    .map(|_| meridian_point(3.0 * next() - 1.5, 2.5 * next() - 0.5))
+                    .collect();
+                let spline = spline_curve_through(&mut next, poles, case % 5 == 1);
+                (spline.into(), random_part(&mut next))
+            }
+            2 => {
+                let center = meridian_point(2.0 * next() - 1.0, 2.0 * next());
+                let circle = Circle::new(center, frame.y_direction(), 0.3 + next()).unwrap();
+                (circle.into(), random_turn(&mut next, case / 5))
+            }
+            3 => {
+                let line = Line::new(
+                    meridian_point(0.0, 0.5 + next()),
+                    z * (2.0 * next() - 1.0) + x * (2.0 * next() - 1.0),
+                )
+                .unwrap();
+                let first = 2.0 * next() - 1.0;
+                (line.into(), (first, first + 0.2 + 2.0 * next()))
+            }
+            // Skew: a profile out of every plane through the axis.
+            _ => {
+                let poles = (0..5).map(|_| random_point(&mut next, 2.0)).collect();
+                let spline = spline_curve_through(&mut next, poles, case % 2 == 0);
+                (spline.into(), random_part(&mut next))
+            }
+        };
+        let surface: Surface = RevolutionSurface::new(profile, axis).unwrap().into();
+        let patch = TrimmedSurface::new(surface, random_turn(&mut next, case), v_range)
+            .unwrap_or_else(|error| panic!("case {case}: {error:?}"));
+        let tight = patch.tight_bounding_box(TOL).unwrap();
+        assert_tight(tight, patch_extremes(&patch), 0.0);
+    }
+    // A line skew to the axis turns into a hyperboloid.
+    let axis = Axis::new(Point::new(0.2, -0.1, 0.3), Vector::new(0.3, 0.2, 1.0)).unwrap();
+    let skew = Line::new(Point::new(1.5, 0.0, 0.0), Vector::new(0.0, 1.0, 1.0)).unwrap();
+    let surface: Surface = RevolutionSurface::new(skew.into(), axis).unwrap().into();
+    let patch = TrimmedSurface::new(surface, (2.0, 4.5), (-1.5, 2.0)).unwrap();
+    let tight = patch.tight_bounding_box(TOL).unwrap();
+    assert_tight(tight, patch_extremes(&patch), 0.0);
 }

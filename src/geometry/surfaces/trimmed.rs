@@ -9,7 +9,7 @@ use crate::geometry::curves::{Curve, Curve2D, TrimmedCurve, TrimmedCurve2D};
 use crate::math::parameter_range::{ParameterRange, RangeError};
 
 use crate::Continuity;
-use crate::bounding_box::elementary_patch_box;
+use crate::bounding_box::tight_patch_box;
 use crate::geometry::curves::RangeOperations;
 use crate::geometry::surfaces::{
     BSplineSurface, BezierSurface, Cone, Curve3DToUvError, Cylinder, ElementarySurface,
@@ -535,19 +535,18 @@ impl<S: ParametricSurface + HasBoundingBox> HasBoundingBox for TrimmedSurface<S>
         patch.map_or_else(|| self.basis.bounding_box(), |patch| patch.bounding_box())
     }
 
-    /// An elementary basis's patch is boxed in closed form, from the circle
-    /// arcs on which each coordinate's extremes lie, and touches the patch
-    /// on every side. Any other basis's is [`bounding_box`](Self::bounding_box).
+    /// The box of the patch alone, each side within `tol.confusion` of
+    /// it: in closed form on an elementary basis, from the circle arcs on
+    /// which each coordinate's extremes lie; by branch and bound on the
+    /// piece of a B-spline or Bézier basis over the ranges; from the
+    /// profile's tight box over its range on an extrusion; and on a
+    /// revolution surface from the tight boxes of the meridians where the
+    /// extremes lie, or by branch and bound when the profile is skew to
+    /// the axis. Any other basis's, or a patch that does not convert, is
+    /// [`bounding_box`](Self::bounding_box).
     fn tight_bounding_box(&self, tol: Tolerance) -> Option<BoundingBox> {
-        let _ = tol;
-        match self.basis.as_elementary() {
-            Some(elementary) => Some(elementary_patch_box(
-                &elementary,
-                self.u_range,
-                self.v_range,
-            )),
-            None => self.bounding_box(),
-        }
+        tight_patch_box(&self.basis, self.u_range, self.v_range, tol)
+            .or_else(|| self.bounding_box())
     }
 }
 
