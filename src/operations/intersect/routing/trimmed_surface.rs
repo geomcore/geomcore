@@ -511,34 +511,38 @@ fn uv_cuts(
         (true, side.u_range, side.basis.u_period(), (low.x, high.x)),
         (false, side.v_range, side.basis.v_period(), (low.y, high.y)),
     ];
+    let mut values = Vec::new();
     for (along_u, ends, period, (lowest, highest)) in directions {
+        values.clear();
         for end in [ends.0, ends.1] {
-            let copies = match period {
+            match period {
                 Some(period) => {
                     let first = ((lowest - end) / period).floor() as i64;
                     let last = ((highest - end) / period).ceil() as i64;
-                    (first..=last)
-                        .map(|copy| end + copy as f64 * period)
-                        .collect()
+                    values.extend((first..=last).map(|copy| end + copy as f64 * period));
                 }
-                None => vec![end],
-            };
-            for value in copies {
-                let line = if along_u {
-                    Line2D::new(Point2D::new(value, 0.0), Vector2D::Y)
-                } else {
-                    Line2D::new(Point2D::new(0.0, value), Vector2D::X)
-                };
-                let Ok(line) = line else { continue };
-                let found = piece.intersect(&line, tol);
-                cuts.extend(found.hits().iter().map(|hit| hit.first_parameter));
-                cuts.extend(
-                    found
-                        .overlaps()
-                        .iter()
-                        .flat_map(|overlap| [overlap.first_range.0, overlap.first_range.1]),
-                );
+                None => values.push(end),
             }
+        }
+        // The two ends of a whole period are copies of one another: their
+        // lines are searched once.
+        values.sort_by(f64::total_cmp);
+        values.dedup();
+        for &value in &values {
+            let line = if along_u {
+                Line2D::new(Point2D::new(value, 0.0), Vector2D::Y)
+            } else {
+                Line2D::new(Point2D::new(0.0, value), Vector2D::X)
+            };
+            let Ok(line) = line else { continue };
+            let found = piece.intersect(&line, tol);
+            cuts.extend(found.hits().iter().map(|hit| hit.first_parameter));
+            cuts.extend(
+                found
+                    .overlaps()
+                    .iter()
+                    .flat_map(|overlap| [overlap.first_range.0, overlap.first_range.1]),
+            );
         }
     }
 }

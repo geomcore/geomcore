@@ -2214,3 +2214,37 @@ fn test_project_point_far_from_origin() {
         }
     }
 }
+
+#[test]
+fn test_span_bezier_pieces_match_each_span_built_alone() {
+    let clamped = BSplineCurve::new(
+        2,
+        periodic_ring_curve().poles().to_vec(),
+        vec![-1.0, 0.5, 2.0, 4.0, 4.5],
+        vec![3, 1, 1, 1, 3],
+        false,
+    )
+    .unwrap();
+    for curve in [
+        clamped,
+        periodic_ring_curve(),
+        periodic_seam_curve(false),
+        periodic_seam_curve(true),
+        short_periodic_curve(),
+    ] {
+        let knots = curve.knots();
+        let pieces = curve.span_bezier_pieces();
+        let mut alone = vec![[0.0; 4]; curve.degree() + 1];
+        for (index, span) in knots.windows(2).enumerate() {
+            curve.span_bezier_points(0.5 * (span[0] + span[1]), &mut alone);
+            for (cached, built) in pieces.piece(index).iter().zip(&alone) {
+                for (c, b) in cached.iter().zip(built) {
+                    assert!(
+                        (c - b).abs() <= 1e-12 * (1.0 + b.abs()),
+                        "span {index}: {c} against {b}"
+                    );
+                }
+            }
+        }
+    }
+}

@@ -9,7 +9,7 @@
 use crate::geometry::curves::BSplineCurve;
 use crate::geometry::curves::ParametricCurve;
 use crate::math::bspline::surface::{self as bspline_surface, Interval};
-use crate::math::numeric::boxtree::Aabb;
+use crate::math::numeric::boxtree::{Aabb, boxes_apart};
 
 /// The Bézier pieces of a B-spline curve over a parameter range: one per
 /// knot span the range meets, cut to the range.
@@ -26,7 +26,19 @@ pub(crate) struct CurvePieces {
 impl CurvePieces {
     /// The pieces of `curve` over `[lo, hi]`, which lies within its bounds
     /// unless the curve is periodic; a periodic range may cross the seam.
-    pub(crate) fn new(curve: &BSplineCurve, (lo, hi): (f64, f64)) -> Self {
+    pub(crate) fn new(curve: &BSplineCurve, range: (f64, f64)) -> Self {
+        Self::near(curve, range, None)
+    }
+
+    /// The pieces of `curve` over `[lo, hi]`, as [`new`](Self::new), but
+    /// only those over a knot span whose control points come within `gap`
+    /// of the box `near`, if given: a piece farther off meets nothing in
+    /// the box.
+    pub(crate) fn near(
+        curve: &BSplineCurve,
+        (lo, hi): (f64, f64),
+        near: Option<(&Aabb, f64)>,
+    ) -> Self {
         let width = curve.degree() + 1;
         let knots = curve.knots();
         let period = curve
@@ -53,12 +65,17 @@ impl CurvePieces {
         let n = breaks.len() - 1;
         let mut points = Vec::with_capacity(n * width * 4);
         let mut ranges = Vec::with_capacity(n);
+        let spans = curve.span_bezier_pieces();
         let mut span = vec![[0.0; 4]; width];
         for w in breaks.windows(2) {
             let (t0, t1) = (w[0], w[1]);
-            let mid = 0.5 * (t0 + t1);
-            curve.span_bezier_points(mid, &mut span);
-            let (a, b) = span_around(knots, period, mid);
+            let (index, (a, b)) = span_around(knots, period, 0.5 * (t0 + t1));
+            if let Some((near, gap)) = near
+                && boxes_apart(spans.bounding_box(index), near, gap)
+            {
+                continue;
+            }
+            span.copy_from_slice(spans.piece(index));
             restrict(&mut span, (t0 - a) / (b - a), (t1 - a) / (b - a));
             points.extend(span.iter().flatten());
             ranges.push((t0, t1));
@@ -94,14 +111,14 @@ impl CurvePieces {
     }
 }
 
-/// The knot span `[a, b]` containing `t`, the knots repeated every
-/// `period` on a periodic curve.
-fn span_around(knots: &[f64], period: Option<f64>, t: f64) -> (f64, f64) {
+/// The index of the knot span containing `t` and the span `[a, b]`, the
+/// knots repeated every `period` on a periodic curve.
+fn span_around(knots: &[f64], period: Option<f64>, t: f64) -> (usize, (f64, f64)) {
     let shift = period.map_or(0.0, |p| ((t - knots[0]) / p).floor() * p);
     let j = knots
         .partition_point(|&k| k + shift <= t)
         .clamp(1, knots.len() - 1);
-    (knots[j - 1] + shift, knots[j] + shift)
+    (j - 1, (knots[j - 1] + shift, knots[j] + shift))
 }
 
 /// Cuts the Bézier control points `points`, over `[0, 1]`, to the
@@ -208,6 +225,25 @@ impl Pool {
 /// The Euclidean points of homogeneous `(x w, y w, z w, w)` points.
 pub(crate) fn euclidean(homogeneous: &[f64], out: &mut Vec<[f64; 3]>) {
     bspline_surface::net_points(homogeneous, 4, out);
+}
+
+/// The box of the control points of `curve`, which holds the curve.
+pub(crate) fn curve_box(curve: &BSplineCurve) -> Aabb {
+    let empty = [
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+    ];
+    curve.poles().iter().fold(empty, |mut b, p| {
+        for (c, x) in [p.x, p.y, p.z].into_iter().enumerate() {
+            b[c] = b[c].min(x);
+            b[c + 3] = b[c + 3].max(x);
+        }
+        b
+    })
 }
 
 /// The axis-aligned box of `points`.

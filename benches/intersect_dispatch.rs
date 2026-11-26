@@ -703,6 +703,53 @@ fn bench_trimmed_plane_sphere(c: &mut Criterion) {
     group.finish();
 }
 
+/// A square plane patch across a whole torus patch of radii 3 and 1 in the
+/// tilted frame of the sphere cases, three ways: normal to the axis, two
+/// circles; through the axis, the two tube circles of a meridian plane;
+/// and oblique, a quartic fitted with curves in the torus's parameters,
+/// cut against each side line of the patch.
+fn bench_trimmed_plane_torus(c: &mut Criterion) {
+    use std::f64::consts::TAU;
+    let tol = Tolerance::default();
+    let mut group = c.benchmark_group("intersect_routed/trimmed/plane_torus");
+    let frame = Frame::new(
+        Point::new(0.3, -0.2, 0.5),
+        Vector::new(0.2, -0.3, 1.0),
+        Vector::new(1.0, 0.4, 0.0),
+    )
+    .unwrap();
+    let torus = Torus::from_frame(frame, 3.0, 1.0)
+        .unwrap()
+        .trimmed((0.0, TAU), (0.0, TAU))
+        .unwrap();
+    let axis = Vector::from(frame.z_direction());
+    let planes = [
+        ("normal", frame.origin() + 0.5 * axis, axis),
+        (
+            "oblique",
+            frame.origin() + 0.5 * axis,
+            axis + 0.3 * Vector::from(frame.x_direction()),
+        ),
+        (
+            "meridian",
+            frame.origin(),
+            Vector::from(frame.y_direction()),
+        ),
+    ];
+    for (name, point, normal) in planes {
+        let patch = Plane::new(point, normal)
+            .unwrap()
+            .trimmed((-5.0, 5.0), (-5.0, 5.0))
+            .unwrap();
+        let result = patch.intersect(&torus, tol);
+        assert!(!result.curves().is_empty());
+        group.bench_function(name, |b| {
+            b.iter(|| black_box(black_box(&patch).intersect(&torus, tol)))
+        });
+    }
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_intersect_dispatch,
@@ -714,6 +761,7 @@ criterion_group!(
     bench_torus_quartics,
     bench_torus_octics,
     bench_trimmed,
-    bench_trimmed_plane_sphere
+    bench_trimmed_plane_sphere,
+    bench_trimmed_plane_torus
 );
 criterion_main!(benches);

@@ -20,7 +20,7 @@ use crate::geometry::curves::{
 use crate::math::bspline::curve as math;
 use crate::math::bspline::curve::SpanEnds;
 use crate::math::bspline::editing::{self, Elevation, Insertion, Lanes};
-use crate::math::numeric::boxtree::{BoxTree, Lazy};
+use crate::math::numeric::boxtree::{Aabb, BoxTree, Lazy};
 use crate::math::numeric::quadrature;
 use crate::operations::projection::{CurveProjection, grows_inward, snap_distance};
 use crate::{
@@ -30,6 +30,7 @@ use crate::{
 use crate::{Continuity, Point, Point2D, Tolerance};
 use crate::{TransformError, Transformable};
 use std::fmt;
+use std::sync::{Arc, OnceLock};
 
 /// Error returned by [`BSplineCurve::with_pole`] and
 /// [`BSplineCurve::with_weight`].
@@ -97,9 +98,8 @@ pub struct GenericBSplineCurve<P: TierPoint> {
     poles: Vec<P>,
     /// One weight per pole if rational.
     weights: Option<Vec<f64>>,
-    /// Bounding-box hierarchy of the knot spans, built on the first
-    /// projection.
-    spans: Lazy<SpanTree>,
+    /// Data over the knot spans, each built on first use.
+    spans: Lazy<SpanData>,
 }
 
 /// A B-spline (optionally rational, optionally periodic) curve in space,
@@ -173,6 +173,65 @@ pub type BSplineCurve = GenericBSplineCurve<Point>;
 /// assert_eq!(curve.bounds(), (0.0, 3.0));
 /// ```
 pub type BSplineCurve2D = GenericBSplineCurve<Point2D>;
+
+/// Data over the knot spans of a curve, in one lazily allocated block so
+/// the curve stays small.
+#[derive(Clone, Default)]
+struct SpanData {
+    /// Bounding-box hierarchy of the knot spans, built on the first
+    /// projection.
+    tree: OnceLock<SpanTree>,
+    /// The Bézier pieces over the knot spans, built on the first numeric
+    /// intersection search, shared with the curve's embedding in space.
+    pieces: OnceLock<Arc<SpanBezierPieces>>,
+}
+
+/// The Bézier pieces of a curve over its knot spans, from the lower bound
+/// (one period of a periodic curve): the homogeneous control points
+/// `(x w, y w, z w, w)` of each span, `z = 0` in the plane, so a curve in
+/// the plane and the same curve embedded in space share them.
+#[derive(Clone)]
+pub(crate) struct SpanBezierPieces {
+    /// Control points per piece: the degree plus one.
+    width: usize,
+    /// `width` points per piece, the pieces one after the other.
+    points: Vec<[f64; 4]>,
+    /// The box of each piece's Euclidean control points, which holds it.
+    boxes: Vec<Aabb>,
+}
+
+impl SpanBezierPieces {
+    /// The control points of the piece over the `index`-th knot span.
+    pub(crate) fn piece(&self, index: usize) -> &[[f64; 4]] {
+        &self.points[index * self.width..(index + 1) * self.width]
+    }
+
+    /// The box of the piece over the `index`-th knot span.
+    pub(crate) fn bounding_box(&self, index: usize) -> &Aabb {
+        &self.boxes[index]
+    }
+}
+
+/// The axis-aligned box of the Euclidean points of the homogeneous
+/// control points `points`.
+fn homogeneous_box(points: &[[f64; 4]]) -> Aabb {
+    let mut b = [
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+    ];
+    for point in points {
+        for c in 0..3 {
+            let x = point[c] / point[3];
+            b[c] = b[c].min(x);
+            b[c + 3] = b[c + 3].max(x);
+        }
+    }
+    b
+}
 
 /// The knot-span boundaries of a curve and the box hierarchy over its spans.
 #[derive(Clone)]
@@ -1536,9 +1595,14 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
         }
     }
 
+    /// The data over the knot spans, allocated on first use.
+    fn span_data(&self) -> &SpanData {
+        self.spans.get_or_init(SpanData::default)
+    }
+
     /// The knot-span box hierarchy, built on first use.
     fn span_tree(&self) -> &SpanTree {
-        self.spans.get_or_init(|| {
+        self.span_data().tree.get_or_init(|| {
             let breaks = self.knots.breaks();
             let boxes = math::span_boxes(&self.knots, self.pole_view(), &breaks);
             SpanTree {
@@ -1570,13 +1634,39 @@ impl<P: TierPoint> GenericBSplineCurve<P> {
     pub(crate) fn for_each_bezier_piece(&self, visit: impl FnMut(f64, f64, &[[f64; 4]])) {
         editing::homogeneous_curve_pieces(&self.knots, &self.poles, self.weights.as_deref(), visit);
     }
+
+    /// The Bézier pieces over the knot spans, built on first use by one
+    /// sweep of knot insertion.
+    pub(crate) fn span_bezier_pieces(&self) -> &Arc<SpanBezierPieces> {
+        self.span_data().pieces.get_or_init(|| {
+            let width = self.degree() + 1;
+            let mut points = Vec::with_capacity(width * (self.knots().len() - 1));
+            let mut boxes = Vec::with_capacity(self.knots().len() - 1);
+            self.for_each_bezier_piece(|_, _, piece| {
+                points.extend_from_slice(piece);
+                boxes.push(homogeneous_box(piece));
+            });
+            Arc::new(SpanBezierPieces {
+                width,
+                points,
+                boxes,
+            })
+        })
+    }
 }
 
 impl BSplineCurve2D {
     /// The curve in space at `z = 0`, with the same parameters.
+    /// Its Bézier pieces are built here, on the curve in the plane, and
+    /// shared: the searches that embed the same curve again and again build
+    /// them once.
     pub(crate) fn embedded(&self) -> BSplineCurve {
         let poles = self.poles.iter().map(|&p| p.embedded()).collect();
-        GenericBSplineCurve::from_knot_vector(self.knots.clone(), poles, self.weights.clone())
+        let curve =
+            GenericBSplineCurve::from_knot_vector(self.knots.clone(), poles, self.weights.clone());
+        let pieces = Arc::clone(self.span_bezier_pieces());
+        curve.span_data().pieces.get_or_init(|| pieces);
+        curve
     }
 }
 

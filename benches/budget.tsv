@@ -191,6 +191,9 @@ intersect_dispatch	intersect_routed/trimmed/plane_half_cylinder	30082
 intersect_dispatch	intersect_routed/trimmed/plane_sphere/meridian	46144
 intersect_dispatch	intersect_routed/trimmed/plane_sphere/oblique	46202
 intersect_dispatch	intersect_routed/trimmed/plane_sphere/parallel	39646
+intersect_dispatch	intersect_routed/trimmed/plane_torus/meridian	53785
+intersect_dispatch	intersect_routed/trimmed/plane_torus/normal	51784
+intersect_dispatch	intersect_routed/trimmed/plane_torus/oblique	3461897
 intersect_dispatch	intersect_routed/trimmed/stacked_cylinder_faces	38708
 intersect_dispatch	intersect_routed/two_cones/arcs_exact	7007
 intersect_dispatch	intersect_routed/two_cones/arcs_routed	2351394
