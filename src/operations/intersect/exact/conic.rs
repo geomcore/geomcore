@@ -324,8 +324,23 @@ pub(crate) fn intersect_conic_quadric<C: Conic, S: Quadric>(
     quadric: &S,
     tol: Tolerance,
 ) -> ConicSurfaceIntersection {
+    intersect_conic_quadric_in(conic, quadric, None, tol)
+}
+
+/// [`intersect_conic_quadric`] for the conic restricted to `range`. A
+/// closed conic lying within a few tolerances of the quadric reads its
+/// contacts over the range itself, each at its parameter in it (see
+/// [`near_section`]); every other answer is over the whole conic, its
+/// hits clipped to the range by the caller.
+#[inline]
+pub(crate) fn intersect_conic_quadric_in<C: Conic, S: Quadric>(
+    conic: &C,
+    quadric: &S,
+    range: Option<(f64, f64)>,
+    tol: Tolerance,
+) -> ConicSurfaceIntersection {
     if !S::LINEAR
-        && let Some(near) = near_section::closed_conic_near(conic, quadric, tol)
+        && let Some(near) = near_section::closed_conic_near(conic, quadric, range, tol)
     {
         return near;
     }

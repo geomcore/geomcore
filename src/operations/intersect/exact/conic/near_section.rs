@@ -25,10 +25,23 @@
 //!
 //! The answer follows the stretches. A conic within the tolerance all
 //! along lies on the surface. Each run of stretches within the tolerance
-//! holds its crossings of the surface, found where the distance changes
-//! sign, or, with none, one touching point where the conic comes nearest.
+//! is one contact (ADR 0034): the conic stays within the tolerance from
+//! one end of the run to the other. Its point is a crossing of the
+//! surface, found where the distance changes sign, or, with none, where
+//! the conic comes nearest; it touches, multiplicity 2, unless the run
+//! crosses the surface an odd number of times.
+//!
+//! On a curve restricted to a range, the runs are clipped to it first:
+//! the pieces of one run on either side of a gap in the range are joined
+//! only outside it, and are two contacts. Each contact keeps the
+//! parameter it was found at. On a conic a few tolerances across, points
+//! a radian apart lie within the tolerance of each other, so the
+//! parameter cannot be read back from the point, nor snapped to the seam
+//! or to an end of the range by the length of arc between: either would
+//! move it to where the conic may be beyond the tolerance (#516).
 
 use super::{Conic, ConicShape, Quadric, section_candidates};
+use crate::math::parameter_range::wrap_angle;
 use crate::operations::intersect::implicit::QuadricEquation;
 use crate::operations::intersect::{ConicSurfaceHit, ConicSurfaceIntersection};
 use crate::{InlineList, Tolerance};
@@ -44,16 +57,21 @@ const NEAR: f64 = 64.0;
 const STEPS: usize = 64;
 
 /// Samples along a run within the tolerance where the distance's sign is
-/// read: crossings closer than a sample apart may read as one touching
-/// point, within the tolerance as the run is.
+/// read: crossings closer than a sample apart may read as none, within
+/// the tolerance as the run is.
 const RUN_SAMPLES: usize = 64;
 
 /// The answer for a circle or an ellipse within [`NEAR`] tolerances of
 /// `quadric` at five samples, from its stretches within the tolerance;
 /// `None` for any other conic, which the substituted equation answers.
+///
+/// With a `range`, the contacts are those of the arc over it, each at its
+/// parameter in the range; without one, at its parameter in `[0, 2π)`. A
+/// range of a whole turn or more is the whole conic.
 pub(super) fn closed_conic_near<C: Conic, Q: Quadric>(
     conic: &C,
     quadric: &Q,
+    range: Option<(f64, f64)>,
     tol: Tolerance,
 ) -> Option<ConicSurfaceIntersection> {
     if !matches!(conic.shape(), ConicShape::Ellipse { .. }) {
@@ -104,6 +122,7 @@ pub(super) fn closed_conic_near<C: Conic, Q: Quadric>(
     // Runs of consecutive stretches within the tolerance, from the
     // stretch after one beyond it round to that one, which closes the
     // last run.
+    let range = range.filter(|&(first, last)| last - first < TAU);
     let mut hits = Vec::new();
     let mut run: Option<(f64, f64)> = None;
     for k in 1..=count {
@@ -114,8 +133,19 @@ pub(super) fn closed_conic_near<C: Conic, Q: Quadric>(
                 Some((low, _)) => (low, unwrapped(low, end)),
                 None => (start, end),
             });
-        } else if let Some((low, high)) = run.take() {
-            push_contacts(&mut hits, conic, &at, low, high, tol);
+        } else if let Some(run) = run.take() {
+            for &(low, high, shift) in &pieces_in_range(run, range) {
+                let (t, multiplicity) = contact(&at, low, high);
+                let parameter = match range {
+                    Some((first, last)) => (t - shift).clamp(first, last),
+                    None => wrap_angle(t),
+                };
+                hits.push(ConicSurfaceHit {
+                    parameter,
+                    point: conic.point_at(parameter),
+                    multiplicity,
+                });
+            }
         }
     }
     if hits.is_empty() {
@@ -162,27 +192,41 @@ fn band_edges<C: Conic, Q: Quadric>(
     edges
 }
 
-/// The contacts of the run `[low, high]` within the tolerance: each
-/// crossing of the surface in it, found where the distance changes sign
-/// between [`RUN_SAMPLES`] samples, else the touching point where it
-/// comes nearest.
-fn push_contacts<C: Conic>(
-    hits: &mut Vec<ConicSurfaceHit>,
-    conic: &C,
-    at: &impl Fn(f64) -> f64,
-    low: f64,
-    high: f64,
-    tol: Tolerance,
-) {
-    let mut push = |t: f64, multiplicity: u32| {
-        hits.push(ConicSurfaceHit {
-            parameter: conic.parameter_in_bounds(t, tol),
-            point: conic.point_at(t),
-            multiplicity,
-        });
+/// The pieces of the run `(low, high)` in `range`, each as `(low, high,
+/// shift)` with `shift` the whole turns that bring it into the range:
+/// the run itself without a range, and none, one or two pieces with one
+/// shorter than a turn.
+fn pieces_in_range(
+    (low, high): (f64, f64),
+    range: Option<(f64, f64)>,
+) -> InlineList<(f64, f64, f64), 3> {
+    let mut pieces = InlineList::new();
+    let Some((first, last)) = range else {
+        pieces.push((low, high, 0.0));
+        return pieces;
     };
+    let mut turns = ((low - last) / TAU).floor();
+    while turns * TAU + first <= high && pieces.len() < 3 {
+        let shift = turns * TAU;
+        let (start, end) = (low.max(first + shift), high.min(last + shift));
+        if start <= end {
+            pieces.push((start, end, shift));
+        }
+        turns += 1.0;
+    }
+    pieces
+}
+
+/// The one contact of a run, or of its piece in a range, `[low, high]`
+/// within the tolerance, and its multiplicity: the crossing of the
+/// surface nearest the middle, found where the distance changes sign
+/// between [`RUN_SAMPLES`] samples, else the point where the conic comes
+/// nearest. It crosses, multiplicity 1, when the distance changes sign an
+/// odd number of times along it, and touches, multiplicity 2, otherwise.
+fn contact(at: &impl Fn(f64) -> f64, low: f64, high: f64) -> (f64, u32) {
+    let middle = 0.5 * (low + high);
     let step = (high - low) / RUN_SAMPLES as f64;
-    let mut crossed = false;
+    let (mut crossings, mut chosen) = (0u32, None::<f64>);
     let (mut previous, mut at_previous) = (low, at(low));
     for k in 1..=RUN_SAMPLES {
         let t = if k == RUN_SAMPLES {
@@ -192,13 +236,17 @@ fn push_contacts<C: Conic>(
         };
         let value = at(t);
         if value.signum() != at_previous.signum() {
-            push(sign_change(at, previous, t, at_previous), 1);
-            crossed = true;
+            let crossing = sign_change(at, previous, t, at_previous);
+            crossings += 1;
+            if chosen.is_none_or(|c| (crossing - middle).abs() < (c - middle).abs()) {
+                chosen = Some(crossing);
+            }
         }
         (previous, at_previous) = (t, value);
     }
-    if !crossed {
-        push(nearest(at, low, high), 2);
+    match chosen {
+        Some(t) => (t, if crossings % 2 == 1 { 1 } else { 2 }),
+        None => (nearest(at, low, high), 2),
     }
 }
 
