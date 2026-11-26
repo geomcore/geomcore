@@ -147,7 +147,9 @@ fn test_a_circle_leaving_the_tolerance_between_samples_is_not_on_the_cone() {
     assert!(!hits.is_empty());
 }
 
-/// The crossing at 0.1701 is found there, not merged with the seam.
+/// The contact at 0.1701 is found there, not merged with the seam. The
+/// circle crosses the cone twice within one stretch within the
+/// tolerance there, which is one touching contact (ADR 0034).
 #[test]
 fn test_a_crossing_near_the_seam_is_found_where_it_is() {
     let (circle, cone) = build((
@@ -183,8 +185,7 @@ fn test_a_crossing_near_the_seam_is_found_where_it_is() {
     ));
     let hits = hits(&circle, &cone);
     assert!(
-        hits.iter()
-            .any(|h| h.multiplicity == 1 && (h.parameter - 0.1701).abs() < 5e-3),
+        hits.iter().any(|h| (h.parameter - 0.1701).abs() < 5e-3),
         "{hits:?}"
     );
 }
@@ -444,3 +445,5 @@ fn test_near_sections_of_a_cylinder_agree_with_the_sampled_distance() {
         );
     }
 }
+
+mod tiny_arcs;

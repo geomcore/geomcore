@@ -29,7 +29,7 @@ use crate::geometry::curves::{
 use crate::geometry::surfaces::{Cone, Cylinder, ElementarySurface, Plane, Sphere, Torus};
 use crate::operations::intersect::{
     CurveCurveIntersection, CurveCurveIntersection2D, CurveSurfaceIntersection, IntersectExact,
-    SurfaceSurfaceIntersection,
+    SurfaceSurfaceIntersection, intersect_conic_quadric_in,
 };
 
 /// The parameter ranges restricting the two operands of a pair, `None`
@@ -371,6 +371,26 @@ macro_rules! curve_surface {
             }
         }
     )*)*};
+    (near_sections: $($curve:ty => [$($surface:ty),*]),*) => {$($(
+        impl ExactFamily<$surface> for $curve {
+            type Family = CurveSurfaceIntersection;
+
+            /// Solved over the range: a closed conic within a few
+            /// tolerances of the surface reads its contacts over the range
+            /// itself, at the parameters they were found at (#516).
+            #[inline]
+            fn exact_family(
+                &self,
+                surface: &$surface,
+                (range, _): Ranges,
+                tol: Tolerance,
+                _numeric_search: impl FnOnce() -> CurveSurfaceIntersection,
+            ) -> CurveSurfaceIntersection {
+                intersect_conic_quadric_in(self, surface, range, tol)
+                    .into_family(self, surface, range, tol)
+            }
+        }
+    )*)*};
     (unlisted: $($curve:ty => $surface:ty),*) => {$(
         impl ExactFamily<$surface> for $curve {
             type Family = CurveSurfaceIntersection;
@@ -396,10 +416,16 @@ macro_rules! curve_surface {
 curve_surface!(
     solved:
     Line => [Plane, Cylinder, Cone, Sphere, Torus],
-    Circle => [Plane, Cylinder, Cone, Sphere, Torus],
-    Ellipse => [Plane, Cylinder, Cone, Sphere],
+    Circle => [Plane, Torus],
+    Ellipse => [Plane],
     Parabola => [Plane, Cylinder, Cone, Sphere],
     Hyperbola => [Plane, Cylinder, Cone, Sphere]
+);
+
+curve_surface!(
+    near_sections:
+    Circle => [Cylinder, Cone, Sphere],
+    Ellipse => [Cylinder, Cone, Sphere]
 );
 
 curve_surface!(

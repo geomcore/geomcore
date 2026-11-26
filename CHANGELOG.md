@@ -54,6 +54,20 @@ the Python distribution are versioned in lockstep.
 
 ### Fixed
 
+- A circle or an ellipse a few tolerances across, lying close to a
+  sphere, a cylinder or a cone, reports each contact at the parameter it
+  was found at, inside the trimmed curve's range (#516). The parameter
+  was snapped to the seam when the arc to it was within `tol.confusion`,
+  then to the nearer end of the range by the same rule; on an arc of
+  radius 5e-8 that moves it by up to two radians, to where the arc was
+  1.06 tolerances from a cone, onto one parameter for two crossings, or
+  1.58 tolerances off the point. The stretches within the tolerance are
+  now clipped to the range before their contacts are read, so a stretch
+  reaching into the range from outside it gives the point at the range's
+  end, and a stretch is one contact (ADR 0034): two crossings 0.7
+  tolerances apart with the arc within the tolerance between them are
+  one touching point.
+
 - `TrimmedSurface::tight_bounding_box` over a B-spline, a Bézier, an
   extrusion or a revolution surface touches the patch on every side,
   within `tol.confusion` (#512). It returned `bounding_box`: over a
