@@ -21,6 +21,7 @@ use crate::geometry::surfaces::ParametricSurface;
 use crate::math::numeric::boxtree::Aabb;
 use crate::math::parameter_domain::ParameterDomain;
 use crate::operations::extrema::CurveCurveExtremum;
+use crate::operations::intersect::numeric::bezier_pieces::curve_box;
 use crate::operations::intersect::numeric::curve_curve_hull::bspline_curve_curve;
 use crate::operations::intersect::numeric::curve_surface_hull::{
     CurveSurfaceHits, bspline_curve_surface,
@@ -31,25 +32,6 @@ use crate::operations::intersect::numeric::surface_patches::{
 use crate::operations::intersect::results::sort_by_parameter;
 use crate::operations::intersect::{Completeness, CurveCurveRegion};
 use crate::{Point, Tolerance, Vector};
-
-/// The box of the control points of `curve`, which holds the curve.
-fn curve_box(curve: &BSplineCurve) -> Aabb {
-    let empty = [
-        f64::INFINITY,
-        f64::INFINITY,
-        f64::INFINITY,
-        f64::NEG_INFINITY,
-        f64::NEG_INFINITY,
-        f64::NEG_INFINITY,
-    ];
-    curve.poles().iter().fold(empty, |mut b, p| {
-        for (c, x) in [p.x, p.y, p.z].into_iter().enumerate() {
-            b[c] = b[c].min(x);
-            b[c + 3] = b[c + 3].max(x);
-        }
-        b
-    })
-}
 
 /// The range of `t` over which `origin + t direction` lies inside `b`,
 /// with `lo > hi` when it misses `b`.

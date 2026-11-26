@@ -11,6 +11,19 @@ the Python distribution are versioned in lockstep.
 
 ### Changed
 
+- An oblique plane patch across a torus patch takes about 330 µs instead
+  of about 740 µs (#514). Its section is a fitted quartic carrying fitted
+  curves in the torus's parameters, and clipping them to the patch
+  searched each curve against every side line of the patch: every search
+  built all the Bézier pieces of the curve again, about two hundred, and
+  the two ends of a whole turn were searched twice. A B-spline now builds
+  its Bézier pieces and their boxes once, on first use, shares them with
+  its embedding in space, and a search between two curves keeps only the
+  pieces near the other curve's control points. Clipping falls from 8.2
+  to 1.3 million instructions; what remains is mostly the fit of the
+  quartic itself, which the same section on an untrimmed torus also pays
+  (about 225 µs).
+
 - A plane patch across a sphere patch takes a few microseconds in every
   direction (#509). The circle was clipped to the sphere's ranges through
   its curve in the sphere's parameters, which has no exact form unless

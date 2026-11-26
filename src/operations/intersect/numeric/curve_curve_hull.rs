@@ -9,8 +9,8 @@ use crate::math::numeric::solve_2x2;
 use crate::math::parameter_domain::ParameterDomain;
 use crate::operations::extrema::CurveCurveExtremum;
 use crate::operations::intersect::numeric::bezier_pieces::{
-    CurvePieces, apart_along, bounding_box, box_size, cross, curves_meet_at_most_once, dot,
-    euclidean, norm, sub,
+    CurvePieces, apart_along, bounding_box, box_size, cross, curve_box, curves_meet_at_most_once,
+    dot, euclidean, norm, sub,
 };
 use crate::operations::intersect::numeric::curve_curve::distinct_contacts;
 use crate::operations::intersect::numeric::subdivision::{
@@ -171,10 +171,18 @@ fn search_candidates(
     // from it, their halvings then round about the curves' own size.
     let start = a.poles()[0];
     let origin = [start.x, start.y, start.z];
+    // A piece of either curve beyond the box of the other's control
+    // points meets nothing: a long curve against a short one builds only
+    // its pieces near the short one.
+    let gap = tol.confusion;
     let (pieces_a, pieces_b) = (
-        CurvePieces::new(a, (ra.start(), ra.end())).moved_from(origin),
-        CurvePieces::new(b, (rb.start(), rb.end())).moved_from(origin),
+        CurvePieces::near(a, (ra.start(), ra.end()), Some((&curve_box(b), gap))).moved_from(origin),
+        CurvePieces::near(b, (rb.start(), rb.end()), Some((&curve_box(a), gap))).moved_from(origin),
     );
+    if pieces_a.len() == 0 || pieces_b.len() == 0 {
+        // The curves' boxes are apart.
+        return (Vec::new(), Completeness::Complete);
+    }
     let mut pairs = Subdivision::new(
         [pieces_a.width, pieces_b.width].map(|w| (w, 1, 4)),
         room(pieces_a.len() + pieces_b.len()),
