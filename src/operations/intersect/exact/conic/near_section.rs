@@ -88,14 +88,30 @@ pub(super) fn closed_conic_near<C: Conic, Q: Quadric>(
     {
         return None;
     }
+    Some(read_stretches(conic, quadric, range, tol))
+}
+
+/// The answer of [`closed_conic_near`] once the five samples have put the
+/// conic near the surface: rare, so kept out of line.
+#[cold]
+#[inline(never)]
+fn read_stretches<C: Conic, Q: Quadric>(
+    conic: &C,
+    quadric: &Q,
+    range: Option<(f64, f64)>,
+    tol: Tolerance,
+) -> ConicSurfaceIntersection {
+    let band = tol.confusion;
+    let equation = quadric.equation();
+    let at = |t: f64| equation.signed_distance(conic.point_at(t));
     let edges = band_edges(conic, quadric, band, tol);
     let within = |t: f64| at(t).abs() <= band;
     if edges.is_empty() {
-        return Some(if within(0.0) {
+        return if within(0.0) {
             ConicSurfaceIntersection::Coincident
         } else {
             ConicSurfaceIntersection::Empty
-        });
+        };
     }
     // The stretches between consecutive edges, around the turn.
     let count = edges.len();
@@ -117,7 +133,7 @@ pub(super) fn closed_conic_near<C: Conic, Q: Quadric>(
     // Edges alone, with no stretch beyond the tolerance, are rounding:
     // the conic is within it all along.
     let Some(first_out) = inside.iter().position(|&i| !i) else {
-        return Some(ConicSurfaceIntersection::Coincident);
+        return ConicSurfaceIntersection::Coincident;
     };
     // Runs of consecutive stretches within the tolerance, from the
     // stretch after one beyond it round to that one, which closes the
@@ -149,10 +165,10 @@ pub(super) fn closed_conic_near<C: Conic, Q: Quadric>(
         }
     }
     if hits.is_empty() {
-        return Some(ConicSurfaceIntersection::Empty);
+        return ConicSurfaceIntersection::Empty;
     }
     hits.sort_unstable_by(|x, y| x.parameter.total_cmp(&y.parameter));
-    Some(ConicSurfaceIntersection::Hits(hits))
+    ConicSurfaceIntersection::Hits(hits)
 }
 
 /// `end` moved by whole turns to lie after `start`, for a run of
