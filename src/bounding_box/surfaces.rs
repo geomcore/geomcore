@@ -2,8 +2,10 @@
 //! B-splines, the profile's box turned about the axis for revolution
 //! surfaces; planes, cylinders, cones and extrusion surfaces are unbounded.
 //! The tight boxes of B-splines and revolution surfaces come from branch
-//! and bound over Bézier pieces (`tight.rs`). A patch of an elementary
-//! surface has its tight box in closed form ([`elementary_patch_box`]).
+//! and bound over Bézier pieces (`tight.rs`). A patch's tight box
+//! ([`tight_patch_box`]) is in closed form on an elementary surface, from
+//! the profile's tight box on a swept one, and by branch and bound on the
+//! piece of a B-spline cut out over the ranges.
 
 use super::tight::Nets;
 use super::{BoundingBox, HasBoundingBox, trigonometric_box};
@@ -36,13 +38,137 @@ fn centered(center: Point, half: [f64; 3]) -> BoundingBox {
     )
 }
 
+/// The box of the patch of `surface` over `u_range` and `v_range`, each
+/// side within `tol.confusion` of the patch, or `None` for a basis of no
+/// kind below or a patch that does not convert:
+///
+/// - an elementary surface's in closed form ([`elementary_patch_box`]);
+/// - a B-spline or Bézier surface's by branch and bound
+///   ([`BSplineSurface::tight_bounding_box`]) on the piece over the
+///   ranges, cut out by knot insertion at their ends
+///   ([`BSplineSurface::extract`]), so that its control points are those
+///   of the patch alone;
+/// - an extrusion's from the profile's tight box over the `u` range
+///   ([`extrusion_patch_box`]);
+/// - a revolution surface's from the tight boxes of finitely many
+///   meridians, or by branch and bound on its exact B-spline patch when
+///   the profile is skew to the axis ([`revolution_patch_box`]).
+pub(crate) fn tight_patch_box(
+    surface: &impl ParametricSurface,
+    u_range: (f64, f64),
+    v_range: (f64, f64),
+    tol: Tolerance,
+) -> Option<BoundingBox> {
+    if let Some(elementary) = surface.as_elementary() {
+        Some(elementary_patch_box(&elementary, u_range, v_range))
+    } else if let Some(spline) = surface.as_bspline() {
+        spline
+            .extract(u_range, v_range)
+            .ok()?
+            .tight_bounding_box(tol)
+    } else if let Some(extrusion) = surface.as_extrusion() {
+        Some(extrusion_patch_box(extrusion, u_range, v_range, tol))
+    } else if let Some(revolution) = surface.as_revolution() {
+        revolution_patch_box(revolution, u_range, v_range, tol)
+    } else {
+        None
+    }
+}
+
+/// The box of the extrusion's patch over `u_range` and `v_range`. A point
+/// of it is `c(u) + v d`, the profile point `c(u)` moved along the unit
+/// sweep direction `d`, so each coordinate is the sum of one of the
+/// profile's over `u` and one of the segment `v d` over `v`: its extremes
+/// are the sums of theirs. The box is the profile's tight box over the
+/// `u` range widened by the segment's ends, as tight as the profile's.
+fn extrusion_patch_box(
+    extrusion: &ExtrusionSurface,
+    (u_first, u_last): (f64, f64),
+    (v_first, v_last): (f64, f64),
+    tol: Tolerance,
+) -> BoundingBox {
+    let profile = extrusion.profile().tight_range_box(u_first, u_last, tol);
+    let direction = coordinates(Point::ORIGIN + extrusion.direction().vector());
+    let (low, high) = (
+        coordinates(profile.min_corner()),
+        coordinates(profile.max_corner()),
+    );
+    let (first, last) = (
+        direction.map(|d| v_first * d),
+        direction.map(|d| v_last * d),
+    );
+    BoundingBox::from_corners(
+        point(std::array::from_fn(|k| low[k] + first[k].min(last[k]))),
+        point(std::array::from_fn(|k| high[k] + first[k].max(last[k]))),
+    )
+}
+
+/// The box of the revolution surface's patch over `u_range` and
+/// `v_range`, the profile `c(v)` turned by the angle `u` about the axis
+/// through `o` along the unit `a`.
+///
+/// When the profile lies in a plane through the axis, holding the unit
+/// `x` perpendicular to it, each profile point is `o + h(v) a + s(v) x`,
+/// `s(v)` its signed distance from the axis, and turning it by `u` gives
+/// `o + h(v) a + s(v) (cos u x + sin u y)` with `y = a × x`. Coordinate
+/// `k` is then `o_k + h(v) a_k + s(v) (x_k cos u + y_k sin u)`, the form
+/// of the elementary turned surfaces ([`turned_patch_box`]): its
+/// derivative in `u` vanishes only where `s(v)` does, a point of the axis
+/// that every meridian passes through, or at `u = φ_k`, `φ_k + π`,
+/// `φ_k = atan2(y_k, x_k)`. An extreme over the patch, inside it or on a
+/// boundary parallel, has a vanishing derivative in `u` unless it lies on
+/// a boundary meridian, so every extreme lies on the two boundary
+/// meridians or on those at the at most six angles `φ_k`, `φ_k + π` the
+/// `u` range reaches. Each meridian is the profile turned by its angle
+/// ([`RevolutionSurface::u_iso`]), a curve of the profile's kind whose
+/// tight box over the `v` range is solved for: the patch's box is their
+/// union, as tight as theirs.
+///
+/// A profile skew to the axis has no such plane: the angle at which a
+/// coordinate is stationary changes with `v`, and the extremes lie on
+/// curves of the patch rather than on meridians. Its patch is converted
+/// to its exact rational B-spline, whose tight box is found by branch
+/// and bound.
+fn revolution_patch_box(
+    revolution: &RevolutionSurface,
+    (u_first, u_last): (f64, f64),
+    (v_first, v_last): (f64, f64),
+    tol: Tolerance,
+) -> Option<BoundingBox> {
+    let Some(x) = revolution.meridian_reference() else {
+        return revolution
+            .to_bspline_patch((u_first, u_last), (v_first, v_last))
+            .ok()?
+            .tight_bounding_box(tol);
+    };
+    let y = revolution.axis().direction().vector().cross(x);
+    let meridian_box = |u: f64| {
+        let meridian = revolution.u_iso(u).ok()?;
+        Some(meridian.tight_range_box(v_first, v_last, tol))
+    };
+    let mut bounds = meridian_box(u_first)?.union(meridian_box(u_last)?);
+    let (x, y) = (
+        coordinates(Point::ORIGIN + x),
+        coordinates(Point::ORIGIN + y),
+    );
+    for k in 0..3 {
+        let peak = y[k].atan2(x[k]);
+        for u in [peak, peak + PI] {
+            if wrap_into_period(u, u_first, TAU) <= u_last {
+                bounds = bounds.union(meridian_box(u)?);
+            }
+        }
+    }
+    Some(bounds)
+}
+
 /// The tight box of the patch of `surface` over `u_range` and `v_range`,
 /// in closed form: a plane patch's four corners, and for the four
 /// surfaces turned about an axis, the boxes of the circle arcs and
 /// segments on which each coordinate's extremes lie
 /// ([`turned_patch_box`]). Every curve boxed lies on the patch, so the
 /// box touches it on every side, up to the rounding of evaluating it.
-pub(crate) fn elementary_patch_box(
+fn elementary_patch_box(
     surface: &ElementarySurface,
     u_range: (f64, f64),
     v_range: (f64, f64),

@@ -7,7 +7,7 @@ mod curves_2d;
 mod surfaces;
 mod tight;
 
-pub(crate) use surfaces::elementary_patch_box;
+pub(crate) use surfaces::tight_patch_box;
 
 pub(crate) use curves::{
     BoundingBoxOf, box_through, hyperbola_box, parabola_box, sampled_box, spline_box,
@@ -76,9 +76,14 @@ pub trait HasBoundingBox {
     /// over an elementary surface is boxed in closed form, from the circle
     /// arcs on which each coordinate's extremes lie, whatever the width of
     /// its ranges; its `bounding_box` holds the control points of the
-    /// exact B-spline patch instead. A B-spline curve's is solved for, each
-    /// coordinate's extremes where its derivative vanishes on a Bézier
-    /// piece, and is as tight as rounding allows. A B-spline surface's is
+    /// exact B-spline patch instead. Over a B-spline or Bézier surface it
+    /// is the tight box of the piece over its ranges, over an extrusion
+    /// the profile's tight box over its range swept along the direction,
+    /// and over a revolution surface the union of the tight boxes of the
+    /// meridians on which each coordinate's extremes lie. A B-spline
+    /// curve's is solved for, each coordinate's extremes where its
+    /// derivative vanishes on a Bézier piece, and is as tight as rounding
+    /// allows. A B-spline surface's is
     /// found by halving its Bézier patches until their control points come
     /// within `tol.confusion`, and a revolution surface's likewise from its
     /// profile's pieces, at the cost of a few hundred evaluations of the

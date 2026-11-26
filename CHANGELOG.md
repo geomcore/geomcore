@@ -68,6 +68,20 @@ the Python distribution are versioned in lockstep.
   tolerances apart with the arc within the tolerance between them are
   one touching point.
 
+- `TrimmedSurface::tight_bounding_box` over a B-spline, a Bézier, an
+  extrusion or a revolution surface touches the patch on every side,
+  within `tol.confusion` (#512). It returned `bounding_box`: over a
+  B-spline basis the box of every control point of the whole surface,
+  not of the patch. A B-spline or Bézier patch is now cut out of its
+  basis by knot insertion at the range ends and boxed by the branch and
+  bound of `BSplineSurface::tight_bounding_box`. An extrusion patch is
+  the profile's tight box over its `u` range, widened by the sweep over
+  the `v` range. A revolution patch is the union of the tight boxes of
+  the boundary meridians and of those at the at most six angles where a
+  coordinate is stationary along the turn; a profile skew to the axis,
+  whose stationary angle changes along it, is boxed by branch and bound
+  on the patch's exact B-spline. `bounding_box` is unchanged.
+
 - `TrimmedSurface::tight_bounding_box` over a cylinder, a cone, a sphere
   or a torus touches the patch on every side (#508). It returned the box
   of the exact B-spline patch's control points, whose sides stood up to
